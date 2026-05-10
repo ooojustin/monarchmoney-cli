@@ -17,6 +17,7 @@ func (a *App) buildDoctorCommand(parent *cobra.Command) {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			res := doctor.Check(cmd.Context(), connect, doctor.Options{
+				ConfigPath:    a.Deps.ConfigPath(),
 				SessionPath:   a.Deps.SessionPath(),
 				APIEndpoint:   a.Deps.APIEndpoint(),
 				Timeout:       a.Deps.Timeout(),

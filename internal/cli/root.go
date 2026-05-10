@@ -35,8 +35,12 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 			// running without a config file is supported. Done here rather
 			// than via Cobra's global initialization hook so each App's setup is fully
 			// scoped to its own viper, avoiding the global hook list.
-			if cfgFile != "" {
-				v.SetConfigFile(cfgFile)
+			configFile := cfgFile
+			if configFile == "" {
+				configFile = v.GetString("config")
+			}
+			if configFile != "" {
+				v.SetConfigFile(configFile)
 			} else {
 				v.AddConfigPath(config.DefaultDir())
 				v.SetConfigType("yaml")
@@ -69,6 +73,7 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 	a.Deps.Viper.BindPFlag("confirm", root.PersistentFlags().Lookup("confirm"))
 	a.Deps.Viper.BindPFlag("timeout", root.PersistentFlags().Lookup("timeout"))
 	a.Deps.Viper.BindPFlag("profile", root.PersistentFlags().Lookup("profile"))
+	a.Deps.Viper.BindPFlag("config", root.PersistentFlags().Lookup("config"))
 
 	root.AddCommand(a.buildVersion())
 

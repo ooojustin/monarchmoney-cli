@@ -1,5 +1,15 @@
 # monarch Command Reference
 
+## Global Options
+- `--config <file>`: Load configuration from an explicit YAML file. `MONARCH_CONFIG` provides the same path for non-interactive environments.
+- `--json`: Emit machine-readable JSON.
+- `--pretty`: Pretty-print JSON output.
+- `--read-only`: Block remote writes.
+- `--dry-run`: Preview a remote write without executing it.
+- `--confirm`: Explicitly execute a remote write.
+- `--timeout <duration>`: Set command timeout.
+- `--profile <name>`: Use a named profile.
+
 ## Authentication
 - `auth login`: Interactive login to Monarch Money.
 - `auth status`: Check session validity and profile.

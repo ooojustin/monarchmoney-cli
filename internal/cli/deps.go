@@ -54,6 +54,7 @@ type Deps struct {
 	// Configuration accessors evaluated at command time. Defaults are
 	// installed by App.New if left nil so that test mutations to Viper
 	// after construction (e.g. viper.Set("api_endpoint", ...)) take effect.
+	ConfigPath  func() string
 	SessionPath func() string
 	APIEndpoint func() string
 	Timeout     func() time.Duration
@@ -101,9 +102,6 @@ func DefaultDeps() Deps {
 		Viper: v,
 
 		NewStore: auth.NewStore,
-		NewAuditLogger: func() AuditLogger {
-			return audit.NewLogger(config.DefaultAuditDir())
-		},
 
 		Stdout:       os.Stdout,
 		Stderr:       os.Stderr,
@@ -114,6 +112,19 @@ func DefaultDeps() Deps {
 
 		JSONUnmarshal: json.Unmarshal,
 	}
+}
+
+type disabledAuditLogger struct{}
+
+func (disabledAuditLogger) Log(*audit.Record) error {
+	return nil
+}
+
+func defaultAuditLogger(v *viper.Viper) AuditLogger {
+	if !v.GetBool("audit_log") {
+		return disabledAuditLogger{}
+	}
+	return audit.NewLogger(config.DefaultAuditDir())
 }
 
 // LoadService runs the load-session-then-build-service boilerplate that ~50

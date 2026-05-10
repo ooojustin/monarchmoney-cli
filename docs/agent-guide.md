@@ -65,4 +65,10 @@ export MONARCH_EMAIL="agent-runtime@example.com"
 export MONARCH_PASSWORD="..."
 export MONARCH_MFA_SECRET="..."
 export MONARCH_READONLY="1"
+export MONARCH_CONFIG="/path/to/config.yaml"
 ```
+
+Audit logging is enabled by default. Keep it enabled for agent-driven mutation
+workflows unless the runtime has a separate audit trail; set `audit_log: false`
+in the config file only when local JSONL audit records are intentionally
+unwanted.

@@ -78,7 +78,7 @@ All mutations are protected by the [Safety Model](./safety.md).
 - **Dry-run**: Every mutation supports `--dry-run` to preview changes.
 - **Confirmation**: Remote writes require the `--confirm` flag.
 - **Read-only**: Use `MONARCH_READONLY=1` to block all mutations.
-- **Audit Logs**: Every executed mutation is logged to `~/.monarchmoney-cli/audit/`.
+- **Audit Logs**: Executed mutations are logged to `~/.monarchmoney-cli/audit/` by default. Set `audit_log: false` in config to disable local audit logging.
 
 ## Feature Parity with monarch-mcp-server
 

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/thedavidweng/monarchmoney-cli/internal/audit"
 	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
 	"github.com/thedavidweng/monarchmoney-cli/internal/config"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
@@ -44,6 +43,14 @@ type Flags struct {
 func New(deps Deps) *App {
 	a := &App{Deps: deps}
 
+	if a.Deps.ConfigPath == nil {
+		a.Deps.ConfigPath = func() string {
+			if path := a.Deps.Viper.GetString("config"); path != "" {
+				return path
+			}
+			return config.DefaultConfigPath()
+		}
+	}
 	if a.Deps.SessionPath == nil {
 		a.Deps.SessionPath = config.DefaultSessionPath
 	}
@@ -81,7 +88,7 @@ func New(deps Deps) *App {
 	}
 	if a.Deps.NewAuditLogger == nil {
 		a.Deps.NewAuditLogger = func() AuditLogger {
-			return audit.NewLogger(config.DefaultAuditDir())
+			return defaultAuditLogger(a.Deps.Viper)
 		}
 	}
 
