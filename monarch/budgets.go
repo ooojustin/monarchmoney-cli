@@ -3,7 +3,7 @@ package monarch
 import (
 	"context"
 
-	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
+	"github.com/thedavidweng/monarchmoney-cli/monarch/graphql"
 	"github.com/thedavidweng/monarchmoney-cli/queries"
 )
 

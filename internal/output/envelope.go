@@ -3,7 +3,7 @@ package output
 import (
 	"time"
 
-	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
+	"github.com/thedavidweng/monarchmoney-cli/monarch/errors"
 )
 
 // Envelope is the standard success response wrapper.

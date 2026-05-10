@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
-	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
 	"github.com/thedavidweng/monarchmoney-cli/internal/cache"
+	"github.com/thedavidweng/monarchmoney-cli/monarch/auth"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

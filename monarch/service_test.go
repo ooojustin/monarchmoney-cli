@@ -16,7 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
+	"github.com/thedavidweng/monarchmoney-cli/monarch/graphql"
 )
 
 type mockClient struct {

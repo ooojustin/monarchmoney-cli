@@ -5,8 +5,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
-	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
+	"github.com/thedavidweng/monarchmoney-cli/monarch/errors"
+	"github.com/thedavidweng/monarchmoney-cli/monarch/graphql"
 	"github.com/thedavidweng/monarchmoney-cli/queries"
 )
 

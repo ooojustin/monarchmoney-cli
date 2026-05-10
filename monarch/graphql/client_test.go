@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	clierrors "github.com/thedavidweng/monarchmoney-cli/internal/errors"
+	clierrors "github.com/thedavidweng/monarchmoney-cli/monarch/errors"
 )
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)

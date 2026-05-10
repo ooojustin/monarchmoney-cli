@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
+	"github.com/thedavidweng/monarchmoney-cli/monarch"
 )
 
 type AnomalyOptions struct {

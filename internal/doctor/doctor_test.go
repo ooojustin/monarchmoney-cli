@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
 	"github.com/thedavidweng/monarchmoney-cli/internal/config"
+	"github.com/thedavidweng/monarchmoney-cli/monarch/auth"
 )
 
 type doctorRoundTripper func(*http.Request) (*http.Response, error)

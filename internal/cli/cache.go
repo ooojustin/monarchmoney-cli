@@ -5,13 +5,13 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
 	"github.com/thedavidweng/monarchmoney-cli/internal/cache"
 	"github.com/thedavidweng/monarchmoney-cli/internal/config"
-	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
-	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
-	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
+	"github.com/thedavidweng/monarchmoney-cli/monarch"
+	"github.com/thedavidweng/monarchmoney-cli/monarch/auth"
+	"github.com/thedavidweng/monarchmoney-cli/monarch/errors"
+	"github.com/thedavidweng/monarchmoney-cli/monarch/graphql"
 )
 
 func parseCacheDate(value string) (time.Time, error) {

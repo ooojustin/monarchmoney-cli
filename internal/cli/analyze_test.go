@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
+	"github.com/thedavidweng/monarchmoney-cli/monarch/auth"
 )
 
 func withAnalyzeCommandTestDefaults(t *testing.T, sessionPath string) *int {

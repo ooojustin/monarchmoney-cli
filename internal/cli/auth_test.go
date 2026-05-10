@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
-	clierrors "github.com/thedavidweng/monarchmoney-cli/internal/errors"
+	"github.com/thedavidweng/monarchmoney-cli/monarch/auth"
+	clierrors "github.com/thedavidweng/monarchmoney-cli/monarch/errors"
 )
 
 func captureStdout(t *testing.T, fn func()) string {

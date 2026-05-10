@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
+	"github.com/thedavidweng/monarchmoney-cli/monarch"
 )
 
 func TestBuildAnomaliesUsesExpensesAndStableSeverity(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	clierrors "github.com/thedavidweng/monarchmoney-cli/internal/errors"
+	clierrors "github.com/thedavidweng/monarchmoney-cli/monarch/errors"
 )
 
 func TestRenderer_RenderSuccess(t *testing.T) {

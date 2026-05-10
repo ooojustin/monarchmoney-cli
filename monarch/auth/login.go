@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/pquerna/otp/totp"
-	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
-	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
+	"github.com/thedavidweng/monarchmoney-cli/monarch/errors"
+	"github.com/thedavidweng/monarchmoney-cli/monarch/graphql"
 )
 
 var loginEndpoint = "https://api.monarch.com/auth/login/"
