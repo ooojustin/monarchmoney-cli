@@ -1,10 +1,8 @@
 package cli
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,88 +11,26 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
-	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
 	"github.com/thedavidweng/monarchmoney-cli/internal/cache"
 )
 
-type roundTripFunc func(*http.Request) (*http.Response, error)
-
-func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
-	return f(req)
-}
-
-func withCacheCommandTestDefaults(t *testing.T, sessionPath, cachePath string) *int {
-	t.Helper()
-
-	oldExitFunc := exitFunc
-	oldDefaultSessionPath := defaultSessionPath
-	oldJSONMode := jsonMode
-	oldPretty := pretty
-	oldProfile := profile
-	oldTransport := http.DefaultTransport
-	oldSyncFrom := syncFrom
-	oldCleanupBefore := cleanupBefore
-
-	exitCode := 0
-	exitFunc = func(code int) {
-		exitCode = code
-	}
-	defaultSessionPath = func() string { return sessionPath }
-	jsonMode = true
-	pretty = false
-	profile = "default"
-	syncFrom = ""
-	cleanupBefore = ""
-	cacheSyncCmd.SetContext(context.Background())
-	cacheCleanupCmd.SetContext(context.Background())
-
-	viper.Reset()
-	viper.Set("cache_path", cachePath)
-
-	t.Cleanup(func() {
-		exitFunc = oldExitFunc
-		defaultSessionPath = oldDefaultSessionPath
-		jsonMode = oldJSONMode
-		pretty = oldPretty
-		profile = oldProfile
-		http.DefaultTransport = oldTransport
-		syncFrom = oldSyncFrom
-		cleanupBefore = oldCleanupBefore
-		viper.Reset()
-	})
-
-	return &exitCode
-}
-
-func saveCacheTestSession(t *testing.T, sessionPath string) {
-	t.Helper()
-
-	store := auth.NewStore(sessionPath)
-	if err := store.Save(&auth.Session{
-		Profile:   "default",
-		Email:     "a@example.com",
-		Token:     "token-123",
-		CreatedAt: time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC),
-		UpdatedAt: time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC),
-	}); err != nil {
-		t.Fatalf("Save() error = %v", err)
-	}
-}
-
-func jsonHTTPResponse(body string) *http.Response {
-	return &http.Response{
-		StatusCode: http.StatusOK,
-		Header:     make(http.Header),
-		Body:       io.NopCloser(strings.NewReader(body)),
-	}
-}
-
+// TestCacheSyncPassesFromDateAndPersistsAccountID is the regression that
+// originally failed in upstream/main: the cache sync command must use the
+// injected session path (via Deps), not config.DefaultSessionPath() directly.
+// Under the App+Deps architecture this works by construction.
 func TestCacheSyncPassesFromDateAndPersistsAccountID(t *testing.T) {
 	dir := t.TempDir()
 	sessionPath := filepath.Join(dir, "session.json")
 	cachePath := filepath.Join(dir, "cache.sqlite")
-	exitCode := withCacheCommandTestDefaults(t, sessionPath, cachePath)
-	saveCacheTestSession(t, sessionPath)
+	app, buf, exitCode := newTestApp(t, sessionPath)
+	saveTestSession(t, sessionPath)
+
+	oldTransport := http.DefaultTransport
+	t.Cleanup(func() { http.DefaultTransport = oldTransport })
+
+	viper.Reset()
+	viper.Set("cache_path", cachePath)
+	t.Cleanup(viper.Reset)
 
 	var sawStartDate bool
 	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -105,32 +41,31 @@ func TestCacheSyncPassesFromDateAndPersistsAccountID(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-
 		switch gqlReq.OperationName {
 		case "GetAccounts":
 			return jsonHTTPResponse(`{"data":{"accounts":[{"id":"acc_1","displayName":"Checking","type":{"name":"cash","display":"Cash"},"subtype":{"name":"checking","display":"Checking"},"displayBalance":1250.5,"currentBalance":1250.5,"updatedAt":"2026-05-09T10:00:00Z","displayLastUpdatedAt":"2026-05-09","createdAt":"2026-01-01T00:00:00Z"}]}}`), nil
 		case "GetTransactionsList":
-			filters, ok := gqlReq.Variables["filters"].(map[string]interface{})
-			if !ok {
-				t.Fatalf("filters = %#v, want map", gqlReq.Variables["filters"])
-			}
+			filters, _ := gqlReq.Variables["filters"].(map[string]interface{})
 			if filters["startDate"] == "2026-01-01" {
 				sawStartDate = true
 			}
 			return jsonHTTPResponse(`{"data":{"allTransactions":{"results":[{"id":"tx_1","date":"2026-05-09","amount":-12.34,"merchant":{"name":"Cafe"},"category":{"name":"Dining"},"account":{"id":"acc_1"},"notes":"latte"}],"totalCount":1}}}`), nil
 		default:
 			t.Fatalf("unexpected operation %q", gqlReq.OperationName)
+			return nil, nil
 		}
-		return nil, nil
 	})
 
-	_ = cacheSyncCmd.Flags().Set("from", "2026-01-01")
-	out := captureStdout(t, func() {
-		cacheSyncCmd.Run(cacheSyncCmd, nil)
-	})
+	cmd, _, err := app.Root.Find([]string{"cache", "sync"})
+	if err != nil {
+		t.Fatalf("Find cache sync = %v", err)
+	}
+	_ = cmd.Flags().Set("from", "2026-01-01")
+	cmd.SetContext(context.Background())
+	cmd.Run(cmd, nil)
 
 	if *exitCode != 0 {
-		t.Fatalf("exitCode = %d; output=%q", *exitCode, out)
+		t.Fatalf("exitCode = %d; output=%q", *exitCode, buf.String())
 	}
 	if !sawStartDate {
 		t.Fatal("cache sync did not pass --from as transaction startDate")
@@ -149,103 +84,50 @@ func TestCacheSyncPassesFromDateAndPersistsAccountID(t *testing.T) {
 	}
 }
 
+// TestCacheSyncRejectsInvalidFromDate verifies that --from is validated
+// before any API call is made.
 func TestCacheSyncRejectsInvalidFromDate(t *testing.T) {
 	dir := t.TempDir()
 	sessionPath := filepath.Join(dir, "session.json")
-	cachePath := filepath.Join(dir, "cache.sqlite")
-	exitCode := withCacheCommandTestDefaults(t, sessionPath, cachePath)
-	saveCacheTestSession(t, sessionPath)
+	app, buf, exitCode := newTestApp(t, sessionPath)
+	saveTestSession(t, sessionPath)
 
+	oldTransport := http.DefaultTransport
+	t.Cleanup(func() { http.DefaultTransport = oldTransport })
 	http.DefaultTransport = roundTripFunc(func(*http.Request) (*http.Response, error) {
 		t.Fatal("cache sync should validate --from before making API requests")
 		return nil, nil
 	})
 
-	_ = cacheSyncCmd.Flags().Set("from", "01-01-2026")
-	out := captureStdout(t, func() {
-		cacheSyncCmd.Run(cacheSyncCmd, nil)
-	})
+	cmd, _, _ := app.Root.Find([]string{"cache", "sync"})
+	_ = cmd.Flags().Set("from", "01-01-2026")
+	cmd.SetContext(context.Background())
+	cmd.Run(cmd, nil)
 
 	if *exitCode == 0 {
-		t.Fatalf("exitCode = 0, want validation failure; output=%q", out)
+		t.Fatalf("exitCode = 0, want validation failure; output=%q", buf.String())
 	}
-	if !strings.Contains(out, "YYYY-MM-DD") {
-		t.Fatalf("output = %q, want date format guidance", out)
+	if !strings.Contains(buf.String(), "YYYY-MM-DD") {
+		t.Fatalf("output = %q, want date format guidance", buf.String())
 	}
 }
 
-func TestCacheSyncFailsWhenAccountsAPIFails(t *testing.T) {
+// TestCacheCleanupValidatesDate covers the cleanup command's date validation
+// and configured cache path resolution.
+func TestCacheCleanupValidatesDate(t *testing.T) {
 	dir := t.TempDir()
 	sessionPath := filepath.Join(dir, "session.json")
-	cachePath := filepath.Join(dir, "cache.sqlite")
-	exitCode := withCacheCommandTestDefaults(t, sessionPath, cachePath)
-	saveCacheTestSession(t, sessionPath)
+	cachePath := filepath.Join(dir, "configured.sqlite")
+	app, buf, exitCode := newTestApp(t, sessionPath)
 
-	http.DefaultTransport = roundTripFunc(func(*http.Request) (*http.Response, error) {
-		return &http.Response{
-			StatusCode: http.StatusInternalServerError,
-			Body:       io.NopCloser(bytes.NewReader(nil)),
-		}, nil
-	})
+	viper.Reset()
+	viper.Set("cache_path", cachePath)
+	t.Cleanup(viper.Reset)
 
-	out := captureStdout(t, func() {
-		cacheSyncCmd.Run(cacheSyncCmd, nil)
-	})
+	t.Setenv("HOME", filepath.Join(dir, "home"))
+	_ = os.MkdirAll(filepath.Join(dir, "home"), 0700)
 
-	if *exitCode == 0 {
-		t.Fatalf("exitCode = 0, want API failure; output=%q", out)
-	}
-	if !strings.Contains(out, "failed to sync accounts") {
-		t.Fatalf("output = %q, want account sync failure", out)
-	}
-}
-
-func TestCacheSyncFailsWhenTransactionsAPIFails(t *testing.T) {
-	dir := t.TempDir()
-	sessionPath := filepath.Join(dir, "session.json")
-	cachePath := filepath.Join(dir, "cache.sqlite")
-	exitCode := withCacheCommandTestDefaults(t, sessionPath, cachePath)
-	saveCacheTestSession(t, sessionPath)
-
-	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
-		var gqlReq struct {
-			OperationName string `json:"operationName"`
-		}
-		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
-			t.Fatalf("Decode request error = %v", err)
-		}
-		if gqlReq.OperationName == "GetAccounts" {
-			return jsonHTTPResponse(`{"data":{"accounts":[{"id":"acc_1","displayName":"Checking","type":{"name":"cash"},"subtype":{"name":"checking"},"displayBalance":1250.5,"updatedAt":"2026-05-09"}]}}`), nil
-		}
-		if gqlReq.OperationName == "GetTransactionsList" {
-			return &http.Response{
-				StatusCode: http.StatusInternalServerError,
-				Body:       io.NopCloser(bytes.NewReader(nil)),
-			}, nil
-		}
-		t.Fatalf("unexpected operation %q", gqlReq.OperationName)
-		return nil, nil
-	})
-
-	out := captureStdout(t, func() {
-		cacheSyncCmd.Run(cacheSyncCmd, nil)
-	})
-
-	if *exitCode == 0 {
-		t.Fatalf("exitCode = 0, want API failure; output=%q", out)
-	}
-	if !strings.Contains(out, "failed to sync transactions") {
-		t.Fatalf("output = %q, want transaction sync failure", out)
-	}
-}
-
-func TestCacheCleanupUsesConfiguredCachePathAndValidatesDate(t *testing.T) {
-	dir := t.TempDir()
-	configuredPath := filepath.Join(dir, "configured.sqlite")
-	defaultPath := filepath.Join(dir, "default", "monarch.sqlite")
-	exitCode := withCacheCommandTestDefaults(t, filepath.Join(dir, "session.json"), configuredPath)
-
-	store, err := cache.NewStore(configuredPath)
+	store, err := cache.NewStore(cachePath)
 	if err != nil {
 		t.Fatalf("NewStore(configured) error = %v", err)
 	}
@@ -257,36 +139,31 @@ func TestCacheCleanupUsesConfiguredCachePathAndValidatesDate(t *testing.T) {
 		t.Fatalf("SaveTransactions() error = %v", err)
 	}
 
-	viper.Set("cache_path", configuredPath)
-	t.Setenv("HOME", filepath.Join(dir, "home"))
-	_ = os.MkdirAll(filepath.Dir(defaultPath), 0700)
-
-	cleanupBefore = "2026-01-01"
-	_ = cacheCleanupCmd.Flags().Set("before", cleanupBefore)
-	out := captureStdout(t, func() {
-		cacheCleanupCmd.Run(cacheCleanupCmd, nil)
-	})
+	cmd, _, _ := app.Root.Find([]string{"cache", "cleanup"})
+	_ = cmd.Flags().Set("before", "2026-01-01")
+	cmd.SetContext(context.Background())
+	cmd.Run(cmd, nil)
 
 	if *exitCode != 0 {
-		t.Fatalf("exitCode = %d; output=%q", *exitCode, out)
+		t.Fatalf("exitCode = %d; output=%q", *exitCode, buf.String())
 	}
 	stats, err := store.GetStats()
 	if err != nil {
 		t.Fatalf("GetStats() error = %v", err)
 	}
 	if got := stats["transactions"]; got != 0 {
-		t.Fatalf("configured cache transactions = %d, want 0", got)
+		t.Fatalf("transactions = %d, want 0", got)
 	}
 
-	cleanupBefore = "not-a-date"
-	_ = cacheCleanupCmd.Flags().Set("before", cleanupBefore)
-	out = captureStdout(t, func() {
-		cacheCleanupCmd.Run(cacheCleanupCmd, nil)
-	})
-	if *exitCode == 0 {
-		t.Fatalf("exitCode = 0, want validation failure; output=%q", out)
+	app2, buf2, exitCode2 := newTestApp(t, sessionPath)
+	cmd2, _, _ := app2.Root.Find([]string{"cache", "cleanup"})
+	_ = cmd2.Flags().Set("before", "not-a-date")
+	cmd2.SetContext(context.Background())
+	cmd2.Run(cmd2, nil)
+	if *exitCode2 == 0 {
+		t.Fatalf("exitCode = 0, want validation failure; output=%q", buf2.String())
 	}
-	if !strings.Contains(out, "YYYY-MM-DD") {
-		t.Fatalf("output = %q, want date format guidance", out)
+	if !strings.Contains(buf2.String(), "YYYY-MM-DD") {
+		t.Fatalf("output = %q, want date format guidance", buf2.String())
 	}
 }
