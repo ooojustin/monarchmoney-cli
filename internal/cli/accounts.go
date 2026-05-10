@@ -310,7 +310,7 @@ func (a *App) buildAccountsRefresh() *cobra.Command {
 							continue
 						}
 
-						if events {
+						if a.Flags.Events {
 							env := output.NewEnvelope("accounts.refresh.progress", a.Flags.Profile, output.SchemaVersion, "", status, time.Since(start))
 							renderer.RenderSuccess(env)
 						}

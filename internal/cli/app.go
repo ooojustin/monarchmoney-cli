@@ -26,11 +26,22 @@ type Flags struct {
 	ReadOnly bool
 	DryRun   bool
 	Confirm  bool
+	Events   bool
 }
 
 // New constructs an App with the given dependencies and registers all command
 // groups against a fresh root command. Tests can call this with custom Deps.
+//
+// App construction touches process-global state in cobra and viper (flag
+// registration via viper.BindPFlag, the cobra.OnInitialize hook). Production
+// constructs exactly one App so this is uncontended; parallel tests construct
+// one App per test, so we serialize the construction with globalRegistration
+// to avoid concurrent map writes inside viper. Per-App state (App.Flags, the
+// cobra command tree) is not touched by other Apps after New returns.
 func New(deps Deps) *App {
+	globalRegistration.Lock()
+	defer globalRegistration.Unlock()
+
 	a := &App{Deps: deps}
 	a.Root = a.buildRoot()
 

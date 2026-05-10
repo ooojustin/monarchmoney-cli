@@ -46,11 +46,28 @@ func (a *App) buildLogin() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
-			// Priority: Flags > Env Vars > Prompt
-			email := viper.GetString("email")
-			password := viper.GetString("password")
-			mfaCode := viper.GetString("mfa-code")
-			mfaSecret := viper.GetString("mfa-secret")
+			// Priority: Flags > Env Vars > Prompt. Read flag values from
+			// the closure-captured locals (per-App, never shared) and fall
+			// back to viper.GetString which picks up MONARCH_* env vars via
+			// AutomaticEnv. Don't use viper.BindPFlag here: it binds the
+			// viper key to one cobra flagset globally, which races and
+			// crosses wires when multiple Apps are constructed in parallel.
+			// Hold globalRegistration during the viper reads since viper has
+			// no internal locking.
+			globalRegistration.Lock()
+			if email == "" {
+				email = viper.GetString("email")
+			}
+			if password == "" {
+				password = viper.GetString("password")
+			}
+			if mfaCode == "" {
+				mfaCode = viper.GetString("mfa-code")
+			}
+			if mfaSecret == "" {
+				mfaSecret = viper.GetString("mfa-secret")
+			}
+			globalRegistration.Unlock()
 
 			if email == "" {
 				fmt.Fprint(a.Deps.Stdout, "Email: ")
@@ -119,11 +136,6 @@ func (a *App) buildLogin() *cobra.Command {
 	cmd.Flags().StringVar(&password, "password", "", "password")
 	cmd.Flags().StringVar(&mfaCode, "mfa-code", "", "6-digit MFA code")
 	cmd.Flags().StringVar(&mfaSecret, "mfa-secret", "", "TOTP secret key for automatic MFA")
-
-	viper.BindPFlag("email", cmd.Flags().Lookup("email"))
-	viper.BindPFlag("password", cmd.Flags().Lookup("password"))
-	viper.BindPFlag("mfa-code", cmd.Flags().Lookup("mfa-code"))
-	viper.BindPFlag("mfa-secret", cmd.Flags().Lookup("mfa-secret"))
 
 	return cmd
 }
