@@ -20,8 +20,8 @@ make test
 
 ## Adding a New Command
 
-1.  **GraphQL Query**: Add your `.graphql` file to `internal/monarch/queries/`.
-2.  **Service Layer**: Add the corresponding method to the `Service` in `internal/monarch/`.
+1.  **GraphQL Query**: Add your `.graphql` file to `queries/`.
+2.  **Service Layer**: Add the corresponding method to the `Service` in `monarch/`.
 3.  **CLI Layer**: Implement the Cobra command in `internal/cli/`. Ensure you handle the `--json` flag and use the standard `output.Renderer`.
 4.  **Safety Layer**: If the command is a mutation, ensure you call `safety.Check` before execution.
 

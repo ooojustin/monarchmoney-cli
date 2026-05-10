@@ -69,6 +69,48 @@ monarch rules list --json
 monarch cashflow spending --from 2024-01-01 --to 2024-01-31 --json
 ```
 
+## 📦 Use as a Go Library
+
+The Monarch API client is also exposed as an importable Go package — anything the CLI does is callable from Go.
+
+```bash
+go get github.com/thedavidweng/monarchmoney-cli/monarch
+```
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+    "time"
+
+    "github.com/thedavidweng/monarchmoney-cli/monarch"
+    "github.com/thedavidweng/monarchmoney-cli/monarch/auth"
+    "github.com/thedavidweng/monarchmoney-cli/monarch/graphql"
+)
+
+func main() {
+    session, err := auth.Authenticate("you@example.com", "password", "", "totpSecretOrEmpty")
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    c := graphql.NewClient("https://api.monarch.com/graphql", session.Token, 30*time.Second)
+    svc := monarch.NewService(c)
+
+    txs, total, err := svc.ListTransactions(context.Background(), monarch.ListTransactionsOptions{Limit: 50})
+    if err != nil {
+        log.Fatal(err)
+    }
+    log.Printf("got %d transactions of %d total", len(txs), total)
+}
+```
+
+The `monarch/auth` package handles login and session persistence, `monarch/graphql` is the HTTP transport, and `monarch/errors` exposes the structured error types the CLI uses for exit-code mapping.
+
+> The library API is currently considered experimental — signatures may change before a 1.0 tag.
+
 ## 📖 Documentation
 
 Detailed guides are available in the [`/docs`](./docs) directory:
