@@ -2,12 +2,30 @@ package cli
 
 import "github.com/spf13/cobra"
 
-// App owns the root cobra command and the dependencies that command handlers
-// reach for at runtime. Tests construct an App with custom Deps to inject
-// behavior; production wires DefaultDeps via cmd/monarch/main.go.
+// App owns the root cobra command, the dependencies that command handlers
+// reach for at runtime, and the parsed values of root persistent flags.
+// Tests construct an App with custom Deps and Flags to drive behavior;
+// production wires DefaultDeps via cmd/monarch/main.go.
 type App struct {
-	Deps Deps
-	Root *cobra.Command
+	Deps  Deps
+	Flags Flags
+	Root  *cobra.Command
+}
+
+// Flags holds the parsed values of root persistent flags that command
+// bodies read at runtime. Cobra binds &a.Flags.X to each flag and
+// PersistentPreRun copies viper-resolved values back into these fields.
+//
+// Only flags actually consumed by command bodies live here. Flags wired
+// through cobra/viper but never read (e.g. --compact, --no-color) remain
+// as package-level vars in root.go for now.
+type Flags struct {
+	JSONMode bool
+	Pretty   bool
+	Profile  string
+	ReadOnly bool
+	DryRun   bool
+	Confirm  bool
 }
 
 // New constructs an App with the given dependencies and registers all command

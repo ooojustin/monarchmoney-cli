@@ -22,9 +22,10 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 // newTestApp constructs an App wired for testing. It returns the App, a
 // stdout capture buffer, and a pointer to the captured exit code.
 //
-// Note: the package-level flag vars (jsonMode, pretty, profile) are mutated
-// to known values for the duration of the test. Until those vars are also
-// migrated off globals, tests should not call t.Parallel().
+// Each test gets its own App with isolated Flags state, so tests are free
+// to call t.Parallel(). The exception is tests that touch the global viper
+// instance (e.g. via viper.Set / viper.Reset) — those still race with each
+// other and should not call t.Parallel() until viper is per-App as well.
 func newTestApp(t *testing.T, sessionPath string) (*App, *bytes.Buffer, *int) {
 	t.Helper()
 
@@ -37,21 +38,13 @@ func newTestApp(t *testing.T, sessionPath string) (*App, *bytes.Buffer, *int) {
 	deps.Stderr = &buf
 	deps.Exit = func(code int) { exitCode = code }
 
-	oldJSONMode, oldPretty, oldProfile := jsonMode, pretty, profile
-	t.Cleanup(func() {
-		jsonMode = oldJSONMode
-		pretty = oldPretty
-		profile = oldProfile
-	})
-
 	app := New(deps)
 
 	// New(deps) calls buildRoot which registers PersistentFlags via cobra.BoolVar,
-	// resetting jsonMode/pretty/profile to flag defaults. Apply test-mode values
+	// resetting App.Flags fields to flag defaults. Apply test-mode values
 	// AFTER construction.
-	jsonMode = true
-	pretty = false
-	profile = "default"
+	app.Flags.JSONMode = true
+	app.Flags.Profile = "default"
 
 	return app, &buf, &exitCode
 }

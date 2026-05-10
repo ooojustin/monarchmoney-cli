@@ -27,7 +27,7 @@ func (a *App) buildTagsList() *cobra.Command {
 		Short: "List all tags",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			svc, _, err := a.Deps.LoadService()
 			if err != nil {
@@ -47,8 +47,8 @@ func (a *App) buildTagsList() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("tags.list", profile, output.SchemaVersion, "", tags, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("tags.list", a.Flags.Profile, output.SchemaVersion, "", tags, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("%-20s %-20s %s\n", "ID", "NAME", "COLOR")
@@ -70,18 +70,18 @@ func (a *App) buildTagsCreate() *cobra.Command {
 		Short: "Create a tag",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 			logger := audit.NewLogger()
 
-			if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
+			if err := safety.Check(safety.TierMutation, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
 				a.handleError(renderer, "tags.create", err.(*errors.Error), start)
 				return
 			}
 
-			if dryRun {
+			if a.Flags.DryRun {
 				plan := safety.NewPlan()
 				plan.Add("tags.create", "", nil, map[string]string{"name": tagName, "color": tagColor})
-				env := output.NewEnvelope("tags.create", profile, output.SchemaVersion, "", plan, time.Since(start))
+				env := output.NewEnvelope("tags.create", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
 				renderer.RenderSuccess(env)
 				return
 			}
@@ -104,9 +104,9 @@ func (a *App) buildTagsCreate() *cobra.Command {
 
 			logger.Log(&audit.Record{
 				Command:   "tags.create",
-				DryRun:    dryRun,
-				Confirmed: confirm,
-				Profile:   profile,
+				DryRun:    a.Flags.DryRun,
+				Confirmed: a.Flags.Confirm,
+				Profile:   a.Flags.Profile,
 				Result:    result,
 				ErrorCode: errCode,
 			})
@@ -122,8 +122,8 @@ func (a *App) buildTagsCreate() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("tags.create", profile, output.SchemaVersion, "", tag, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("tags.create", a.Flags.Profile, output.SchemaVersion, "", tag, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("Successfully created tag %s (%s).\n", tag.Name, tag.ID)

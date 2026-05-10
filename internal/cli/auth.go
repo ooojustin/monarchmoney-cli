@@ -44,7 +44,7 @@ func (a *App) buildLogin() *cobra.Command {
 		Short: "Log in to Monarch Money",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			// Priority: Flags > Env Vars > Prompt
 			email := viper.GetString("email")
@@ -72,7 +72,7 @@ func (a *App) buildLogin() *cobra.Command {
 
 			// Handle MFA requirement if not already provided
 			if err != nil {
-				if e, ok := err.(*errors.Error); ok && e.Code == errors.AuthMFARequired && !jsonMode {
+				if e, ok := err.(*errors.Error); ok && e.Code == errors.AuthMFARequired && !a.Flags.JSONMode {
 					fmt.Fprint(a.Deps.Stdout, "MFA Code: ")
 					a.Deps.ScanInput(&mfaCode)
 					sess, err = a.Deps.Authenticate(email, password, mfaCode, mfaSecret)
@@ -90,15 +90,15 @@ func (a *App) buildLogin() *cobra.Command {
 				return
 			}
 
-			sess.Profile = profile
+			sess.Profile = a.Flags.Profile
 			store := a.Deps.NewStore(a.Deps.SessionPath())
 			if err := store.Save(sess); err != nil {
 				a.handleError(renderer, "auth.login", errors.New(errors.InternalError, "failed to save session", errors.CatInternal, false, err), start)
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("auth.login", profile, output.SchemaVersion, "", map[string]interface{}{
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("auth.login", a.Flags.Profile, output.SchemaVersion, "", map[string]interface{}{
 					"status":       "logged in",
 					"email":        sess.Email,
 					"profile":      sess.Profile,
@@ -134,7 +134,7 @@ func (a *App) buildStatus() *cobra.Command {
 		Short: "Check authentication status",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			store := a.Deps.NewStore(a.Deps.SessionPath())
 			sess, err := store.Load()
@@ -168,8 +168,8 @@ func (a *App) buildStatus() *cobra.Command {
 				"session_path":  a.Deps.SessionPath(),
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("auth.status", profile, output.SchemaVersion, "", data, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("auth.status", a.Flags.Profile, output.SchemaVersion, "", data, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Fprintf(a.Deps.Stdout, "Authenticated: yes\n")
@@ -189,7 +189,7 @@ func (a *App) buildLogout() *cobra.Command {
 		Short: "Log out and remove local session",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			store := a.Deps.NewStore(a.Deps.SessionPath())
 			if err := store.Delete(); err != nil && !os.IsNotExist(err) {
@@ -197,8 +197,8 @@ func (a *App) buildLogout() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("auth.logout", profile, output.SchemaVersion, "", map[string]string{"status": "logged out"}, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("auth.logout", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "logged out"}, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Fprintln(a.Deps.Stdout, "Successfully logged out.")
@@ -233,7 +233,7 @@ func (a *App) handleError(r *output.Renderer, command string, err *errors.Error,
 		}
 	}
 
-	env := output.NewErrorEnvelope(command, profile, output.SchemaVersion, err, time.Since(start))
+	env := output.NewErrorEnvelope(command, a.Flags.Profile, output.SchemaVersion, err, time.Since(start))
 	r.RenderError(env)
 	a.Deps.Exit(err.ExitCode())
 }

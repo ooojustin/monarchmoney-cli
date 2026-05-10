@@ -53,7 +53,7 @@ locally so agents do not need to group transactions themselves.`,
   monarch analyze anomalies --month 2026-05 --history-months 6 --min-ratio 1.5 --min-amount 100 --json`,
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 			month := normalizeAnalyzeMonth(analyzeAnomaliesMonth, start)
 			if _, err := time.Parse("2006-01", month); err != nil {
 				a.handleError(renderer, "analyze.anomalies", errors.New(errors.InvalidArguments, "--month must use YYYY-MM", errors.CatValidation, false, err), start)
@@ -91,8 +91,8 @@ locally so agents do not need to group transactions themselves.`,
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("analyze.anomalies", profile, output.SchemaVersion, "", map[string]interface{}{"period": map[string]string{"start_date": currentStart, "end_date": currentEnd}, "anomalies": result}, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("analyze.anomalies", a.Flags.Profile, output.SchemaVersion, "", map[string]interface{}{"period": map[string]string{"start_date": currentStart, "end_date": currentEnd}, "anomalies": result}, time.Since(start))
 				renderer.RenderSuccess(env)
 				return
 			}
@@ -126,7 +126,7 @@ the services are wasteful.`,
   monarch analyze subscriptions --past-days 370 --future-days 370 --json`,
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 			if analyzePastDays < 0 || analyzeFutureDays < 0 {
 				a.handleError(renderer, "analyze.subscriptions", errors.New(errors.InvalidArguments, "day windows must be non-negative", errors.CatValidation, false, nil), start)
 				return
@@ -145,8 +145,8 @@ the services are wasteful.`,
 				return
 			}
 			result := analyze.BuildSubscriptions(items)
-			if jsonMode {
-				env := output.NewEnvelope("analyze.subscriptions", profile, output.SchemaVersion, "", result, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("analyze.subscriptions", a.Flags.Profile, output.SchemaVersion, "", result, time.Since(start))
 				renderer.RenderSuccess(env)
 				return
 			}
@@ -178,7 +178,7 @@ expense_previous, change_pct, and direction with stable semantics for agents.`,
   monarch analyze merchants --month 2026-05 --compare previous-month --limit 20 --json`,
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 			if analyzeCompare != "previous-month" {
 				a.handleError(renderer, "analyze.merchants", errors.New(errors.InvalidArguments, "--compare currently supports previous-month", errors.CatValidation, false, nil), start)
 				return
@@ -205,8 +205,8 @@ expense_previous, change_pct, and direction with stable semantics for agents.`,
 				return
 			}
 			result := analyze.BuildMerchantComparison(currentRecords, previousRecords, analyzeLimit)
-			if jsonMode {
-				env := output.NewEnvelope("analyze.merchants", profile, output.SchemaVersion, "", map[string]interface{}{"period": current, "previous_period": previous, "comparison": result}, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("analyze.merchants", a.Flags.Profile, output.SchemaVersion, "", map[string]interface{}{"period": current, "previous_period": previous, "comparison": result}, time.Since(start))
 				renderer.RenderSuccess(env)
 				return
 			}
@@ -239,7 +239,7 @@ math. It does not re-sum transactions or make subjective budget advice.`,
   monarch analyze burn-rate --month 2026-05 --json`,
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 			month := normalizeAnalyzeMonth(analyzeBurnRateMonth, start)
 			monthStart, monthEnd, err := monthRange(month)
 			if err != nil {
@@ -266,8 +266,8 @@ math. It does not re-sum transactions or make subjective budget advice.`,
 				a.handleError(renderer, "analyze.burn-rate", errors.New(errors.InternalError, "failed to analyze burn rate", errors.CatInternal, false, err), start)
 				return
 			}
-			if jsonMode {
-				env := output.NewEnvelope("analyze.burn-rate", profile, output.SchemaVersion, "", map[string]interface{}{"period": map[string]string{"start_date": monthStart, "end_date": monthEnd}, "budgets": result}, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("analyze.burn-rate", a.Flags.Profile, output.SchemaVersion, "", map[string]interface{}{"period": map[string]string{"start_date": monthStart, "end_date": monthEnd}, "budgets": result}, time.Since(start))
 				renderer.RenderSuccess(env)
 				return
 			}

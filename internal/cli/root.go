@@ -14,25 +14,19 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/version"
 )
 
-// Global flag values populated by cobra's PersistentPreRun from viper. These
-// are intentionally still package-level: they're shared with config.Load and
-// command bodies that read them at runtime. Migrating them off globals is a
-// follow-up; this refactor focuses on dependencies, not flag state.
+// Package-level flag vars retained for flags that aren't (yet) consumed by
+// command bodies. Six widely-read flags moved to App.Flags; the rest stay
+// here pending a separate cleanup pass that decides whether to wire them
+// up or remove them.
 var (
-	cfgFile  string
-	jsonMode bool
-	pretty   bool
-	compact  bool
-	full     bool
-	events   bool
-	readOnly bool
-	dryRun   bool
-	confirm  bool
-	timeout  time.Duration
-	profile  string
-	noColor  bool
-	verbose  bool
-	debug    bool
+	cfgFile string
+	compact bool
+	full    bool
+	events  bool
+	timeout time.Duration
+	noColor bool
+	verbose bool
+	debug   bool
 )
 
 // buildRoot constructs a fresh root cobra.Command and registers global flags
@@ -45,16 +39,16 @@ func (a *App) buildRoot() *cobra.Command {
 		Long: `monarchmoney-cli is a single-binary command line tool for working with
 Monarch Money data from your terminal, scripts, and local agents.`,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			jsonMode = viper.GetBool("json")
-			pretty = viper.GetBool("pretty")
+			a.Flags.JSONMode = viper.GetBool("json")
+			a.Flags.Pretty = viper.GetBool("pretty")
+			a.Flags.ReadOnly = viper.GetBool("read-only")
+			a.Flags.DryRun = viper.GetBool("dry-run")
+			a.Flags.Confirm = viper.GetBool("confirm")
+			a.Flags.Profile = viper.GetString("profile")
 			compact = viper.GetBool("compact")
 			full = viper.GetBool("full")
 			events = viper.GetBool("events")
-			readOnly = viper.GetBool("read-only")
-			dryRun = viper.GetBool("dry-run")
-			confirm = viper.GetBool("confirm")
 			timeout = viper.GetDuration("timeout")
-			profile = viper.GetString("profile")
 			noColor = viper.GetBool("no-color")
 			verbose = viper.GetBool("verbose")
 			debug = viper.GetBool("debug")
@@ -62,16 +56,16 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 	}
 
 	root.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.monarchmoney-cli/config.yaml)")
-	root.PersistentFlags().BoolVar(&jsonMode, "json", false, "emit machine-readable JSON")
-	root.PersistentFlags().BoolVar(&pretty, "pretty", false, "pretty-print JSON output")
+	root.PersistentFlags().BoolVar(&a.Flags.JSONMode, "json", false, "emit machine-readable JSON")
+	root.PersistentFlags().BoolVar(&a.Flags.Pretty, "pretty", false, "pretty-print JSON output")
 	root.PersistentFlags().BoolVar(&compact, "compact", false, "return compact output fields")
 	root.PersistentFlags().BoolVar(&full, "full", false, "return full normalized output fields")
 	root.PersistentFlags().BoolVar(&events, "events", false, "emit NDJSON progress events for long-running commands")
-	root.PersistentFlags().BoolVar(&readOnly, "read-only", false, "block remote writes")
-	root.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "preview a remote write without executing it")
-	root.PersistentFlags().BoolVar(&confirm, "confirm", false, "explicitly execute a remote write")
+	root.PersistentFlags().BoolVar(&a.Flags.ReadOnly, "read-only", false, "block remote writes")
+	root.PersistentFlags().BoolVar(&a.Flags.DryRun, "dry-run", false, "preview a remote write without executing it")
+	root.PersistentFlags().BoolVar(&a.Flags.Confirm, "confirm", false, "explicitly execute a remote write")
 	root.PersistentFlags().DurationVar(&timeout, "timeout", 30*time.Second, "set command timeout")
-	root.PersistentFlags().StringVar(&profile, "profile", "default", "use a named profile")
+	root.PersistentFlags().StringVar(&a.Flags.Profile, "profile", "default", "use a named profile")
 	root.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable colored output")
 	root.PersistentFlags().BoolVar(&verbose, "verbose", false, "print more diagnostics to stderr")
 	root.PersistentFlags().BoolVar(&debug, "debug", false, "print debug diagnostics to stderr with secrets redacted")
@@ -128,7 +122,7 @@ func (a *App) buildVersion() *cobra.Command {
 		Use:   "version",
 		Short: "Print the version number of monarch",
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := writeVersion(cmd.OutOrStdout(), profile, jsonMode, pretty, time.Duration(0)); err != nil {
+			if err := writeVersion(cmd.OutOrStdout(), a.Flags.Profile, a.Flags.JSONMode, a.Flags.Pretty, time.Duration(0)); err != nil {
 				fmt.Fprintln(cmd.ErrOrStderr(), err)
 				a.Deps.Exit(1)
 			}

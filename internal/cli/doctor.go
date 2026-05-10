@@ -18,10 +18,10 @@ func (a *App) buildDoctorCommand(parent *cobra.Command) {
 			start := time.Now()
 			res := doctor.Check(cmd.Context(), connect)
 
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
-			if jsonMode {
-				env := output.NewEnvelope("doctor", profile, output.SchemaVersion, "", res, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("doctor", a.Flags.Profile, output.SchemaVersion, "", res, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Println("Monarch Money CLI Doctor")

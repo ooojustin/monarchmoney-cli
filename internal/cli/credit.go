@@ -24,7 +24,7 @@ func (a *App) buildCreditHistory() *cobra.Command {
 		Short: "Get credit score history",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			svc, _, err := a.Deps.LoadService()
 			if err != nil {
@@ -44,8 +44,8 @@ func (a *App) buildCreditHistory() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("credit.history", profile, output.SchemaVersion, "", history, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("credit.history", a.Flags.Profile, output.SchemaVersion, "", history, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("%-12s %s\n", "DATE", "SCORE")

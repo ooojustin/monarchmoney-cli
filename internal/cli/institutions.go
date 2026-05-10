@@ -24,7 +24,7 @@ func (a *App) buildInstitutionsList() *cobra.Command {
 		Short: "List all institutions",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			svc, _, err := a.Deps.LoadService()
 			if err != nil {
@@ -44,8 +44,8 @@ func (a *App) buildInstitutionsList() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("institutions.list", profile, output.SchemaVersion, "", insts, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("institutions.list", a.Flags.Profile, output.SchemaVersion, "", insts, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("%-20s %-30s %s\n", "ID", "NAME", "URL")

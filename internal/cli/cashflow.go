@@ -49,7 +49,7 @@ func (a *App) buildCashflowList(resolveDates func() (string, string)) *cobra.Com
 		Short: "Get cashflow records by period",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			svc, _, err := a.Deps.LoadService()
 			if err != nil {
@@ -70,8 +70,8 @@ func (a *App) buildCashflowList(resolveDates func() (string, string)) *cobra.Com
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("cashflow.list", profile, output.SchemaVersion, "", records, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("cashflow.list", a.Flags.Profile, output.SchemaVersion, "", records, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("%-12s %10s %10s %10s\n", "PERIOD", "INCOME", "EXPENSE", "SAVINGS")
@@ -89,7 +89,7 @@ func (a *App) buildCashflowSummary(resolveDates func() (string, string)) *cobra.
 		Short: "Get cashflow summary",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			svc, _, err := a.Deps.LoadService()
 			if err != nil {
@@ -110,8 +110,8 @@ func (a *App) buildCashflowSummary(resolveDates func() (string, string)) *cobra.
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("cashflow.summary", profile, output.SchemaVersion, "", summary, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("cashflow.summary", a.Flags.Profile, output.SchemaVersion, "", summary, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("Cashflow Summary (%s to %s):\n", cfStart, cfEnd)
@@ -130,7 +130,7 @@ func (a *App) buildCashflowCategories(resolveDates func() (string, string)) *cob
 		Short: "Get cashflow by category",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			svc, _, err := a.Deps.LoadService()
 			if err != nil {
@@ -151,8 +151,8 @@ func (a *App) buildCashflowCategories(resolveDates func() (string, string)) *cob
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("cashflow.categories", profile, output.SchemaVersion, "", records, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("cashflow.categories", a.Flags.Profile, output.SchemaVersion, "", records, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("%-30s %10s\n", "CATEGORY", "AMOUNT")
@@ -170,7 +170,7 @@ func (a *App) buildCashflowMerchants(resolveDates func() (string, string)) *cobr
 		Short: "Get cashflow by merchant",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			svc, _, err := a.Deps.LoadService()
 			if err != nil {
@@ -191,8 +191,8 @@ func (a *App) buildCashflowMerchants(resolveDates func() (string, string)) *cobr
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("cashflow.merchants", profile, output.SchemaVersion, "", records, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("cashflow.merchants", a.Flags.Profile, output.SchemaVersion, "", records, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("%-30s %10s\n", "MERCHANT", "AMOUNT")
@@ -210,7 +210,7 @@ func (a *App) buildCashflowSpending(resolveDates func() (string, string)) *cobra
 		Short: "Get spending breakdown by category with totals",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			svc, _, err := a.Deps.LoadService()
 			if err != nil {
@@ -240,7 +240,7 @@ func (a *App) buildCashflowSpending(resolveDates func() (string, string)) *cobra
 				}
 			}
 
-			if jsonMode {
+			if a.Flags.JSONMode {
 				data := map[string]interface{}{
 					"period":         map[string]string{"start_date": cfStart, "end_date": cfEnd},
 					"total_income":   totalIncome,
@@ -248,7 +248,7 @@ func (a *App) buildCashflowSpending(resolveDates func() (string, string)) *cobra
 					"net":            totalIncome - totalExpenses,
 					"by_category":    records,
 				}
-				env := output.NewEnvelope("cashflow.spending", profile, output.SchemaVersion, "", data, time.Since(start))
+				env := output.NewEnvelope("cashflow.spending", a.Flags.Profile, output.SchemaVersion, "", data, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("Spending Summary (%s to %s):\n\n", cfStart, cfEnd)

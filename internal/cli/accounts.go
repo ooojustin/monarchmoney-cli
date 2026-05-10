@@ -42,7 +42,7 @@ func (a *App) buildAccountsList() *cobra.Command {
 		Short: "List all accounts",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			svc, _, err := a.Deps.LoadService()
 			if err != nil {
@@ -62,8 +62,8 @@ func (a *App) buildAccountsList() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("accounts.list", profile, output.SchemaVersion, "", accounts, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("accounts.list", a.Flags.Profile, output.SchemaVersion, "", accounts, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("%-20s %-15s %-15s %s\n", "ID", "NAME", "TYPE", "BALANCE")
@@ -82,7 +82,7 @@ func (a *App) buildAccountsShow() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			svc, _, err := a.Deps.LoadService()
 			if err != nil {
@@ -102,8 +102,8 @@ func (a *App) buildAccountsShow() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("accounts.show", profile, output.SchemaVersion, "", acc, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("accounts.show", a.Flags.Profile, output.SchemaVersion, "", acc, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("ID:       %s\n", acc.ID)
@@ -122,7 +122,7 @@ func (a *App) buildAccountsTypes() *cobra.Command {
 		Short: "List all available account types",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			svc, _, err := a.Deps.LoadService()
 			if err != nil {
@@ -142,8 +142,8 @@ func (a *App) buildAccountsTypes() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("accounts.types", profile, output.SchemaVersion, "", types, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("accounts.types", a.Flags.Profile, output.SchemaVersion, "", types, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				for _, t := range types {
@@ -161,7 +161,7 @@ func (a *App) buildAccountsHoldings() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			svc, _, err := a.Deps.LoadService()
 			if err != nil {
@@ -181,8 +181,8 @@ func (a *App) buildAccountsHoldings() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("accounts.holdings", profile, output.SchemaVersion, "", holdings, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("accounts.holdings", a.Flags.Profile, output.SchemaVersion, "", holdings, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("%-20s %12s %12s %12s\n", "ID", "QUANTITY", "BASIS", "TOTAL VALUE")
@@ -205,7 +205,7 @@ func (a *App) buildAccountsHistory() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			svc, _, err := a.Deps.LoadService()
 			if err != nil {
@@ -225,8 +225,8 @@ func (a *App) buildAccountsHistory() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := envelopeWithWarnings("accounts.history", history, start, "uses aggregateSnapshots for account history; per-account snapshots are not currently available")
+			if a.Flags.JSONMode {
+				env := a.envelopeWithWarnings("accounts.history", history, start, "uses aggregateSnapshots for account history; per-account snapshots are not currently available")
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("%-12s %10s\n", "DATE", "AMOUNT")
@@ -248,18 +248,18 @@ func (a *App) buildAccountsRefresh() *cobra.Command {
 		Short: "Request a refresh of all accounts (or specific ones)",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 			logger := audit.NewLogger()
 
-			if err := safety.Check(safety.TierRemoteAction, readOnly, dryRun, confirm); err != nil {
+			if err := safety.Check(safety.TierRemoteAction, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
 				a.handleError(renderer, "accounts.refresh", err.(*errors.Error), start)
 				return
 			}
 
-			if dryRun {
+			if a.Flags.DryRun {
 				plan := safety.NewPlan()
 				plan.Add("accounts.refresh", "", nil, map[string]interface{}{"account_ids": args})
-				env := output.NewEnvelope("accounts.refresh", profile, output.SchemaVersion, "", plan, time.Since(start))
+				env := output.NewEnvelope("accounts.refresh", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
 				renderer.RenderSuccess(env)
 				return
 			}
@@ -280,7 +280,7 @@ func (a *App) buildAccountsRefresh() *cobra.Command {
 				}
 			}
 
-			logger.Log(&audit.Record{Command: "accounts.refresh", DryRun: dryRun, Confirmed: confirm, Profile: profile, Result: result, ErrorCode: errCode})
+			logger.Log(&audit.Record{Command: "accounts.refresh", DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
 
 			if err != nil {
 				var cliErr *errors.Error
@@ -311,7 +311,7 @@ func (a *App) buildAccountsRefresh() *cobra.Command {
 						}
 
 						if events {
-							env := output.NewEnvelope("accounts.refresh.progress", profile, output.SchemaVersion, "", status, time.Since(start))
+							env := output.NewEnvelope("accounts.refresh.progress", a.Flags.Profile, output.SchemaVersion, "", status, time.Since(start))
 							renderer.RenderSuccess(env)
 						}
 
@@ -323,14 +323,14 @@ func (a *App) buildAccountsRefresh() *cobra.Command {
 			}
 
 		complete:
-			if jsonMode {
+			if a.Flags.JSONMode {
 				var status string
 				if refreshWait {
 					status = "refresh complete"
 				} else {
 					status = "refresh requested"
 				}
-				env := output.NewEnvelope("accounts.refresh", profile, output.SchemaVersion, "", map[string]string{"status": status}, time.Since(start))
+				env := output.NewEnvelope("accounts.refresh", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": status}, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				if refreshWait {
@@ -351,7 +351,7 @@ func (a *App) buildAccountsRefreshStatus() *cobra.Command {
 		Short: "Check the status of the latest account refresh",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			svc, _, err := a.Deps.LoadService()
 			if err != nil {
@@ -371,8 +371,8 @@ func (a *App) buildAccountsRefreshStatus() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("accounts.refresh-status", profile, output.SchemaVersion, "", status, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("accounts.refresh-status", a.Flags.Profile, output.SchemaVersion, "", status, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("Complete:   %v\n", status["is_complete"])
@@ -395,11 +395,11 @@ func (a *App) buildAccountsUpdate() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 			logger := audit.NewLogger()
 			id := args[0]
 
-			if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
+			if err := safety.Check(safety.TierMutation, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
 				a.handleError(renderer, "accounts.update", err.(*errors.Error), start)
 				return
 			}
@@ -413,10 +413,10 @@ func (a *App) buildAccountsUpdate() *cobra.Command {
 				balance = &accountBalance
 			}
 
-			if dryRun {
+			if a.Flags.DryRun {
 				plan := safety.NewPlan()
 				plan.Add("accounts.update", id, nil, map[string]interface{}{"name": name, "balance": balance})
-				env := output.NewEnvelope("accounts.update", profile, output.SchemaVersion, "", plan, time.Since(start))
+				env := output.NewEnvelope("accounts.update", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
 				renderer.RenderSuccess(env)
 				return
 			}
@@ -436,7 +436,7 @@ func (a *App) buildAccountsUpdate() *cobra.Command {
 					errCode = string(e.Code)
 				}
 			}
-			logger.Log(&audit.Record{Command: "accounts.update", ResourceID: id, DryRun: dryRun, Confirmed: confirm, Profile: profile, Result: result, ErrorCode: errCode})
+			logger.Log(&audit.Record{Command: "accounts.update", ResourceID: id, DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
 
 			if err != nil {
 				var cliErr *errors.Error
@@ -449,8 +449,8 @@ func (a *App) buildAccountsUpdate() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("accounts.update", profile, output.SchemaVersion, "", acc, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("accounts.update", a.Flags.Profile, output.SchemaVersion, "", acc, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("Successfully updated account %s.\n", acc.ID)
@@ -469,19 +469,19 @@ func (a *App) buildAccountsDelete() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 			logger := audit.NewLogger()
 			id := args[0]
 
-			if err := safety.Check(safety.TierDestructive, readOnly, dryRun, confirm); err != nil {
+			if err := safety.Check(safety.TierDestructive, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
 				a.handleError(renderer, "accounts.delete", err.(*errors.Error), start)
 				return
 			}
 
-			if dryRun {
+			if a.Flags.DryRun {
 				plan := safety.NewPlan()
 				plan.Add("accounts.delete", id, nil, nil)
-				env := output.NewEnvelope("accounts.delete", profile, output.SchemaVersion, "", plan, time.Since(start))
+				env := output.NewEnvelope("accounts.delete", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
 				renderer.RenderSuccess(env)
 				return
 			}
@@ -501,7 +501,7 @@ func (a *App) buildAccountsDelete() *cobra.Command {
 					errCode = string(e.Code)
 				}
 			}
-			logger.Log(&audit.Record{Command: "accounts.delete", ResourceID: id, DryRun: dryRun, Confirmed: confirm, Profile: profile, Result: result, ErrorCode: errCode})
+			logger.Log(&audit.Record{Command: "accounts.delete", ResourceID: id, DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
 
 			if err != nil {
 				var cliErr *errors.Error
@@ -514,8 +514,8 @@ func (a *App) buildAccountsDelete() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("accounts.delete", profile, output.SchemaVersion, "", map[string]string{"status": "deleted"}, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("accounts.delete", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "deleted"}, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("Successfully deleted account %s.\n", id)
@@ -535,18 +535,18 @@ func (a *App) buildAccountsCreateManual() *cobra.Command {
 		Short: "Create a manual account",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 			logger := audit.NewLogger()
 
-			if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
+			if err := safety.Check(safety.TierMutation, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
 				a.handleError(renderer, "accounts.create-manual", err.(*errors.Error), start)
 				return
 			}
 
-			if dryRun {
+			if a.Flags.DryRun {
 				plan := safety.NewPlan()
 				plan.Add("accounts.create-manual", "", nil, map[string]interface{}{"name": accountName, "type": accountType, "balance": accountBalance})
-				env := output.NewEnvelope("accounts.create-manual", profile, output.SchemaVersion, "", plan, time.Since(start))
+				env := output.NewEnvelope("accounts.create-manual", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
 				renderer.RenderSuccess(env)
 				return
 			}
@@ -566,7 +566,7 @@ func (a *App) buildAccountsCreateManual() *cobra.Command {
 					errCode = string(e.Code)
 				}
 			}
-			logger.Log(&audit.Record{Command: "accounts.create-manual", DryRun: dryRun, Confirmed: confirm, Profile: profile, Result: result, ErrorCode: errCode})
+			logger.Log(&audit.Record{Command: "accounts.create-manual", DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
 
 			if err != nil {
 				var cliErr *errors.Error
@@ -579,8 +579,8 @@ func (a *App) buildAccountsCreateManual() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("accounts.create-manual", profile, output.SchemaVersion, "", acc, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("accounts.create-manual", a.Flags.Profile, output.SchemaVersion, "", acc, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("Successfully created manual account %s (%s).\n", acc.DisplayName, acc.ID)
@@ -601,20 +601,20 @@ func (a *App) buildAccountsUploadHistory() *cobra.Command {
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 			logger := audit.NewLogger()
 			id := args[0]
 			path := args[1]
 
-			if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
+			if err := safety.Check(safety.TierMutation, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
 				a.handleError(renderer, "accounts.upload-history", err.(*errors.Error), start)
 				return
 			}
 
-			if dryRun {
+			if a.Flags.DryRun {
 				plan := safety.NewPlan()
 				plan.Add("accounts.upload-history", id, nil, map[string]string{"file": path})
-				env := output.NewEnvelope("accounts.upload-history", profile, output.SchemaVersion, "", plan, time.Since(start))
+				env := output.NewEnvelope("accounts.upload-history", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
 				renderer.RenderSuccess(env)
 				return
 			}
@@ -641,7 +641,7 @@ func (a *App) buildAccountsUploadHistory() *cobra.Command {
 					errCode = string(e.Code)
 				}
 			}
-			logger.Log(&audit.Record{Command: "accounts.upload-history", ResourceID: id, DryRun: dryRun, Confirmed: confirm, Profile: profile, Result: result, ErrorCode: errCode})
+			logger.Log(&audit.Record{Command: "accounts.upload-history", ResourceID: id, DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
 
 			if err != nil {
 				var cliErr *errors.Error
@@ -654,8 +654,8 @@ func (a *App) buildAccountsUploadHistory() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("accounts.upload-history", profile, output.SchemaVersion, "", map[string]string{"status": "uploaded"}, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("accounts.upload-history", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "uploaded"}, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("Successfully uploaded history for account %s.\n", id)
@@ -671,7 +671,7 @@ func (a *App) buildAccountsRecentBalances() *cobra.Command {
 		Short: "Get recent daily balances for all accounts",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			if historyFrom == "" {
 				historyFrom = time.Now().AddDate(0, 0, -31).Format("2006-01-02")
@@ -695,8 +695,8 @@ func (a *App) buildAccountsRecentBalances() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("accounts.recent-balances", profile, output.SchemaVersion, "", res, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("accounts.recent-balances", a.Flags.Profile, output.SchemaVersion, "", res, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Println("Recent daily balances fetched.")
@@ -717,7 +717,7 @@ func (a *App) buildAccountsSnapshots() *cobra.Command {
 		Short: "Get net value snapshots by account type",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			if historyFrom == "" {
 				historyFrom = time.Now().AddDate(-1, 0, 0).Format("2006-01-02")
@@ -741,8 +741,8 @@ func (a *App) buildAccountsSnapshots() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("accounts.snapshots", profile, output.SchemaVersion, "", res, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("accounts.snapshots", a.Flags.Profile, output.SchemaVersion, "", res, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Println("Account type snapshots fetched.")
@@ -765,7 +765,7 @@ func (a *App) buildAccountsAggregateSnapshots() *cobra.Command {
 		Short: "Get aggregate net value snapshots",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			svc, _, err := a.Deps.LoadService()
 			if err != nil {
@@ -785,8 +785,8 @@ func (a *App) buildAccountsAggregateSnapshots() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("accounts.aggregate-snapshots", profile, output.SchemaVersion, "", res, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("accounts.aggregate-snapshots", a.Flags.Profile, output.SchemaVersion, "", res, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Println("Aggregate snapshots fetched.")
@@ -810,7 +810,7 @@ func (a *App) buildNetworthCommand() *cobra.Command {
 		Short: "Get net worth history over time",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			svc, _, err := a.Deps.LoadService()
 			if err != nil {
@@ -830,8 +830,8 @@ func (a *App) buildNetworthCommand() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("networth", profile, output.SchemaVersion, "", res, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("networth", a.Flags.Profile, output.SchemaVersion, "", res, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Println("Net worth snapshots fetched.")

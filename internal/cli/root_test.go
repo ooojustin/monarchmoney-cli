@@ -63,11 +63,8 @@ func TestWriteVersion(t *testing.T) {
 }
 
 func TestEnvelopeWithWarnings(t *testing.T) {
-	originalProfile := profile
-	profile = "default"
-	defer func() { profile = originalProfile }()
-
-	env := envelopeWithWarnings("transactions.list", map[string]string{"status": "ok"}, time.Now(), "uses legacy Monarch GraphQL root field: allTransactions")
+	a := &App{Flags: Flags{Profile: "default"}}
+	env := a.envelopeWithWarnings("transactions.list", map[string]string{"status": "ok"}, time.Now(), "uses legacy Monarch GraphQL root field: allTransactions")
 	if len(env.Meta.Warnings) != 1 || env.Meta.Warnings[0] == "" {
 		t.Fatalf("envelopeWithWarnings() = %#v", env.Meta.Warnings)
 	}

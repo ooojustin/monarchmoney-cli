@@ -33,7 +33,7 @@ func (a *App) buildCategoriesList() *cobra.Command {
 		Short: "List all categories",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			svc, _, err := a.Deps.LoadService()
 			if err != nil {
@@ -53,8 +53,8 @@ func (a *App) buildCategoriesList() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("categories.list", profile, output.SchemaVersion, "", cats, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("categories.list", a.Flags.Profile, output.SchemaVersion, "", cats, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("%-20s %-30s %s\n", "ID", "NAME", "GROUP")
@@ -72,7 +72,7 @@ func (a *App) buildCategoriesGroups() *cobra.Command {
 		Short: "List all category groups",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			svc, _, err := a.Deps.LoadService()
 			if err != nil {
@@ -92,8 +92,8 @@ func (a *App) buildCategoriesGroups() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("categories.groups", profile, output.SchemaVersion, "", groups, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("categories.groups", a.Flags.Profile, output.SchemaVersion, "", groups, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("%-20s %-30s %s\n", "ID", "NAME", "TYPE")
@@ -115,18 +115,18 @@ func (a *App) buildCategoriesCreate() *cobra.Command {
 		Short: "Create a category",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 			logger := audit.NewLogger()
 
-			if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
+			if err := safety.Check(safety.TierMutation, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
 				a.handleError(renderer, "categories.create", err.(*errors.Error), start)
 				return
 			}
 
-			if dryRun {
+			if a.Flags.DryRun {
 				plan := safety.NewPlan()
 				plan.Add("categories.create", "", nil, map[string]string{"name": categoryName, "groupId": categoryGroupID})
-				env := output.NewEnvelope("categories.create", profile, output.SchemaVersion, "", plan, time.Since(start))
+				env := output.NewEnvelope("categories.create", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
 				renderer.RenderSuccess(env)
 				return
 			}
@@ -149,9 +149,9 @@ func (a *App) buildCategoriesCreate() *cobra.Command {
 
 			logger.Log(&audit.Record{
 				Command:   "categories.create",
-				DryRun:    dryRun,
-				Confirmed: confirm,
-				Profile:   profile,
+				DryRun:    a.Flags.DryRun,
+				Confirmed: a.Flags.Confirm,
+				Profile:   a.Flags.Profile,
 				Result:    result,
 				ErrorCode: errCode,
 			})
@@ -167,8 +167,8 @@ func (a *App) buildCategoriesCreate() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("categories.create", profile, output.SchemaVersion, "", cat, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("categories.create", a.Flags.Profile, output.SchemaVersion, "", cat, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("Successfully created category %s (%s).\n", cat.Name, cat.ID)
@@ -189,19 +189,19 @@ func (a *App) buildCategoriesDelete() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 			logger := audit.NewLogger()
 			id := args[0]
 
-			if err := safety.Check(safety.TierDestructive, readOnly, dryRun, confirm); err != nil {
+			if err := safety.Check(safety.TierDestructive, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
 				a.handleError(renderer, "categories.delete", err.(*errors.Error), start)
 				return
 			}
 
-			if dryRun {
+			if a.Flags.DryRun {
 				plan := safety.NewPlan()
 				plan.Add("categories.delete", id, nil, nil)
-				env := output.NewEnvelope("categories.delete", profile, output.SchemaVersion, "", plan, time.Since(start))
+				env := output.NewEnvelope("categories.delete", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
 				renderer.RenderSuccess(env)
 				return
 			}
@@ -225,9 +225,9 @@ func (a *App) buildCategoriesDelete() *cobra.Command {
 			logger.Log(&audit.Record{
 				Command:    "categories.delete",
 				ResourceID: id,
-				DryRun:     dryRun,
-				Confirmed:  confirm,
-				Profile:    profile,
+				DryRun:     a.Flags.DryRun,
+				Confirmed:  a.Flags.Confirm,
+				Profile:    a.Flags.Profile,
 				Result:     result,
 				ErrorCode:  errCode,
 			})
@@ -243,8 +243,8 @@ func (a *App) buildCategoriesDelete() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("categories.delete", profile, output.SchemaVersion, "", map[string]string{"status": "deleted"}, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("categories.delete", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "deleted"}, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("Successfully deleted category %s.\n", id)
@@ -260,10 +260,10 @@ func (a *App) buildCategoriesDeleteMany() *cobra.Command {
 		Short: "Delete multiple categories from a file",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 			logger := audit.NewLogger()
 
-			if err := safety.Check(safety.TierDestructive, readOnly, dryRun, confirm); err != nil {
+			if err := safety.Check(safety.TierDestructive, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
 				a.handleError(renderer, "categories.delete-many", err.(*errors.Error), start)
 				return
 			}
@@ -289,10 +289,10 @@ func (a *App) buildCategoriesDeleteMany() *cobra.Command {
 				}
 			}
 
-			if dryRun {
+			if a.Flags.DryRun {
 				plan := safety.NewPlan()
 				plan.Add("categories.delete-many", "", nil, map[string]interface{}{"ids": ids})
-				env := output.NewEnvelope("categories.delete-many", profile, output.SchemaVersion, "", plan, time.Since(start))
+				env := output.NewEnvelope("categories.delete-many", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
 				renderer.RenderSuccess(env)
 				return
 			}
@@ -315,9 +315,9 @@ func (a *App) buildCategoriesDeleteMany() *cobra.Command {
 
 			logger.Log(&audit.Record{
 				Command:   "categories.delete-many",
-				DryRun:    dryRun,
-				Confirmed: confirm,
-				Profile:   profile,
+				DryRun:    a.Flags.DryRun,
+				Confirmed: a.Flags.Confirm,
+				Profile:   a.Flags.Profile,
 				Result:    result,
 				ErrorCode: errCode,
 			})
@@ -333,8 +333,8 @@ func (a *App) buildCategoriesDeleteMany() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("categories.delete-many", profile, output.SchemaVersion, "", map[string]string{"status": "categories deleted"}, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("categories.delete-many", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "categories deleted"}, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("Successfully deleted %d categories.\n", len(ids))

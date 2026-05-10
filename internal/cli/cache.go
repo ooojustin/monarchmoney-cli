@@ -38,7 +38,7 @@ func (a *App) buildCacheSync() *cobra.Command {
 		Short: "Sync data from Monarch to local cache",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			if syncFrom != "" {
 				if _, err := time.Parse("2006-01-02", syncFrom); err != nil {
@@ -114,8 +114,8 @@ func (a *App) buildCacheSync() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("cache.sync", profile, output.SchemaVersion, "", map[string]string{"status": "sync complete"}, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("cache.sync", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "sync complete"}, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Println("Sync complete.")
@@ -133,7 +133,7 @@ func (a *App) buildCacheSearch() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			cfg, _ := config.Load()
 			cacheStore, err := cache.NewStore(cfg.CachePath)
@@ -148,8 +148,8 @@ func (a *App) buildCacheSearch() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("cache.search", profile, output.SchemaVersion, "", txs, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("cache.search", a.Flags.Profile, output.SchemaVersion, "", txs, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES")
@@ -168,7 +168,7 @@ func (a *App) buildCacheStats() *cobra.Command {
 		Short: "Show cache statistics",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			cfg, _ := config.Load()
 			cacheStore, err := cache.NewStore(cfg.CachePath)
@@ -179,8 +179,8 @@ func (a *App) buildCacheStats() *cobra.Command {
 
 			stats, _ := cacheStore.GetStats()
 
-			if jsonMode {
-				env := output.NewEnvelope("cache.stats", profile, output.SchemaVersion, "", stats, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("cache.stats", a.Flags.Profile, output.SchemaVersion, "", stats, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Println("Cache Statistics")
@@ -199,7 +199,7 @@ func (a *App) buildCacheCleanup() *cobra.Command {
 		Short: "Clean up old transactions from cache",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			if cleanupBefore == "" {
 				a.handleError(renderer, "cache.cleanup", errors.New(errors.InvalidArguments, "--before is required", errors.CatValidation, false, nil), start)
@@ -223,8 +223,8 @@ func (a *App) buildCacheCleanup() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("cache.cleanup", profile, output.SchemaVersion, "", map[string]int64{"deleted": affected}, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("cache.cleanup", a.Flags.Profile, output.SchemaVersion, "", map[string]int64{"deleted": affected}, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("Deleted %d transactions from cache.\n", affected)

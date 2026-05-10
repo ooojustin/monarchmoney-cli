@@ -27,7 +27,7 @@ func (a *App) buildRecurringList() *cobra.Command {
 		Short: "List recurring transactions",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			svc, _, err := a.Deps.LoadService()
 			if err != nil {
@@ -52,8 +52,8 @@ func (a *App) buildRecurringList() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("recurring.list", profile, output.SchemaVersion, "", recurring, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("recurring.list", a.Flags.Profile, output.SchemaVersion, "", recurring, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("%-20s %10s %-12s %-12s %s\n", "MERCHANT", "AMOUNT", "FREQUENCY", "NEXT DATE", "STATUS")
@@ -73,19 +73,19 @@ func (a *App) buildRecurringUpdate() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 			logger := audit.NewLogger()
 			id := args[0]
 
-			if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
+			if err := safety.Check(safety.TierMutation, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
 				a.handleError(renderer, "recurring.update", err.(*errors.Error), start)
 				return
 			}
 
-			if dryRun {
+			if a.Flags.DryRun {
 				plan := safety.NewPlan()
 				plan.Add("recurring.update", id, nil, map[string]interface{}{"amount": recurringAmount})
-				env := output.NewEnvelope("recurring.update", profile, output.SchemaVersion, "", plan, time.Since(start))
+				env := output.NewEnvelope("recurring.update", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
 				renderer.RenderSuccess(env)
 				return
 			}
@@ -109,9 +109,9 @@ func (a *App) buildRecurringUpdate() *cobra.Command {
 			logger.Log(&audit.Record{
 				Command:    "recurring.update",
 				ResourceID: id,
-				DryRun:     dryRun,
-				Confirmed:  confirm,
-				Profile:    profile,
+				DryRun:     a.Flags.DryRun,
+				Confirmed:  a.Flags.Confirm,
+				Profile:    a.Flags.Profile,
 				Result:     result,
 				ErrorCode:  errCode,
 			})
@@ -127,8 +127,8 @@ func (a *App) buildRecurringUpdate() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("recurring.update", profile, output.SchemaVersion, "", r, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("recurring.update", a.Flags.Profile, output.SchemaVersion, "", r, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("Successfully updated recurring transaction %s.\n", r.ID)

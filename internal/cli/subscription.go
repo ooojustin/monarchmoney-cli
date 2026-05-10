@@ -24,7 +24,7 @@ func (a *App) buildSubscriptionShow() *cobra.Command {
 		Short: "Show subscription details",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			svc, _, err := a.Deps.LoadService()
 			if err != nil {
@@ -44,8 +44,8 @@ func (a *App) buildSubscriptionShow() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := envelopeWithWarnings("subscription.show", sub, start, "uses legacy Monarch GraphQL root field: subscription")
+			if a.Flags.JSONMode {
+				env := a.envelopeWithWarnings("subscription.show", sub, start, "uses legacy Monarch GraphQL root field: subscription")
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("ID:                      %s\n", sub.ID)

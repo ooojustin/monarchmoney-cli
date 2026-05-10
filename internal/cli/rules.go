@@ -56,7 +56,7 @@ func (a *App) buildRulesList() *cobra.Command {
 		Short: "List all transaction rules",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
 			svc, _, err := a.Deps.LoadService()
 			if err != nil {
@@ -76,8 +76,8 @@ func (a *App) buildRulesList() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("rules.list", profile, output.SchemaVersion, "", rules, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("rules.list", a.Flags.Profile, output.SchemaVersion, "", rules, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("%-36s %-12s %-20s %s\n", "ID", "OPERATOR", "MATCH", "ACTION")
@@ -109,10 +109,10 @@ func (a *App) buildRulesCreate() *cobra.Command {
 		Short: "Create a transaction rule",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 			logger := audit.NewLogger()
 
-			if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
+			if err := safety.Check(safety.TierMutation, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
 				a.handleError(renderer, "rules.create", err.(*errors.Error), start)
 				return
 			}
@@ -131,10 +131,10 @@ func (a *App) buildRulesCreate() *cobra.Command {
 				input.AmountValue = &rf.amountValue
 			}
 
-			if dryRun {
+			if a.Flags.DryRun {
 				plan := safety.NewPlan()
 				plan.Add("rules.create", "", nil, map[string]interface{}{"input": input})
-				env := output.NewEnvelope("rules.create", profile, output.SchemaVersion, "", plan, time.Since(start))
+				env := output.NewEnvelope("rules.create", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
 				renderer.RenderSuccess(env)
 				return
 			}
@@ -154,7 +154,7 @@ func (a *App) buildRulesCreate() *cobra.Command {
 					errCode = string(e.Code)
 				}
 			}
-			logger.Log(&audit.Record{Command: "rules.create", DryRun: dryRun, Confirmed: confirm, Profile: profile, Result: result, ErrorCode: errCode})
+			logger.Log(&audit.Record{Command: "rules.create", DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
 
 			if err != nil {
 				var cliErr *errors.Error
@@ -167,8 +167,8 @@ func (a *App) buildRulesCreate() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("rules.create", profile, output.SchemaVersion, "", map[string]string{"status": "created"}, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("rules.create", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "created"}, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Println("Successfully created rule.")
@@ -187,11 +187,11 @@ func (a *App) buildRulesUpdate() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 			logger := audit.NewLogger()
 			id := args[0]
 
-			if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
+			if err := safety.Check(safety.TierMutation, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
 				a.handleError(renderer, "rules.update", err.(*errors.Error), start)
 				return
 			}
@@ -211,10 +211,10 @@ func (a *App) buildRulesUpdate() *cobra.Command {
 				input.AmountValue = &rf.amountValue
 			}
 
-			if dryRun {
+			if a.Flags.DryRun {
 				plan := safety.NewPlan()
 				plan.Add("rules.update", id, nil, map[string]interface{}{"input": input})
-				env := output.NewEnvelope("rules.update", profile, output.SchemaVersion, "", plan, time.Since(start))
+				env := output.NewEnvelope("rules.update", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
 				renderer.RenderSuccess(env)
 				return
 			}
@@ -234,7 +234,7 @@ func (a *App) buildRulesUpdate() *cobra.Command {
 					errCode = string(e.Code)
 				}
 			}
-			logger.Log(&audit.Record{Command: "rules.update", ResourceID: id, DryRun: dryRun, Confirmed: confirm, Profile: profile, Result: result, ErrorCode: errCode})
+			logger.Log(&audit.Record{Command: "rules.update", ResourceID: id, DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
 
 			if err != nil {
 				var cliErr *errors.Error
@@ -247,8 +247,8 @@ func (a *App) buildRulesUpdate() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("rules.update", profile, output.SchemaVersion, "", map[string]string{"status": "updated"}, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("rules.update", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "updated"}, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("Successfully updated rule %s.\n", id)
@@ -266,19 +266,19 @@ func (a *App) buildRulesDelete() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 			logger := audit.NewLogger()
 			id := args[0]
 
-			if err := safety.Check(safety.TierDestructive, readOnly, dryRun, confirm); err != nil {
+			if err := safety.Check(safety.TierDestructive, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
 				a.handleError(renderer, "rules.delete", err.(*errors.Error), start)
 				return
 			}
 
-			if dryRun {
+			if a.Flags.DryRun {
 				plan := safety.NewPlan()
 				plan.Add("rules.delete", id, nil, nil)
-				env := output.NewEnvelope("rules.delete", profile, output.SchemaVersion, "", plan, time.Since(start))
+				env := output.NewEnvelope("rules.delete", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
 				renderer.RenderSuccess(env)
 				return
 			}
@@ -298,7 +298,7 @@ func (a *App) buildRulesDelete() *cobra.Command {
 					errCode = string(e.Code)
 				}
 			}
-			logger.Log(&audit.Record{Command: "rules.delete", ResourceID: id, DryRun: dryRun, Confirmed: confirm, Profile: profile, Result: result, ErrorCode: errCode})
+			logger.Log(&audit.Record{Command: "rules.delete", ResourceID: id, DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
 
 			if err != nil {
 				var cliErr *errors.Error
@@ -311,8 +311,8 @@ func (a *App) buildRulesDelete() *cobra.Command {
 				return
 			}
 
-			if jsonMode {
-				env := output.NewEnvelope("rules.delete", profile, output.SchemaVersion, "", map[string]string{"status": "deleted"}, time.Since(start))
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("rules.delete", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "deleted"}, time.Since(start))
 				renderer.RenderSuccess(env)
 			} else {
 				fmt.Printf("Successfully deleted rule %s.\n", id)
