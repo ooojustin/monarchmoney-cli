@@ -44,8 +44,8 @@ func (r *Renderer) RenderSuccess(env *Envelope) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintln(r.Stdout, string(data))
-		return nil
+		_, err = fmt.Fprintln(r.Stdout, string(data))
+		return err
 	}
 
 	// Non-JSON success rendering is command-specific; Renderer intentionally stays silent here.
@@ -65,15 +65,15 @@ func (r *Renderer) RenderError(env *ErrorEnvelope) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintln(r.Stdout, string(data))
-		return nil
+		_, err = fmt.Fprintln(r.Stdout, string(data))
+		return err
 	}
 
-	fmt.Fprintf(r.Stderr, "Error: %s\n", env.Error.Message)
-	return nil
+	_, err := fmt.Fprintf(r.Stderr, "Error: %s\n", env.Error.Message)
+	return err
 }
 
 // PrintDiagnostic writes a diagnostic message to stderr.
 func (r *Renderer) PrintDiagnostic(msg string) {
-	fmt.Fprintln(r.Stderr, msg)
+	_, _ = fmt.Fprintln(r.Stderr, msg)
 }

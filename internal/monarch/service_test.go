@@ -54,14 +54,6 @@ func (failingReader) Read([]byte) (int, error) {
 	return 0, errors.New("read failed")
 }
 
-type failingReadCloser struct{}
-
-func (failingReadCloser) Read([]byte) (int, error) {
-	return 0, errors.New("read failed")
-}
-
-func (failingReadCloser) Close() error { return nil }
-
 func (m *mockClient) Do(_ context.Context, req *graphql.Request, result interface{}) error {
 	m.lastReq = req
 	if m.handler != nil {
@@ -131,8 +123,7 @@ func runGraphQLCase(t *testing.T, op string, wantVars map[string]interface{}, pa
 func runGraphQLErrorCase(t *testing.T, op string, wantVars map[string]interface{}, call func(*Service) error) {
 	t.Helper()
 
-	var client *mockClient
-	client = &mockClient{
+	client := &mockClient{
 		token: "token-123",
 		handler: func(req *graphql.Request, result interface{}) error {
 			assertReq(t, req, op)
@@ -917,7 +908,9 @@ func TestServiceHTTPHelpers(t *testing.T) {
 
 		file, err := os.Open(tmp)
 		require.NoError(t, err)
-		defer file.Close()
+		defer func() {
+			_ = file.Close()
+		}()
 
 		svc := NewService(
 			&mockClient{token: "tok"},
@@ -936,7 +929,9 @@ func TestServiceHTTPHelpers(t *testing.T) {
 		require.NoError(t, os.WriteFile(tmp, []byte("date,amount\n"), 0600))
 		file, err := os.Open(tmp)
 		require.NoError(t, err)
-		defer file.Close()
+		defer func() {
+			_ = file.Close()
+		}()
 
 		svc := NewService(&mockClient{token: "tok"}, WithHTTPClient(httpClient))
 		assert.Error(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", file))
@@ -951,7 +946,9 @@ func TestServiceHTTPHelpers(t *testing.T) {
 		require.NoError(t, os.WriteFile(tmp, []byte("date,amount\n"), 0600))
 		file, err := os.Open(tmp)
 		require.NoError(t, err)
-		defer file.Close()
+		defer func() {
+			_ = file.Close()
+		}()
 
 		svc := NewService(&mockClient{token: "tok"}, WithHTTPClient(httpClient))
 		assert.Error(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", file))

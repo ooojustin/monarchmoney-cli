@@ -116,7 +116,7 @@ func (a *App) buildCacheSync() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("cache.sync", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "sync complete"}, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Println("Sync complete.")
 			}
@@ -150,7 +150,7 @@ func (a *App) buildCacheSearch() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("cache.search", a.Flags.Profile, output.SchemaVersion, "", txs, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES")
 				for _, t := range txs {
@@ -181,7 +181,7 @@ func (a *App) buildCacheStats() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("cache.stats", a.Flags.Profile, output.SchemaVersion, "", stats, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Println("Cache Statistics")
 				for k, v := range stats {
@@ -225,13 +225,13 @@ func (a *App) buildCacheCleanup() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("cache.cleanup", a.Flags.Profile, output.SchemaVersion, "", map[string]int64{"deleted": affected}, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Deleted %d transactions from cache.\n", affected)
 			}
 		},
 	}
 	cmd.Flags().StringVar(&cleanupBefore, "before", "", "delete transactions before date (YYYY-MM-DD)")
-	cmd.MarkFlagRequired("before")
+	mustMarkFlagRequired(cmd, "before")
 	return cmd
 }

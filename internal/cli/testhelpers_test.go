@@ -2,12 +2,10 @@ package cli
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"net/http"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"github.com/thedavidweng/monarchmoney-cli/internal/audit"
 	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
 )
@@ -79,20 +77,3 @@ func jsonHTTPResponse(body string) *http.Response {
 }
 
 func bytesReader(s string) *bytes.Reader { return bytes.NewReader([]byte(s)) }
-
-// runCommand finds the command at args[0..], applies optional flag setters,
-// gives it a context.Background, and invokes its Run handler. It returns the
-// found command for tests that want to inspect its post-run state.
-func runCommand(t *testing.T, app *App, path []string, setFlags func(*cobra.Command)) *cobra.Command {
-	t.Helper()
-	cmd, _, err := app.Root.Find(path)
-	if err != nil {
-		t.Fatalf("Find %v = %v", path, err)
-	}
-	cmd.SetContext(context.Background())
-	if setFlags != nil {
-		setFlags(cmd)
-	}
-	cmd.Run(cmd, nil)
-	return cmd
-}

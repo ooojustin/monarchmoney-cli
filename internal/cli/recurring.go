@@ -54,7 +54,7 @@ func (a *App) buildRecurringList() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("recurring.list", a.Flags.Profile, output.SchemaVersion, "", recurring, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("%-20s %10s %-12s %-12s %s\n", "MERCHANT", "AMOUNT", "FREQUENCY", "NEXT DATE", "STATUS")
 				for _, r := range recurring {
@@ -86,7 +86,7 @@ func (a *App) buildRecurringUpdate() *cobra.Command {
 				plan := safety.NewPlan()
 				plan.Add("recurring.update", id, nil, map[string]interface{}{"amount": recurringAmount})
 				env := output.NewEnvelope("recurring.update", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 				return
 			}
 
@@ -106,7 +106,7 @@ func (a *App) buildRecurringUpdate() *cobra.Command {
 				}
 			}
 
-			logger.Log(&audit.Record{
+			a.logAudit(logger, &audit.Record{
 				Command:    "recurring.update",
 				ResourceID: id,
 				DryRun:     a.Flags.DryRun,
@@ -129,13 +129,13 @@ func (a *App) buildRecurringUpdate() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("recurring.update", a.Flags.Profile, output.SchemaVersion, "", r, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Successfully updated recurring transaction %s.\n", r.ID)
 			}
 		},
 	}
 	cmd.Flags().Float64Var(&recurringAmount, "amount", 0, "new recurring amount")
-	cmd.MarkFlagRequired("amount")
+	mustMarkFlagRequired(cmd, "amount")
 	return cmd
 }

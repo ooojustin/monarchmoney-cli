@@ -94,10 +94,10 @@ func DefaultDeps() Deps {
 	config.SetDefaults(v)
 
 	// Legacy env var aliases that don't follow the prefix-replacer convention.
-	v.BindEnv("read-only", "MONARCH_READONLY")
-	v.BindEnv("profile", "MONARCH_PROFILE")
-	v.BindEnv("timeout", "MONARCH_TIMEOUT")
-	v.BindEnv("config", "MONARCH_CONFIG")
+	mustBindEnv(v, "read-only", "MONARCH_READONLY")
+	mustBindEnv(v, "profile", "MONARCH_PROFILE")
+	mustBindEnv(v, "timeout", "MONARCH_TIMEOUT")
+	mustBindEnv(v, "config", "MONARCH_CONFIG")
 
 	return Deps{
 		Viper: v,

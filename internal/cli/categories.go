@@ -55,7 +55,7 @@ func (a *App) buildCategoriesList() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("categories.list", a.Flags.Profile, output.SchemaVersion, "", cats, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("%-20s %-30s %s\n", "ID", "NAME", "GROUP")
 				for _, c := range cats {
@@ -94,7 +94,7 @@ func (a *App) buildCategoriesGroups() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("categories.groups", a.Flags.Profile, output.SchemaVersion, "", groups, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("%-20s %-30s %s\n", "ID", "NAME", "TYPE")
 				for _, g := range groups {
@@ -127,7 +127,7 @@ func (a *App) buildCategoriesCreate() *cobra.Command {
 				plan := safety.NewPlan()
 				plan.Add("categories.create", "", nil, map[string]string{"name": categoryName, "groupId": categoryGroupID})
 				env := output.NewEnvelope("categories.create", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 				return
 			}
 
@@ -147,7 +147,7 @@ func (a *App) buildCategoriesCreate() *cobra.Command {
 				}
 			}
 
-			logger.Log(&audit.Record{
+			a.logAudit(logger, &audit.Record{
 				Command:   "categories.create",
 				DryRun:    a.Flags.DryRun,
 				Confirmed: a.Flags.Confirm,
@@ -169,7 +169,7 @@ func (a *App) buildCategoriesCreate() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("categories.create", a.Flags.Profile, output.SchemaVersion, "", cat, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Successfully created category %s (%s).\n", cat.Name, cat.ID)
 			}
@@ -177,8 +177,8 @@ func (a *App) buildCategoriesCreate() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&categoryName, "name", "", "category name")
 	cmd.Flags().StringVar(&categoryGroupID, "group", "", "category group ID")
-	cmd.MarkFlagRequired("name")
-	cmd.MarkFlagRequired("group")
+	mustMarkFlagRequired(cmd, "name")
+	mustMarkFlagRequired(cmd, "group")
 	return cmd
 }
 
@@ -202,7 +202,7 @@ func (a *App) buildCategoriesDelete() *cobra.Command {
 				plan := safety.NewPlan()
 				plan.Add("categories.delete", id, nil, nil)
 				env := output.NewEnvelope("categories.delete", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 				return
 			}
 
@@ -222,7 +222,7 @@ func (a *App) buildCategoriesDelete() *cobra.Command {
 				}
 			}
 
-			logger.Log(&audit.Record{
+			a.logAudit(logger, &audit.Record{
 				Command:    "categories.delete",
 				ResourceID: id,
 				DryRun:     a.Flags.DryRun,
@@ -245,7 +245,7 @@ func (a *App) buildCategoriesDelete() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("categories.delete", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "deleted"}, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Successfully deleted category %s.\n", id)
 			}
@@ -278,7 +278,9 @@ func (a *App) buildCategoriesDeleteMany() *cobra.Command {
 				a.handleError(renderer, "categories.delete-many", errors.New(errors.InternalError, "failed to open file", errors.CatInternal, false, err), start)
 				return
 			}
-			defer f.Close()
+			defer func() {
+				_ = f.Close()
+			}()
 
 			var ids []string
 			scanner := bufio.NewScanner(f)
@@ -293,7 +295,7 @@ func (a *App) buildCategoriesDeleteMany() *cobra.Command {
 				plan := safety.NewPlan()
 				plan.Add("categories.delete-many", "", nil, map[string]interface{}{"ids": ids})
 				env := output.NewEnvelope("categories.delete-many", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 				return
 			}
 
@@ -313,7 +315,7 @@ func (a *App) buildCategoriesDeleteMany() *cobra.Command {
 				}
 			}
 
-			logger.Log(&audit.Record{
+			a.logAudit(logger, &audit.Record{
 				Command:   "categories.delete-many",
 				DryRun:    a.Flags.DryRun,
 				Confirmed: a.Flags.Confirm,
@@ -335,13 +337,13 @@ func (a *App) buildCategoriesDeleteMany() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("categories.delete-many", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "categories deleted"}, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Successfully deleted %d categories.\n", len(ids))
 			}
 		},
 	}
 	cmd.Flags().StringVar(&categoryFile, "file", "", "file with category IDs (one per line)")
-	cmd.MarkFlagRequired("file")
+	mustMarkFlagRequired(cmd, "file")
 	return cmd
 }

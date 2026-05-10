@@ -49,7 +49,7 @@ func (a *App) buildTagsList() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("tags.list", a.Flags.Profile, output.SchemaVersion, "", tags, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("%-20s %-20s %s\n", "ID", "NAME", "COLOR")
 				for _, t := range tags {
@@ -82,7 +82,7 @@ func (a *App) buildTagsCreate() *cobra.Command {
 				plan := safety.NewPlan()
 				plan.Add("tags.create", "", nil, map[string]string{"name": tagName, "color": tagColor})
 				env := output.NewEnvelope("tags.create", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 				return
 			}
 
@@ -102,7 +102,7 @@ func (a *App) buildTagsCreate() *cobra.Command {
 				}
 			}
 
-			logger.Log(&audit.Record{
+			a.logAudit(logger, &audit.Record{
 				Command:   "tags.create",
 				DryRun:    a.Flags.DryRun,
 				Confirmed: a.Flags.Confirm,
@@ -124,7 +124,7 @@ func (a *App) buildTagsCreate() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("tags.create", a.Flags.Profile, output.SchemaVersion, "", tag, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Successfully created tag %s (%s).\n", tag.Name, tag.ID)
 			}
@@ -132,6 +132,6 @@ func (a *App) buildTagsCreate() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&tagName, "name", "", "tag name")
 	cmd.Flags().StringVar(&tagColor, "color", "#000000", "tag color")
-	cmd.MarkFlagRequired("name")
+	mustMarkFlagRequired(cmd, "name")
 	return cmd
 }

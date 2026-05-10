@@ -49,11 +49,11 @@ func (l *Logger) Log(r *Record) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
 	if _, err := f.Write(append(data, '\n')); err != nil {
+		_ = f.Close()
 		return err
 	}
 
-	return nil
+	return f.Close()
 }

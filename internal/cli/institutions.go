@@ -46,7 +46,7 @@ func (a *App) buildInstitutionsList() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("institutions.list", a.Flags.Profile, output.SchemaVersion, "", insts, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("%-20s %-30s %s\n", "ID", "NAME", "URL")
 				for _, inst := range insts {

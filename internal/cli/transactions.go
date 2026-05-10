@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"time"
 
@@ -121,7 +120,7 @@ func (a *App) buildTransactionsList(resolveDates func() (string, string)) *cobra
 			if a.Flags.JSONMode {
 				data := map[string]interface{}{"transactions": txs, "total": total}
 				env := a.envelopeWithWarnings("transactions.list", data, start, "uses legacy Monarch GraphQL root field: allTransactions")
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES")
 				for _, t := range txs {
@@ -180,7 +179,7 @@ func (a *App) buildTransactionsSearch(resolveDates func() (string, string)) *cob
 			if a.Flags.JSONMode {
 				data := map[string]interface{}{"transactions": txs, "total": total}
 				env := a.envelopeWithWarnings("transactions.search", data, start, "uses legacy Monarch GraphQL root field: allTransactions")
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES")
 				for _, t := range txs {
@@ -224,7 +223,7 @@ func (a *App) buildTransactionsShow() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.show", a.Flags.Profile, output.SchemaVersion, "", tx, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("ID:       %s\n", tx.ID)
 				fmt.Printf("Date:     %s\n", tx.Date)
@@ -266,7 +265,7 @@ func (a *App) buildTransactionsSummary(resolveDates func() (string, string)) *co
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.summary", a.Flags.Profile, output.SchemaVersion, "", summary, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Println("Transaction Summary")
 			}
@@ -306,7 +305,7 @@ func (a *App) buildTransactionsDuplicates() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := a.envelopeWithWarnings("transactions.duplicates", txs, start, "uses legacy Monarch GraphQL root field: allTransactions")
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("%-12s %-20s %10s %s\n", "DATE", "MERCHANT", "AMOUNT", "ID")
 				for _, t := range txs {
@@ -346,7 +345,7 @@ func (a *App) buildTransactionsSplits() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.splits", a.Flags.Profile, output.SchemaVersion, "", splits, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("%-20s %10s %s\n", "CATEGORY", "AMOUNT", "NOTES")
 				for _, s := range splits {
@@ -392,14 +391,16 @@ func (a *App) buildTransactionsExport(resolveDates func() (string, string)) *cob
 				return
 			}
 
-			var out io.Writer = a.Deps.Stdout
+			out := a.Deps.Stdout
 			if outputFile != "" {
 				f, err := os.Create(outputFile)
 				if err != nil {
 					a.handleError(renderer, "transactions.export", errors.New(errors.InternalError, "failed to create output file", errors.CatInternal, false, err), start)
 					return
 				}
-				defer f.Close()
+				defer func() {
+					_ = f.Close()
+				}()
 				out = f
 			}
 
@@ -410,7 +411,7 @@ func (a *App) buildTransactionsExport(resolveDates func() (string, string)) *cob
 				}
 			} else {
 				env := output.NewEnvelope("transactions.export", a.Flags.Profile, output.SchemaVersion, "", txs, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			}
 		},
 	}
@@ -484,7 +485,7 @@ func (a *App) buildTransactionsUpdate() *cobra.Command {
 				plan := safety.NewPlan()
 				plan.Add("transactions.update", id, nil, map[string]interface{}{"notes": notes, "categoryId": categoryID, "amount": amount, "date": date, "merchant": merchantName, "hideFromReports": hideFromReports, "needsReview": needsReview})
 				env := output.NewEnvelope("transactions.update", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 				return
 			}
 
@@ -503,7 +504,7 @@ func (a *App) buildTransactionsUpdate() *cobra.Command {
 					errCode = string(e.Code)
 				}
 			}
-			logger.Log(&audit.Record{Command: "transactions.update", ResourceID: id, DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
+			a.logAudit(logger, &audit.Record{Command: "transactions.update", ResourceID: id, DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
 
 			if err != nil {
 				var cliErr *errors.Error
@@ -518,7 +519,7 @@ func (a *App) buildTransactionsUpdate() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.update", a.Flags.Profile, output.SchemaVersion, "", tx, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Successfully updated transaction %s.\n", tx.ID)
 			}
@@ -555,7 +556,7 @@ func (a *App) buildTransactionsDelete() *cobra.Command {
 				plan := safety.NewPlan()
 				plan.Add("transactions.delete", id, nil, nil)
 				env := output.NewEnvelope("transactions.delete", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 				return
 			}
 
@@ -574,7 +575,7 @@ func (a *App) buildTransactionsDelete() *cobra.Command {
 					errCode = string(e.Code)
 				}
 			}
-			logger.Log(&audit.Record{Command: "transactions.delete", ResourceID: id, DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
+			a.logAudit(logger, &audit.Record{Command: "transactions.delete", ResourceID: id, DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
 
 			if err != nil {
 				var cliErr *errors.Error
@@ -589,7 +590,7 @@ func (a *App) buildTransactionsDelete() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.delete", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "deleted"}, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Successfully deleted transaction %s.\n", id)
 			}
@@ -627,7 +628,7 @@ func (a *App) buildTransactionsCreate() *cobra.Command {
 				plan := safety.NewPlan()
 				plan.Add("transactions.create", "", nil, map[string]interface{}{"amount": txAmount, "merchant": txMerchant, "date": txDate, "categoryId": txCategoryID})
 				env := output.NewEnvelope("transactions.create", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 				return
 			}
 
@@ -646,7 +647,7 @@ func (a *App) buildTransactionsCreate() *cobra.Command {
 					errCode = string(e.Code)
 				}
 			}
-			logger.Log(&audit.Record{Command: "transactions.create", DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
+			a.logAudit(logger, &audit.Record{Command: "transactions.create", DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
 
 			if err != nil {
 				var cliErr *errors.Error
@@ -661,7 +662,7 @@ func (a *App) buildTransactionsCreate() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.create", a.Flags.Profile, output.SchemaVersion, "", tx, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Successfully created transaction %s.\n", tx.ID)
 			}
@@ -673,9 +674,9 @@ func (a *App) buildTransactionsCreate() *cobra.Command {
 	cmd.Flags().StringVar(&txCategoryID, "category", "", "category ID")
 	cmd.Flags().StringVar(&txAccountID, "account", "", "account ID")
 	cmd.Flags().StringVar(&txNotes, "notes", "", "transaction notes")
-	cmd.MarkFlagRequired("amount")
-	cmd.MarkFlagRequired("merchant")
-	cmd.MarkFlagRequired("category")
+	mustMarkFlagRequired(cmd, "amount")
+	mustMarkFlagRequired(cmd, "merchant")
+	mustMarkFlagRequired(cmd, "category")
 	return cmd
 }
 
@@ -712,7 +713,7 @@ func (a *App) buildTransactionsSplit() *cobra.Command {
 				plan := safety.NewPlan()
 				plan.Add("transactions.split", id, nil, map[string]interface{}{"splits": splits})
 				env := output.NewEnvelope("transactions.split", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 				return
 			}
 
@@ -731,7 +732,7 @@ func (a *App) buildTransactionsSplit() *cobra.Command {
 					errCode = string(e.Code)
 				}
 			}
-			logger.Log(&audit.Record{Command: "transactions.split", ResourceID: id, DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
+			a.logAudit(logger, &audit.Record{Command: "transactions.split", ResourceID: id, DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
 
 			if err != nil {
 				var cliErr *errors.Error
@@ -746,14 +747,14 @@ func (a *App) buildTransactionsSplit() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.split", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "split updated"}, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Successfully split transaction %s.\n", id)
 			}
 		},
 	}
 	cmd.Flags().StringVar(&splitFile, "file", "", "JSON file with split data")
-	cmd.MarkFlagRequired("file")
+	mustMarkFlagRequired(cmd, "file")
 	return cmd
 }
 
@@ -778,7 +779,7 @@ func (a *App) buildTransactionsTagsSet() *cobra.Command {
 				plan := safety.NewPlan()
 				plan.Add("transactions.tags.set", id, nil, map[string]interface{}{"tag_ids": tagIDs})
 				env := output.NewEnvelope("transactions.tags.set", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 				return
 			}
 
@@ -797,7 +798,7 @@ func (a *App) buildTransactionsTagsSet() *cobra.Command {
 					errCode = string(e.Code)
 				}
 			}
-			logger.Log(&audit.Record{Command: "transactions.tags.set", ResourceID: id, DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
+			a.logAudit(logger, &audit.Record{Command: "transactions.tags.set", ResourceID: id, DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
 
 			if err != nil {
 				var cliErr *errors.Error
@@ -812,14 +813,14 @@ func (a *App) buildTransactionsTagsSet() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.tags.set", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "tags set"}, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Successfully set tags for transaction %s.\n", id)
 			}
 		},
 	}
 	cmd.Flags().StringSliceVar(&tagIDs, "tag", []string{}, "tag IDs to set")
-	cmd.MarkFlagRequired("tag")
+	mustMarkFlagRequired(cmd, "tag")
 	return cmd
 }
 
@@ -875,7 +876,7 @@ func (a *App) buildTransactionsTagsAdd() *cobra.Command {
 				plan := safety.NewPlan()
 				plan.Add("transactions.tags.add", id, nil, map[string]interface{}{"tag_ids": newTagIDs})
 				env := output.NewEnvelope("transactions.tags.add", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 				return
 			}
 
@@ -888,7 +889,7 @@ func (a *App) buildTransactionsTagsAdd() *cobra.Command {
 					errCode = string(e.Code)
 				}
 			}
-			logger.Log(&audit.Record{Command: "transactions.tags.add", ResourceID: id, DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
+			a.logAudit(logger, &audit.Record{Command: "transactions.tags.add", ResourceID: id, DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
 
 			if err != nil {
 				var cliErr *errors.Error
@@ -903,14 +904,14 @@ func (a *App) buildTransactionsTagsAdd() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.tags.add", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "tags added"}, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Successfully added tags to transaction %s.\n", id)
 			}
 		},
 	}
 	cmd.Flags().StringSliceVar(&tagIDs, "tag", []string{}, "tag IDs to add")
-	cmd.MarkFlagRequired("tag")
+	mustMarkFlagRequired(cmd, "tag")
 	return cmd
 }
 
@@ -934,7 +935,7 @@ func (a *App) buildTransactionsTagsClear() *cobra.Command {
 				plan := safety.NewPlan()
 				plan.Add("transactions.tags.clear", id, nil, nil)
 				env := output.NewEnvelope("transactions.tags.clear", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 				return
 			}
 
@@ -953,7 +954,7 @@ func (a *App) buildTransactionsTagsClear() *cobra.Command {
 					errCode = string(e.Code)
 				}
 			}
-			logger.Log(&audit.Record{Command: "transactions.tags.clear", ResourceID: id, DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
+			a.logAudit(logger, &audit.Record{Command: "transactions.tags.clear", ResourceID: id, DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
 
 			if err != nil {
 				var cliErr *errors.Error
@@ -968,7 +969,7 @@ func (a *App) buildTransactionsTagsClear() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.tags.clear", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "tags cleared"}, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Successfully cleared tags for transaction %s.\n", id)
 			}
@@ -1010,7 +1011,7 @@ func (a *App) buildTransactionsBulkCategorize() *cobra.Command {
 					plan.Add("transactions.update", id, nil, map[string]interface{}{"categoryId": bulkCategoryID, "markReviewed": bulkMarkReviewed})
 				}
 				env := output.NewEnvelope("transactions.bulk-categorize", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 				return
 			}
 
@@ -1043,12 +1044,12 @@ func (a *App) buildTransactionsBulkCategorize() *cobra.Command {
 			} else if len(failures) > 0 {
 				result = "partial"
 			}
-			logger.Log(&audit.Record{Command: "transactions.bulk-categorize", DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result})
+			a.logAudit(logger, &audit.Record{Command: "transactions.bulk-categorize", DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result})
 
 			if a.Flags.JSONMode {
 				data := map[string]interface{}{"total": len(bulkTxIDs), "successful": successes, "failed": len(failures), "errors": failures}
 				env := output.NewEnvelope("transactions.bulk-categorize", a.Flags.Profile, output.SchemaVersion, "", data, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Bulk categorize: %d/%d successful.\n", successes, len(bulkTxIDs))
 				for _, f := range failures {
@@ -1092,7 +1093,7 @@ func (a *App) buildTransactionsAttachmentsList() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.attachments.list", a.Flags.Profile, output.SchemaVersion, "", attachments, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				if len(attachments) == 0 {
 					fmt.Println("No attachments found.")
@@ -1166,7 +1167,9 @@ func (a *App) buildTransactionsAttachmentsDownload() *cobra.Command {
 				a.handleError(renderer, "transactions.attachments.download", errors.New(errors.InternalError, "failed to create output file: "+err.Error(), errors.CatInternal, false, err), start)
 				return
 			}
-			defer f.Close()
+			defer func() {
+				_ = f.Close()
+			}()
 
 			if err := svc.DownloadAttachment(cmd.Context(), targetURL, f); err != nil {
 				var cliErr *errors.Error
@@ -1181,7 +1184,7 @@ func (a *App) buildTransactionsAttachmentsDownload() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.attachments.download", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "downloaded", "path": outPath}, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Downloaded attachment to %s\n", outPath)
 			}

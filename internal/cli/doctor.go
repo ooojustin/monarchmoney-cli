@@ -28,7 +28,7 @@ func (a *App) buildDoctorCommand(parent *cobra.Command) {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("doctor", a.Flags.Profile, output.SchemaVersion, "", res, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Println("Monarch Money CLI Doctor")
 				fmt.Printf("Version: %s\n", res.Version)

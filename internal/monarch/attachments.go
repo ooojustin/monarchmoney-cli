@@ -63,7 +63,9 @@ func (s *Service) DownloadAttachment(ctx context.Context, url string, w io.Write
 	if err != nil {
 		return errors.New(errors.NetworkUnreachable, "failed to reach attachment URL", errors.CatNetwork, true, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != 200 {
 		return errors.New(errors.APIError, "failed to download attachment", errors.CatAPI, false, nil)

@@ -72,7 +72,7 @@ func (a *App) buildCashflowList(resolveDates func() (string, string)) *cobra.Com
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("cashflow.list", a.Flags.Profile, output.SchemaVersion, "", records, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("%-12s %10s %10s %10s\n", "PERIOD", "INCOME", "EXPENSE", "SAVINGS")
 				for _, r := range records {
@@ -112,7 +112,7 @@ func (a *App) buildCashflowSummary(resolveDates func() (string, string)) *cobra.
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("cashflow.summary", a.Flags.Profile, output.SchemaVersion, "", summary, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Cashflow Summary (%s to %s):\n", cfStart, cfEnd)
 				fmt.Printf("Income:       %.2f\n", summary.Income)
@@ -153,7 +153,7 @@ func (a *App) buildCashflowCategories(resolveDates func() (string, string)) *cob
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("cashflow.categories", a.Flags.Profile, output.SchemaVersion, "", records, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("%-30s %10s\n", "CATEGORY", "AMOUNT")
 				for _, r := range records {
@@ -193,7 +193,7 @@ func (a *App) buildCashflowMerchants(resolveDates func() (string, string)) *cobr
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("cashflow.merchants", a.Flags.Profile, output.SchemaVersion, "", records, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("%-30s %10s\n", "MERCHANT", "AMOUNT")
 				for _, r := range records {
@@ -249,7 +249,7 @@ func (a *App) buildCashflowSpending(resolveDates func() (string, string)) *cobra
 					"by_category":    records,
 				}
 				env := output.NewEnvelope("cashflow.spending", a.Flags.Profile, output.SchemaVersion, "", data, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Spending Summary (%s to %s):\n\n", cfStart, cfEnd)
 				fmt.Printf("%-30s %10s\n", "CATEGORY", "AMOUNT")

@@ -46,7 +46,7 @@ func (a *App) buildCreditHistory() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("credit.history", a.Flags.Profile, output.SchemaVersion, "", history, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("%-12s %s\n", "DATE", "SCORE")
 				for _, r := range history {

@@ -587,8 +587,12 @@ func (s *Service) UploadAccountBalanceHistory(ctx context.Context, id string, r 
 	if _, err := io.Copy(part, r); err != nil {
 		return err
 	}
-	writer.WriteField("account_id", id)
-	writer.Close()
+	if err := writer.WriteField("account_id", id); err != nil {
+		return err
+	}
+	if err := writer.Close(); err != nil {
+		return err
+	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", s.balanceHistoryUploadEndpoint(), body)
 	if err != nil {
@@ -605,7 +609,9 @@ func (s *Service) UploadAccountBalanceHistory(ctx context.Context, id string, r 
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != 200 {
 		return errors.New(errors.APIError, fmt.Sprintf("upload failed with status %d", resp.StatusCode), errors.CatAPI, false, nil)

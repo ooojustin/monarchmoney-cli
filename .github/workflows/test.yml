@@ -9,6 +9,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v5
       - name: Set up Go
@@ -19,5 +21,9 @@ jobs:
         run: make build
       - name: Test
         run: make test
-      - name: Vet
-        run: make lint
+      - name: Format and vet
+        run: make lint-base
+      - name: GolangCI-Lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version-file: .golangci-lint-version

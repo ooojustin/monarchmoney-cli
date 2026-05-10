@@ -71,7 +71,9 @@ func (c *Client) Do(ctx context.Context, reqBody *Request, result interface{}) e
 	if err != nil {
 		return errors.New(errors.NetworkUnreachable, "failed to reach Monarch API", errors.CatNetwork, true, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == 401 {
 		return errors.New(errors.AuthSessionExpired, "session token expired or invalid; run `monarch auth login` again", errors.CatAuth, true, nil)

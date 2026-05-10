@@ -46,7 +46,7 @@ func (a *App) buildSubscriptionShow() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := a.envelopeWithWarnings("subscription.show", sub, start, "uses legacy Monarch GraphQL root field: subscription")
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("ID:                      %s\n", sub.ID)
 				fmt.Printf("Payment Source:          %s\n", sub.PaymentSource)

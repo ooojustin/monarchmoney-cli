@@ -105,7 +105,7 @@ func (a *App) buildBudgetsList() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("budgets.list", a.Flags.Profile, output.SchemaVersion, "", budgets, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("%-30s %10s %10s %10s\n", "CATEGORY", "PLANNED", "ACTUAL", "REMAINING")
 				for _, b := range budgets {
@@ -156,7 +156,7 @@ func (a *App) buildBudgetsShow() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("budgets.show", a.Flags.Profile, output.SchemaVersion, "", budget, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Category:  %s\n", budget.CategoryName)
 				fmt.Printf("Planned:   %.2f\n", budget.Planned)
@@ -199,7 +199,7 @@ func (a *App) buildBudgetsSet() *cobra.Command {
 				plan := safety.NewPlan()
 				plan.Add("budgets.set", categoryID, nil, map[string]interface{}{"amount": budgetAmount, "month": m, "year": y})
 				env := output.NewEnvelope("budgets.set", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 				return
 			}
 
@@ -219,7 +219,7 @@ func (a *App) buildBudgetsSet() *cobra.Command {
 				}
 			}
 
-			logger.Log(&audit.Record{Command: "budgets.set", ResourceID: categoryID, DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
+			a.logAudit(logger, &audit.Record{Command: "budgets.set", ResourceID: categoryID, DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
 
 			if err != nil {
 				var cliErr *errors.Error
@@ -234,7 +234,7 @@ func (a *App) buildBudgetsSet() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("budgets.set", a.Flags.Profile, output.SchemaVersion, "", budget, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Successfully set budget for %s to %.2f.\n", budget.CategoryName, budget.Planned)
 			}
@@ -242,7 +242,7 @@ func (a *App) buildBudgetsSet() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&monthStr, "month", "", "month in YYYY-MM format")
 	cmd.Flags().Float64Var(&budgetAmount, "amount", 0, "budget amount")
-	cmd.MarkFlagRequired("amount")
+	mustMarkFlagRequired(cmd, "amount")
 	return cmd
 }
 
@@ -275,7 +275,7 @@ func (a *App) buildBudgetsReset() *cobra.Command {
 				plan := safety.NewPlan()
 				plan.Add("budgets.reset", "", nil, map[string]int{"month": m, "year": y})
 				env := output.NewEnvelope("budgets.reset", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 				return
 			}
 
@@ -295,7 +295,7 @@ func (a *App) buildBudgetsReset() *cobra.Command {
 				}
 			}
 
-			logger.Log(&audit.Record{Command: "budgets.reset", DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
+			a.logAudit(logger, &audit.Record{Command: "budgets.reset", DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
 
 			if err != nil {
 				var cliErr *errors.Error
@@ -310,14 +310,14 @@ func (a *App) buildBudgetsReset() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("budgets.reset", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "budget reset"}, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Successfully reset budget for %d-%02d.\n", y, m)
 			}
 		},
 	}
 	cmd.Flags().StringVar(&monthStr, "month", "", "month in YYYY-MM format")
-	cmd.MarkFlagRequired("month")
+	mustMarkFlagRequired(cmd, "month")
 	return cmd
 }
 
@@ -356,7 +356,7 @@ func (a *App) buildBudgetsExport() *cobra.Command {
 			}
 
 			env := output.NewEnvelope("budgets.export", a.Flags.Profile, output.SchemaVersion, "", budgets, time.Since(start))
-			renderer.RenderSuccess(env)
+			a.renderSuccess(renderer, env, start)
 		},
 	}
 	cmd.Flags().StringVar(&monthStr, "month", "", "month in YYYY-MM format")
@@ -391,7 +391,7 @@ func (a *App) buildBudgetsFlexibleSet() *cobra.Command {
 				plan := safety.NewPlan()
 				plan.Add("budgets.flexible.set", fmt.Sprintf("%d-%02d", y, m), nil, map[string]interface{}{"amount": budgetAmount})
 				env := output.NewEnvelope("budgets.flexible.set", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 				return
 			}
 
@@ -411,7 +411,7 @@ func (a *App) buildBudgetsFlexibleSet() *cobra.Command {
 				}
 			}
 
-			logger.Log(&audit.Record{Command: "budgets.flexible.set", DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
+			a.logAudit(logger, &audit.Record{Command: "budgets.flexible.set", DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
 
 			if err != nil {
 				var cliErr *errors.Error
@@ -426,7 +426,7 @@ func (a *App) buildBudgetsFlexibleSet() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("budgets.flexible.set", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "budget set"}, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Successfully set flexible budget for %d-%02d to %.2f.\n", y, m, budgetAmount)
 			}
@@ -434,7 +434,7 @@ func (a *App) buildBudgetsFlexibleSet() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&monthStr, "month", "", "month in YYYY-MM format")
 	cmd.Flags().Float64Var(&budgetAmount, "amount", 0, "budget amount")
-	cmd.MarkFlagRequired("amount")
+	mustMarkFlagRequired(cmd, "amount")
 	return cmd
 }
 
@@ -460,7 +460,7 @@ func (a *App) buildBudgetsFlexRolloverSet() *cobra.Command {
 				plan := safety.NewPlan()
 				plan.Add("budgets.flex-rollover.set", monthStr, nil, map[string]interface{}{"balance": budgetAmount})
 				env := output.NewEnvelope("budgets.flex-rollover.set", a.Flags.Profile, output.SchemaVersion, "", plan, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 				return
 			}
 
@@ -480,7 +480,7 @@ func (a *App) buildBudgetsFlexRolloverSet() *cobra.Command {
 				}
 			}
 
-			logger.Log(&audit.Record{Command: "budgets.flex-rollover.set", DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
+			a.logAudit(logger, &audit.Record{Command: "budgets.flex-rollover.set", DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result, ErrorCode: errCode})
 
 			if err != nil {
 				var cliErr *errors.Error
@@ -495,7 +495,7 @@ func (a *App) buildBudgetsFlexRolloverSet() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("budgets.flex-rollover.set", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "rollover set"}, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
 				fmt.Printf("Successfully set flex rollover starting %s with balance %.2f.\n", monthStr, budgetAmount)
 			}
@@ -503,6 +503,6 @@ func (a *App) buildBudgetsFlexRolloverSet() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&monthStr, "month", "", "start month in YYYY-MM-DD format")
 	cmd.Flags().Float64Var(&budgetAmount, "amount", 0, "starting balance")
-	cmd.MarkFlagRequired("month")
+	mustMarkFlagRequired(cmd, "month")
 	return cmd
 }

@@ -70,7 +70,10 @@ func (c *Client) Authenticate(email, password, mfaCode, mfaSecret string) (*Sess
 		TrustedDevice: true,
 		TOTP:          mfaCode,
 	}
-	body, _ := json.Marshal(reqBody)
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, errors.New(errors.InternalError, "failed to marshal login request", errors.CatInternal, false, err)
+	}
 
 	endpoint := c.Endpoint
 	if endpoint == "" {
@@ -92,7 +95,9 @@ func (c *Client) Authenticate(email, password, mfaCode, mfaSecret string) (*Sess
 	if err != nil {
 		return nil, errors.New(errors.NetworkUnreachable, "failed to reach Monarch API", errors.CatNetwork, true, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == 403 || resp.StatusCode == 401 {
 		if mfaCode == "" && mfaSecret == "" {

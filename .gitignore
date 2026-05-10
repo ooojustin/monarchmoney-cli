@@ -61,6 +61,9 @@ config.yaml
 # Local worktrees
 .worktrees/
 
+# Local development tools
+.tools/
+
 # Build output
 dist/
 build/
@@ -69,6 +72,5 @@ out/
 coverage/
 test-audio/
 website/_site/
-
 
 

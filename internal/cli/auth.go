@@ -64,14 +64,17 @@ func (a *App) buildLogin() *cobra.Command {
 			}
 
 			if email == "" {
-				fmt.Fprint(a.Deps.Stdout, "Email: ")
-				a.Deps.ScanInput(&email)
+				printText(a.Deps.Stdout, "Email: ")
+				if _, err := a.Deps.ScanInput(&email); err != nil {
+					a.handleError(renderer, "auth.login", errors.New(errors.InternalError, "failed to read email", errors.CatInternal, false, err), start)
+					return
+				}
 			}
 
 			if password == "" {
-				fmt.Fprint(a.Deps.Stdout, "Password: ")
+				printText(a.Deps.Stdout, "Password: ")
 				bytePassword, err := a.Deps.ReadPassword(int(os.Stdin.Fd()))
-				fmt.Fprintln(a.Deps.Stdout)
+				printlnText(a.Deps.Stdout)
 				if err != nil {
 					a.handleError(renderer, "login", errors.New(errors.InternalError, "failed to read password", errors.CatInternal, false, err), start)
 					return
@@ -84,8 +87,11 @@ func (a *App) buildLogin() *cobra.Command {
 			// Handle MFA requirement if not already provided
 			if err != nil {
 				if e, ok := err.(*errors.Error); ok && e.Code == errors.AuthMFARequired && !a.Flags.JSONMode {
-					fmt.Fprint(a.Deps.Stdout, "MFA Code: ")
-					a.Deps.ScanInput(&mfaCode)
+					printText(a.Deps.Stdout, "MFA Code: ")
+					if _, scanErr := a.Deps.ScanInput(&mfaCode); scanErr != nil {
+						a.handleError(renderer, "auth.login", errors.New(errors.InternalError, "failed to read MFA code", errors.CatInternal, false, scanErr), start)
+						return
+					}
 					sess, err = a.Deps.Authenticate(email, password, mfaCode, mfaSecret)
 				}
 			}
@@ -117,11 +123,11 @@ func (a *App) buildLogin() *cobra.Command {
 					"updated_at":   sess.UpdatedAt,
 					"session_path": a.Deps.SessionPath(),
 				}, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Fprintf(a.Deps.Stdout, "Successfully logged in as %s.\n", sess.Email)
-				fmt.Fprintf(a.Deps.Stdout, "Logged in at: %s\n", sess.CreatedAt.Format(time.RFC3339))
-				fmt.Fprintf(a.Deps.Stdout, "Session token saved to: %s\n", a.Deps.SessionPath())
+				writeText(a.Deps.Stdout, "Successfully logged in as %s.\n", sess.Email)
+				writeText(a.Deps.Stdout, "Logged in at: %s\n", sess.CreatedAt.Format(time.RFC3339))
+				writeText(a.Deps.Stdout, "Session token saved to: %s\n", a.Deps.SessionPath())
 			}
 		},
 	}
@@ -176,14 +182,14 @@ func (a *App) buildStatus() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("auth.status", a.Flags.Profile, output.SchemaVersion, "", data, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Fprintf(a.Deps.Stdout, "Authenticated: yes\n")
-				fmt.Fprintf(a.Deps.Stdout, "Email: %s\n", displayEmail)
-				fmt.Fprintf(a.Deps.Stdout, "Profile: %s\n", sess.Profile)
-				fmt.Fprintf(a.Deps.Stdout, "Logged in at: %s\n", sess.CreatedAt.Format(time.RFC3339))
-				fmt.Fprintf(a.Deps.Stdout, "Session valid: yes\n")
-				fmt.Fprintf(a.Deps.Stdout, "Session path: %s\n", a.Deps.SessionPath())
+				writeText(a.Deps.Stdout, "Authenticated: yes\n")
+				writeText(a.Deps.Stdout, "Email: %s\n", displayEmail)
+				writeText(a.Deps.Stdout, "Profile: %s\n", sess.Profile)
+				writeText(a.Deps.Stdout, "Logged in at: %s\n", sess.CreatedAt.Format(time.RFC3339))
+				writeText(a.Deps.Stdout, "Session valid: yes\n")
+				writeText(a.Deps.Stdout, "Session path: %s\n", a.Deps.SessionPath())
 			}
 		},
 	}
@@ -205,9 +211,9 @@ func (a *App) buildLogout() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("auth.logout", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "logged out"}, time.Since(start))
-				renderer.RenderSuccess(env)
+				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Fprintln(a.Deps.Stdout, "Successfully logged out.")
+				printlnText(a.Deps.Stdout, "Successfully logged out.")
 			}
 		},
 	}
@@ -218,7 +224,7 @@ func (a *App) buildSessionPath() *cobra.Command {
 		Use:   "path",
 		Short: "Print the path to the session file",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Fprintln(a.Deps.Stdout, a.Deps.SessionPath())
+			printlnText(a.Deps.Stdout, a.Deps.SessionPath())
 		},
 	}
 }
@@ -240,6 +246,6 @@ func (a *App) handleError(r *output.Renderer, command string, err *errors.Error,
 	}
 
 	env := output.NewErrorEnvelope(command, a.Flags.Profile, output.SchemaVersion, err, time.Since(start))
-	r.RenderError(env)
+	_ = r.RenderError(env)
 	a.Deps.Exit(err.ExitCode())
 }

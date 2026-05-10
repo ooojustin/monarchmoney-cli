@@ -66,14 +66,14 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 	root.PersistentFlags().DurationVar(&timeout, "timeout", 30*time.Second, "set command timeout")
 	root.PersistentFlags().StringVar(&a.Flags.Profile, "profile", "default", "use a named profile")
 
-	a.Deps.Viper.BindPFlag("json", root.PersistentFlags().Lookup("json"))
-	a.Deps.Viper.BindPFlag("pretty", root.PersistentFlags().Lookup("pretty"))
-	a.Deps.Viper.BindPFlag("read-only", root.PersistentFlags().Lookup("read-only"))
-	a.Deps.Viper.BindPFlag("dry-run", root.PersistentFlags().Lookup("dry-run"))
-	a.Deps.Viper.BindPFlag("confirm", root.PersistentFlags().Lookup("confirm"))
-	a.Deps.Viper.BindPFlag("timeout", root.PersistentFlags().Lookup("timeout"))
-	a.Deps.Viper.BindPFlag("profile", root.PersistentFlags().Lookup("profile"))
-	a.Deps.Viper.BindPFlag("config", root.PersistentFlags().Lookup("config"))
+	mustBindPFlag(a.Deps.Viper, "json", root.PersistentFlags().Lookup("json"))
+	mustBindPFlag(a.Deps.Viper, "pretty", root.PersistentFlags().Lookup("pretty"))
+	mustBindPFlag(a.Deps.Viper, "read-only", root.PersistentFlags().Lookup("read-only"))
+	mustBindPFlag(a.Deps.Viper, "dry-run", root.PersistentFlags().Lookup("dry-run"))
+	mustBindPFlag(a.Deps.Viper, "confirm", root.PersistentFlags().Lookup("confirm"))
+	mustBindPFlag(a.Deps.Viper, "timeout", root.PersistentFlags().Lookup("timeout"))
+	mustBindPFlag(a.Deps.Viper, "profile", root.PersistentFlags().Lookup("profile"))
+	mustBindPFlag(a.Deps.Viper, "config", root.PersistentFlags().Lookup("config"))
 
 	root.AddCommand(a.buildVersion())
 
@@ -86,7 +86,7 @@ func (a *App) buildVersion() *cobra.Command {
 		Short: "Print the version number of monarch",
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := writeVersion(cmd.OutOrStdout(), a.Flags.Profile, a.Flags.JSONMode, a.Flags.Pretty, time.Duration(0)); err != nil {
-				fmt.Fprintln(cmd.ErrOrStderr(), err)
+				printlnText(cmd.ErrOrStderr(), err)
 				a.Deps.Exit(1)
 			}
 		},
