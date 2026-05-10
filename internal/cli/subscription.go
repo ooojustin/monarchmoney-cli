@@ -5,62 +5,55 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
-	"github.com/thedavidweng/monarchmoney-cli/internal/config"
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
-	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
-	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 )
 
-var subscriptionCmd = &cobra.Command{
-	Use:   "subscription",
-	Short: "Manage subscription details",
+func (a *App) buildSubscriptionCommands(parent *cobra.Command) {
+	subCmd := &cobra.Command{
+		Use:   "subscription",
+		Short: "Manage subscription details",
+	}
+	subCmd.AddCommand(a.buildSubscriptionShow())
+	parent.AddCommand(subCmd)
 }
 
-var subscriptionShowCmd = &cobra.Command{
-	Use:   "show",
-	Short: "Show subscription details",
-	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
+func (a *App) buildSubscriptionShow() *cobra.Command {
+	return &cobra.Command{
+		Use:   "show",
+		Short: "Show subscription details",
+		Run: func(cmd *cobra.Command, args []string) {
+			start := time.Now()
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
 
-		store := auth.NewStore(config.DefaultSessionPath())
-		sess, err := store.Load()
-		if err != nil {
-			handleError(renderer, "subscription.show", errors.New(errors.AuthRequired, "not logged in", errors.CatAuth, false, err), start)
-			return
-		}
-
-		client := graphql.NewClient("https://api.monarch.com/graphql", sess.Token, timeout)
-		svc := monarch.NewService(client)
-
-		sub, err := svc.GetSubscriptionDetails(cmd.Context())
-		if err != nil {
-			var cliErr *errors.Error
-			if e, ok := err.(*errors.Error); ok {
-				cliErr = e
-			} else {
-				cliErr = errors.New(errors.APIError, "failed to get subscription details", errors.CatAPI, false, err)
+			svc, _, err := a.Deps.LoadService()
+			if err != nil {
+				a.handleError(renderer, "subscription.show", err.(*errors.Error), start)
+				return
 			}
-			handleError(renderer, "subscription.show", cliErr, start)
-			return
-		}
 
-		if jsonMode {
-			env := envelopeWithWarnings("subscription.show", sub, start, "uses legacy Monarch GraphQL root field: subscription")
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("ID:                      %s\n", sub.ID)
-			fmt.Printf("Payment Source:          %s\n", sub.PaymentSource)
-			fmt.Printf("Referral Code:           %s\n", sub.ReferralCode)
-			fmt.Printf("On Free Trial:           %v\n", sub.IsOnFreeTrial)
-			fmt.Printf("Has Premium Entitlement: %v\n", sub.HasPremiumEntitlement)
-		}
-	},
-}
+			sub, err := svc.GetSubscriptionDetails(cmd.Context())
+			if err != nil {
+				var cliErr *errors.Error
+				if e, ok := err.(*errors.Error); ok {
+					cliErr = e
+				} else {
+					cliErr = errors.New(errors.APIError, "failed to get subscription details", errors.CatAPI, false, err)
+				}
+				a.handleError(renderer, "subscription.show", cliErr, start)
+				return
+			}
 
-func init() {
-	subscriptionCmd.AddCommand(subscriptionShowCmd)
-	RootCmd.AddCommand(subscriptionCmd)
+			if jsonMode {
+				env := envelopeWithWarnings("subscription.show", sub, start, "uses legacy Monarch GraphQL root field: subscription")
+				renderer.RenderSuccess(env)
+			} else {
+				fmt.Printf("ID:                      %s\n", sub.ID)
+				fmt.Printf("Payment Source:          %s\n", sub.PaymentSource)
+				fmt.Printf("Referral Code:           %s\n", sub.ReferralCode)
+				fmt.Printf("On Free Trial:           %v\n", sub.IsOnFreeTrial)
+				fmt.Printf("Has Premium Entitlement: %v\n", sub.HasPremiumEntitlement)
+			}
+		},
+	}
 }

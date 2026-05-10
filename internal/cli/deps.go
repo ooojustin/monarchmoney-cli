@@ -25,6 +25,11 @@ type GraphQLClient interface {
 	TokenValue() string
 }
 
+// identityResult is the trimmed payload returned by FetchIdentity.
+type identityResult struct {
+	Email string
+}
+
 // Deps holds every dependency a CLI command might need to replace in tests.
 // Production code constructs Deps via DefaultDeps; tests construct Deps with
 // custom fields to inject behavior.
@@ -36,11 +41,10 @@ type Deps struct {
 	Timeout     func() time.Duration
 
 	// Auth and API factories.
-	NewStore      func(path string) *auth.Store
-	Authenticate  func(email, password, mfaCode, mfaSecret string) (*auth.Session, error)
-	NewClient     func(endpoint, token string, timeout time.Duration) GraphQLClient
-	NewService    func(client GraphQLClient) *monarch.Service
-	FetchIdentity func(ctx context.Context, deps Deps, token string) (*identityResult, error)
+	NewStore     func(path string) *auth.Store
+	Authenticate func(email, password, mfaCode, mfaSecret string) (*auth.Session, error)
+	NewClient    func(endpoint, token string, timeout time.Duration) GraphQLClient
+	NewService   func(client GraphQLClient) *monarch.Service
 
 	// IO and process control.
 	Stdout       io.Writer
@@ -69,7 +73,6 @@ func DefaultDeps() Deps {
 		NewService: func(client GraphQLClient) *monarch.Service {
 			return monarch.NewService(client)
 		},
-		FetchIdentity: defaultFetchIdentity,
 
 		Stdout:       os.Stdout,
 		Stderr:       os.Stderr,
@@ -99,24 +102,6 @@ func defaultTimeout() time.Duration {
 	return 30 * time.Second
 }
 
-// defaultFetchIdentity issues the GetIdentity query against the configured
-// endpoint to verify a session token.
-func defaultFetchIdentity(ctx context.Context, deps Deps, token string) (*identityResult, error) {
-	client := deps.NewClient(deps.APIEndpoint(), token, deps.Timeout())
-	var resp struct {
-		Me struct {
-			Email string `json:"email"`
-		} `json:"me"`
-	}
-	if err := client.Do(ctx, &graphql.Request{
-		OperationName: "GetIdentity",
-		Query:         graphql.GetIdentityQuery,
-	}, &resp); err != nil {
-		return nil, err
-	}
-	return &identityResult{Email: resp.Me.Email}, nil
-}
-
 // LoadService runs the load-session-then-build-service boilerplate that ~50
 // commands repeat. Returns the service, the session (some commands need the
 // email or token directly), and a wrapped AUTH_REQUIRED error if the session
@@ -134,4 +119,23 @@ func (d Deps) LoadService() (*monarch.Service, *auth.Session, error) {
 	}
 	client := d.NewClient(d.APIEndpoint(), sess.Token, d.Timeout())
 	return d.NewService(client), sess, nil
+}
+
+// FetchIdentity verifies a session token by issuing the GetIdentity query.
+// Tests typically inject a mock via Deps.NewClient rather than overriding
+// this method directly.
+func (d Deps) FetchIdentity(ctx context.Context, token string) (*identityResult, error) {
+	client := d.NewClient(d.APIEndpoint(), token, d.Timeout())
+	var resp struct {
+		Me struct {
+			Email string `json:"email"`
+		} `json:"me"`
+	}
+	if err := client.Do(ctx, &graphql.Request{
+		OperationName: "GetIdentity",
+		Query:         graphql.GetIdentityQuery,
+	}, &resp); err != nil {
+		return nil, err
+	}
+	return &identityResult{Email: resp.Me.Email}, nil
 }

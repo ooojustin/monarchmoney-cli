@@ -9,34 +9,32 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 )
 
-var connect bool
+func (a *App) buildDoctorCommand(parent *cobra.Command) {
+	var connect bool
+	cmd := &cobra.Command{
+		Use:   "doctor",
+		Short: "Check local configuration and connectivity",
+		Run: func(cmd *cobra.Command, args []string) {
+			start := time.Now()
+			res := doctor.Check(cmd.Context(), connect)
 
-var doctorCmd = &cobra.Command{
-	Use:   "doctor",
-	Short: "Check local configuration and connectivity",
-	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		res := doctor.Check(cmd.Context(), connect)
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, jsonMode, pretty)
 
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		if jsonMode {
-			env := output.NewEnvelope("doctor", profile, output.SchemaVersion, "", res, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Println("Monarch Money CLI Doctor")
-			fmt.Printf("Version: %s\n", res.Version)
-			fmt.Printf("OS/Arch: %s/%s\n", res.OS, res.Arch)
-			fmt.Printf("Config Path: %s (Exists: %v)\n", res.Config.Path, res.Config.Exists)
-			fmt.Printf("Session Path: %s (Exists: %v, Auth: %v, PermOK: %v)\n", res.Session.Path, res.Session.Exists, res.Session.Authenticated, res.Session.PermissionOK)
-			if connect {
-				fmt.Printf("API Connected: %v\n", res.Network.APIReachable)
+			if jsonMode {
+				env := output.NewEnvelope("doctor", profile, output.SchemaVersion, "", res, time.Since(start))
+				renderer.RenderSuccess(env)
+			} else {
+				fmt.Println("Monarch Money CLI Doctor")
+				fmt.Printf("Version: %s\n", res.Version)
+				fmt.Printf("OS/Arch: %s/%s\n", res.OS, res.Arch)
+				fmt.Printf("Config Path: %s (Exists: %v)\n", res.Config.Path, res.Config.Exists)
+				fmt.Printf("Session Path: %s (Exists: %v, Auth: %v, PermOK: %v)\n", res.Session.Path, res.Session.Exists, res.Session.Authenticated, res.Session.PermissionOK)
+				if connect {
+					fmt.Printf("API Connected: %v\n", res.Network.APIReachable)
+				}
 			}
-		}
-	},
-}
-
-func init() {
-	doctorCmd.Flags().BoolVar(&connect, "connect", false, "check API connectivity (requires auth)")
-	RootCmd.AddCommand(doctorCmd)
+		},
+	}
+	cmd.Flags().BoolVar(&connect, "connect", false, "check API connectivity (requires auth)")
+	parent.AddCommand(cmd)
 }
