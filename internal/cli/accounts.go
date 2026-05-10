@@ -242,7 +242,10 @@ func (a *App) buildAccountsHistory() *cobra.Command {
 }
 
 func (a *App) buildAccountsRefresh() *cobra.Command {
-	var refreshWait bool
+	var (
+		refreshWait bool
+		emitEvents  bool
+	)
 	cmd := &cobra.Command{
 		Use:   "refresh [account-id...]",
 		Short: "Request a refresh of all accounts (or specific ones)",
@@ -310,7 +313,7 @@ func (a *App) buildAccountsRefresh() *cobra.Command {
 							continue
 						}
 
-						if a.Flags.Events {
+						if emitEvents {
 							env := output.NewEnvelope("accounts.refresh.progress", a.Flags.Profile, output.SchemaVersion, "", status, time.Since(start))
 							renderer.RenderSuccess(env)
 						}
@@ -342,6 +345,7 @@ func (a *App) buildAccountsRefresh() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&refreshWait, "wait", false, "wait for refresh to complete")
+	cmd.Flags().BoolVar(&emitEvents, "events", false, "emit NDJSON progress events while waiting")
 	return cmd
 }
 

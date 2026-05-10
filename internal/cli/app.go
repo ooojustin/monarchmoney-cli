@@ -26,7 +26,6 @@ type Flags struct {
 	ReadOnly bool
 	DryRun   bool
 	Confirm  bool
-	Events   bool
 }
 
 // New constructs an App with the given dependencies and registers all command

@@ -43,14 +43,12 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 			a.Flags.DryRun = viper.GetBool("dry-run")
 			a.Flags.Confirm = viper.GetBool("confirm")
 			a.Flags.Profile = viper.GetString("profile")
-			a.Flags.Events = viper.GetBool("events")
 		},
 	}
 
 	root.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.monarchmoney-cli/config.yaml)")
 	root.PersistentFlags().BoolVar(&a.Flags.JSONMode, "json", false, "emit machine-readable JSON")
 	root.PersistentFlags().BoolVar(&a.Flags.Pretty, "pretty", false, "pretty-print JSON output")
-	root.PersistentFlags().BoolVar(&a.Flags.Events, "events", false, "emit NDJSON progress events for long-running commands")
 	root.PersistentFlags().BoolVar(&a.Flags.ReadOnly, "read-only", false, "block remote writes")
 	root.PersistentFlags().BoolVar(&a.Flags.DryRun, "dry-run", false, "preview a remote write without executing it")
 	root.PersistentFlags().BoolVar(&a.Flags.Confirm, "confirm", false, "explicitly execute a remote write")
@@ -59,7 +57,6 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 
 	viper.BindPFlag("json", root.PersistentFlags().Lookup("json"))
 	viper.BindPFlag("pretty", root.PersistentFlags().Lookup("pretty"))
-	viper.BindPFlag("events", root.PersistentFlags().Lookup("events"))
 	viper.BindPFlag("read-only", root.PersistentFlags().Lookup("read-only"))
 	viper.BindPFlag("dry-run", root.PersistentFlags().Lookup("dry-run"))
 	viper.BindPFlag("confirm", root.PersistentFlags().Lookup("confirm"))
