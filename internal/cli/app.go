@@ -1,11 +1,15 @@
 package cli
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/thedavidweng/monarchmoney-cli/internal/audit"
+	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
 	"github.com/thedavidweng/monarchmoney-cli/internal/config"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
+	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
 )
 
 // App owns the root cobra command, the dependencies that command handlers
@@ -59,9 +63,25 @@ func New(deps Deps) *App {
 			return 30 * time.Second
 		}
 	}
+	if a.Deps.Authenticate == nil {
+		a.Deps.Authenticate = func(email, password, mfaCode, mfaSecret string) (*auth.Session, error) {
+			client := &http.Client{Timeout: 10 * time.Second, Transport: a.Deps.HTTPTransport}
+			return auth.NewClient("", client).Authenticate(email, password, mfaCode, mfaSecret)
+		}
+	}
 	if a.Deps.NewClient == nil {
 		a.Deps.NewClient = func(endpoint, token string, timeout time.Duration) GraphQLClient {
 			return graphql.NewClient(endpoint, token, timeout, a.Deps.HTTPTransport)
+		}
+	}
+	if a.Deps.NewService == nil {
+		a.Deps.NewService = func(client GraphQLClient) *monarch.Service {
+			return monarch.NewService(client, monarch.WithHTTPTransport(a.Deps.HTTPTransport))
+		}
+	}
+	if a.Deps.NewAuditLogger == nil {
+		a.Deps.NewAuditLogger = func() AuditLogger {
+			return audit.NewLogger(config.DefaultAuditDir())
 		}
 	}
 

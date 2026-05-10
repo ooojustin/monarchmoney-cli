@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"github.com/thedavidweng/monarchmoney-cli/internal/audit"
 	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
 	"github.com/thedavidweng/monarchmoney-cli/internal/config"
 	clierrors "github.com/thedavidweng/monarchmoney-cli/internal/errors"
@@ -25,6 +26,10 @@ import (
 type GraphQLClient interface {
 	Do(ctx context.Context, req *graphql.Request, result any) error
 	TokenValue() string
+}
+
+type AuditLogger interface {
+	Log(*audit.Record) error
 }
 
 // identityResult is the trimmed payload returned by FetchIdentity.
@@ -54,10 +59,11 @@ type Deps struct {
 	Timeout     func() time.Duration
 
 	// Auth and API factories.
-	NewStore     func(path string) *auth.Store
-	Authenticate func(email, password, mfaCode, mfaSecret string) (*auth.Session, error)
-	NewClient    func(endpoint, token string, timeout time.Duration) GraphQLClient
-	NewService   func(client GraphQLClient) *monarch.Service
+	NewStore       func(path string) *auth.Store
+	Authenticate   func(email, password, mfaCode, mfaSecret string) (*auth.Session, error)
+	NewClient      func(endpoint, token string, timeout time.Duration) GraphQLClient
+	NewService     func(client GraphQLClient) *monarch.Service
+	NewAuditLogger func() AuditLogger
 
 	// IO and process control.
 	Stdout       io.Writer
@@ -94,10 +100,9 @@ func DefaultDeps() Deps {
 	return Deps{
 		Viper: v,
 
-		NewStore:     auth.NewStore,
-		Authenticate: auth.Authenticate,
-		NewService: func(client GraphQLClient) *monarch.Service {
-			return monarch.NewService(client)
+		NewStore: auth.NewStore,
+		NewAuditLogger: func() AuditLogger {
+			return audit.NewLogger(config.DefaultAuditDir())
 		},
 
 		Stdout:       os.Stdout,

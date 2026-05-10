@@ -7,6 +7,8 @@ import (
 )
 
 func TestStorePersistsAndQueriesData(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	store, err := NewStore(filepath.Join(dir, "cache", "monarch.sqlite"))
 	if err != nil {

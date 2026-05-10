@@ -439,7 +439,7 @@ func (a *App) buildTransactionsUpdate() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
-			logger := audit.NewLogger()
+			logger := a.Deps.NewAuditLogger()
 			id := args[0]
 
 			if err := safety.Check(safety.TierMutation, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
@@ -543,7 +543,7 @@ func (a *App) buildTransactionsDelete() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
-			logger := audit.NewLogger()
+			logger := a.Deps.NewAuditLogger()
 			id := args[0]
 
 			if err := safety.Check(safety.TierDestructive, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
@@ -612,7 +612,7 @@ func (a *App) buildTransactionsCreate() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
-			logger := audit.NewLogger()
+			logger := a.Deps.NewAuditLogger()
 
 			if err := safety.Check(safety.TierMutation, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
 				a.handleError(renderer, "transactions.create", err.(*errors.Error), start)
@@ -688,7 +688,7 @@ func (a *App) buildTransactionsSplit() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
-			logger := audit.NewLogger()
+			logger := a.Deps.NewAuditLogger()
 			id := args[0]
 
 			if err := safety.Check(safety.TierMutation, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
@@ -766,7 +766,7 @@ func (a *App) buildTransactionsTagsSet() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
-			logger := audit.NewLogger()
+			logger := a.Deps.NewAuditLogger()
 			id := args[0]
 
 			if err := safety.Check(safety.TierMutation, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
@@ -832,7 +832,7 @@ func (a *App) buildTransactionsTagsAdd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
-			logger := audit.NewLogger()
+			logger := a.Deps.NewAuditLogger()
 			id := args[0]
 
 			if err := safety.Check(safety.TierMutation, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
@@ -922,7 +922,7 @@ func (a *App) buildTransactionsTagsClear() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
-			logger := audit.NewLogger()
+			logger := a.Deps.NewAuditLogger()
 			id := args[0]
 
 			if err := safety.Check(safety.TierMutation, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
@@ -988,7 +988,7 @@ func (a *App) buildTransactionsBulkCategorize() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
-			logger := audit.NewLogger()
+			logger := a.Deps.NewAuditLogger()
 
 			if len(bulkTxIDs) == 0 {
 				a.handleError(renderer, "transactions.bulk-categorize", errors.New(errors.InvalidArguments, "at least one --id is required", errors.CatValidation, false, nil), start)

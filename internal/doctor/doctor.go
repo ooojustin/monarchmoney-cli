@@ -2,6 +2,7 @@ package doctor
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"runtime"
 	"time"
@@ -33,8 +34,17 @@ type Report struct {
 	APIReachable  bool   `json:"api_reachable,omitempty"`
 }
 
+type Options struct {
+	ConfigPath    string
+	SessionPath   string
+	APIEndpoint   string
+	Timeout       time.Duration
+	HTTPTransport http.RoundTripper
+}
+
 // Check performs local system and configuration checks.
-func Check(ctx context.Context, connect bool) *Result {
+func Check(ctx context.Context, connect bool, options ...Options) *Result {
+	opts := doctorOptions(options)
 	res := &Result{
 		Version: version.Version,
 		OS:      runtime.GOOS,
@@ -42,7 +52,7 @@ func Check(ctx context.Context, connect bool) *Result {
 	}
 
 	// Config check
-	cfgPath := config.DefaultConfigPath()
+	cfgPath := opts.ConfigPath
 	_, err := os.Stat(cfgPath)
 	res.Config = Report{
 		Path:   cfgPath,
@@ -50,7 +60,7 @@ func Check(ctx context.Context, connect bool) *Result {
 	}
 
 	// Session check
-	sessPath := config.DefaultSessionPath()
+	sessPath := opts.SessionPath
 	store := auth.NewStore(sessPath)
 	sess, err := store.Load()
 	res.Session = Report{
@@ -68,7 +78,7 @@ func Check(ctx context.Context, connect bool) *Result {
 	}
 
 	if connect && res.Session.Authenticated {
-		client := graphql.NewClient("https://api.monarch.com/graphql", sess.Token, 10*time.Second, nil)
+		client := graphql.NewClient(opts.APIEndpoint, sess.Token, opts.Timeout, opts.HTTPTransport)
 		var identity interface{}
 		err := client.Do(ctx, &graphql.Request{
 			OperationName: "GetIdentity",
@@ -81,4 +91,31 @@ func Check(ctx context.Context, connect bool) *Result {
 	}
 
 	return res
+}
+
+func doctorOptions(options []Options) Options {
+	opts := Options{
+		ConfigPath:  config.DefaultConfigPath(),
+		SessionPath: config.DefaultSessionPath(),
+		APIEndpoint: "https://api.monarch.com/graphql",
+		Timeout:     10 * time.Second,
+	}
+	for _, override := range options {
+		if override.ConfigPath != "" {
+			opts.ConfigPath = override.ConfigPath
+		}
+		if override.SessionPath != "" {
+			opts.SessionPath = override.SessionPath
+		}
+		if override.APIEndpoint != "" {
+			opts.APIEndpoint = override.APIEndpoint
+		}
+		if override.Timeout > 0 {
+			opts.Timeout = override.Timeout
+		}
+		if override.HTTPTransport != nil {
+			opts.HTTPTransport = override.HTTPTransport
+		}
+	}
+	return opts
 }

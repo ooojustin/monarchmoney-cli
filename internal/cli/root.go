@@ -33,7 +33,7 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 			// Resolve config file from flag or default locations and merge
 			// it into the per-App viper. Errors are intentionally ignored:
 			// running without a config file is supported. Done here rather
-			// than via cobra.OnInitialize so each App's setup is fully
+			// than via Cobra's global initialization hook so each App's setup is fully
 			// scoped to its own viper, avoiding the global hook list.
 			if cfgFile != "" {
 				v.SetConfigFile(cfgFile)

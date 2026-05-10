@@ -5,8 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/thedavidweng/monarchmoney-cli/internal/config"
 )
 
 // Record represents a single audit log entry.
@@ -27,9 +25,9 @@ type Logger struct {
 	Dir string
 }
 
-// NewLogger returns a new Logger.
-func NewLogger() *Logger {
-	return &Logger{Dir: config.DefaultAuditDir()}
+// NewLogger returns a new Logger that writes under dir.
+func NewLogger(dir string) *Logger {
+	return &Logger{Dir: dir}
 }
 
 // Log writes a record to the daily audit log file.

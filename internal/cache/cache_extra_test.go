@@ -12,6 +12,8 @@ import (
 )
 
 func TestNewStoreFailsWhenParentPathIsAFile(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	blocker := filepath.Join(dir, "blocked")
 	if err := os.WriteFile(blocker, []byte("x"), 0600); err != nil {
@@ -24,37 +26,32 @@ func TestNewStoreFailsWhenParentPathIsAFile(t *testing.T) {
 }
 
 func TestNewStoreReturnsOpenError(t *testing.T) {
-	original := openSQLite
-	openSQLite = func(string) (*gorm.DB, error) {
-		return nil, errors.New("open failed")
-	}
-	defer func() { openSQLite = original }()
+	t.Parallel()
 
-	if _, err := NewStore(filepath.Join(t.TempDir(), "monarch.sqlite")); err == nil {
+	_, err := newStore(filepath.Join(t.TempDir(), "monarch.sqlite"), func(string) (*gorm.DB, error) {
+		return nil, errors.New("open failed")
+	}, Migrate)
+	if err == nil {
 		t.Fatal("NewStore() error = nil, want failure")
 	}
 }
 
 func TestNewStoreReturnsMigrateError(t *testing.T) {
-	originalOpen := openSQLite
-	originalMigrate := migrateStore
-	openSQLite = func(path string) (*gorm.DB, error) {
-		return gorm.Open(sqlite.Open(path), &gorm.Config{})
-	}
-	migrateStore = func(*gorm.DB) error {
-		return errors.New("migrate failed")
-	}
-	defer func() {
-		openSQLite = originalOpen
-		migrateStore = originalMigrate
-	}()
+	t.Parallel()
 
-	if _, err := NewStore(filepath.Join(t.TempDir(), "monarch.sqlite")); err == nil {
+	_, err := newStore(filepath.Join(t.TempDir(), "monarch.sqlite"), func(path string) (*gorm.DB, error) {
+		return gorm.Open(sqlite.Open(path), &gorm.Config{})
+	}, func(*gorm.DB) error {
+		return errors.New("migrate failed")
+	})
+	if err == nil {
 		t.Fatal("NewStore() error = nil, want failure")
 	}
 }
 
 func TestNewStoreSetsPrivateFilePermissions(t *testing.T) {
+	t.Parallel()
+
 	path := filepath.Join(t.TempDir(), "monarch.sqlite")
 	if _, err := NewStore(path); err != nil {
 		t.Fatalf("NewStore() error = %v", err)
@@ -70,6 +67,8 @@ func TestNewStoreSetsPrivateFilePermissions(t *testing.T) {
 }
 
 func TestSaveMethodsReturnDatabaseErrors(t *testing.T) {
+	t.Parallel()
+
 	store, err := NewStore(filepath.Join(t.TempDir(), "monarch.sqlite"))
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)

@@ -4,13 +4,10 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 )
-
-var newAttachmentRequest = http.NewRequestWithContext
 
 type Attachment struct {
 	ID        string `json:"id"`
@@ -57,13 +54,12 @@ func (s *Service) ListTransactionAttachments(ctx context.Context, txID string) (
 
 func (s *Service) DownloadAttachment(ctx context.Context, url string, w io.Writer) error {
 	// Attachment assets are served from Monarch's file URL and are fetched directly.
-	req, err := newAttachmentRequest(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return errors.New(errors.InternalError, "failed to create download request", errors.CatInternal, false, err)
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := s.attachmentHTTPClient().Do(req)
 	if err != nil {
 		return errors.New(errors.NetworkUnreachable, "failed to reach attachment URL", errors.CatNetwork, true, err)
 	}

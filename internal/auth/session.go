@@ -21,10 +21,6 @@ type Store struct {
 	Path string
 }
 
-var marshalSession = json.MarshalIndent
-var writeSessionFile = os.WriteFile
-var readSessionFile = os.ReadFile
-
 // NewStore returns a new Store.
 func NewStore(path string) *Store {
 	return &Store{Path: path}
@@ -37,17 +33,17 @@ func (s *Store) Save(sess *Session) error {
 		return err
 	}
 
-	data, err := marshalSession(sess, "", "  ")
+	data, err := json.MarshalIndent(sess, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	return writeSessionFile(s.Path, data, 0600)
+	return os.WriteFile(s.Path, data, 0600)
 }
 
 // Load loads the session from disk.
 func (s *Store) Load() (*Session, error) {
-	data, err := readSessionFile(s.Path)
+	data, err := os.ReadFile(s.Path)
 	if err != nil {
 		return nil, err
 	}

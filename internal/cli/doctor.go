@@ -16,7 +16,12 @@ func (a *App) buildDoctorCommand(parent *cobra.Command) {
 		Short: "Check local configuration and connectivity",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			res := doctor.Check(cmd.Context(), connect)
+			res := doctor.Check(cmd.Context(), connect, doctor.Options{
+				SessionPath:   a.Deps.SessionPath(),
+				APIEndpoint:   a.Deps.APIEndpoint(),
+				Timeout:       a.Deps.Timeout(),
+				HTTPTransport: a.Deps.HTTPTransport,
+			})
 
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 

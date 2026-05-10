@@ -12,9 +12,24 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 )
 
-var loginEndpoint = "https://api.monarch.com/auth/login/"
-var newLoginHTTPClient = func() *http.Client {
-	return &http.Client{Timeout: 10 * time.Second}
+const defaultLoginEndpoint = "https://api.monarch.com/auth/login/"
+
+type Client struct {
+	Endpoint   string
+	HTTPClient *http.Client
+}
+
+func NewClient(endpoint string, httpClient *http.Client) *Client {
+	if endpoint == "" {
+		endpoint = defaultLoginEndpoint
+	}
+	if httpClient == nil {
+		httpClient = &http.Client{Timeout: 10 * time.Second}
+	}
+	return &Client{
+		Endpoint:   endpoint,
+		HTTPClient: httpClient,
+	}
 }
 
 type loginRequest struct {
@@ -29,9 +44,18 @@ type loginResponse struct {
 	Token string `json:"token"`
 }
 
+// Authenticate logs in with the default auth client.
+func Authenticate(email, password, mfaCode, mfaSecret string) (*Session, error) {
+	return NewClient("", nil).Authenticate(email, password, mfaCode, mfaSecret)
+}
+
 // Authenticate logs in through Monarch's REST endpoint, not GraphQL.
 // Monarch maps 401/403 without MFA to "MFA required" and with MFA to invalid credentials or code.
-func Authenticate(email, password, mfaCode, mfaSecret string) (*Session, error) {
+func (c *Client) Authenticate(email, password, mfaCode, mfaSecret string) (*Session, error) {
+	if c == nil {
+		c = NewClient("", nil)
+	}
+
 	if mfaSecret != "" {
 		code, err := totp.GenerateCode(mfaSecret, time.Now())
 		if err != nil {
@@ -49,7 +73,11 @@ func Authenticate(email, password, mfaCode, mfaSecret string) (*Session, error) 
 	}
 	body, _ := json.Marshal(reqBody)
 
-	req, err := http.NewRequest("POST", loginEndpoint, bytes.NewBuffer(body))
+	endpoint := c.Endpoint
+	if endpoint == "" {
+		endpoint = defaultLoginEndpoint
+	}
+	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(body))
 	if err != nil {
 		return nil, errors.New(errors.InternalError, "failed to create login request", errors.CatInternal, false, err)
 	}
@@ -57,8 +85,11 @@ func Authenticate(email, password, mfaCode, mfaSecret string) (*Session, error) 
 	req.Header.Set("Client-Platform", "web")
 	req.Header.Set("User-Agent", graphql.UserAgent)
 
-	client := newLoginHTTPClient()
-	resp, err := client.Do(req)
+	httpClient := c.HTTPClient
+	if httpClient == nil {
+		httpClient = &http.Client{Timeout: 10 * time.Second}
+	}
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, errors.New(errors.NetworkUnreachable, "failed to reach Monarch API", errors.CatNetwork, true, err)
 	}

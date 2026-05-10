@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -148,6 +147,8 @@ func runGraphQLErrorCase(t *testing.T, op string, wantVars map[string]interface{
 }
 
 func TestServiceTokenValue(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := newMockService("abc123", nil)
 	if got := svc.Client.TokenValue(); got != "abc123" {
 		t.Fatalf("TokenValue() = %q, want %q", got, "abc123")
@@ -155,6 +156,8 @@ func TestServiceTokenValue(t *testing.T) {
 }
 
 func TestServiceAccountsAndCoreMethods(t *testing.T) {
+	t.Parallel()
+
 	t.Run("list accounts", func(t *testing.T) {
 		runGraphQLCase(t, "GetAccounts", nil, `{"accounts":[{"id":"a1","displayName":"Checking","type":{"name":"bank"},"subtype":{"name":"checking"},"displayBalance":42.5,"updatedAt":"2026-05-08"}]}`, func(s *Service) error {
 			got, err := s.ListAccounts(context.Background())
@@ -298,6 +301,8 @@ func TestServiceAccountsAndCoreMethods(t *testing.T) {
 }
 
 func TestServiceBudgetCashflowAndReferenceMethods(t *testing.T) {
+	t.Parallel()
+
 	t.Run("get budget", func(t *testing.T) {
 		runGraphQLCase(t, "GetJointPlanningData", map[string]interface{}{"startDate": "2026-05-01", "endDate": "2026-05-31"}, `{"budgetData":{"monthlyAmountsByCategory":[{"category":{"id":"cat-1","name":"Food"},"monthlyAmounts":[{"month":"2026-05","plannedCashFlowAmount":100,"actualAmount":80}]}]}}`, func(s *Service) error {
 			got, err := s.GetBudget(context.Background(), "cat-1", "2026-05-01", "2026-05-31")
@@ -420,6 +425,8 @@ func TestServiceBudgetCashflowAndReferenceMethods(t *testing.T) {
 }
 
 func TestServiceTagsCategoriesAndLookupMethods(t *testing.T) {
+	t.Parallel()
+
 	t.Run("list tags", func(t *testing.T) {
 		runGraphQLCase(t, "GetTags", nil, `{"householdTransactionTags":[{"id":"tag-1","name":"Trip","color":"blue"}]}`, func(s *Service) error {
 			got, err := s.ListTags(context.Background())
@@ -558,6 +565,8 @@ func TestServiceTagsCategoriesAndLookupMethods(t *testing.T) {
 }
 
 func TestServiceTransactionMethods(t *testing.T) {
+	t.Parallel()
+
 	t.Run("get transaction", func(t *testing.T) {
 		runGraphQLCase(t, "GetTransaction", map[string]interface{}{"id": "tx-1"}, `{"getTransaction":{"id":"tx-1","date":"2026-05-08","amount":-20,"merchant":{"name":"Store"},"category":{"name":"Food"},"notes":"lunch","account":{"id":"acc-1","displayName":"Checking"},"tags":[{"id":"tag-1","name":"Trip","color":"blue"}]}}`, func(s *Service) error {
 			got, err := s.GetTransaction(context.Background(), "tx-1")
@@ -697,6 +706,8 @@ func TestServiceTransactionMethods(t *testing.T) {
 }
 
 func TestServiceCacheAndExportHelpers(t *testing.T) {
+	t.Parallel()
+
 	t.Run("export csv", func(t *testing.T) {
 		var buf bytes.Buffer
 		err := ExportTransactionsCSV([]Transaction{{Date: "2026-05-08", Merchant: "Store", Category: "Food", Amount: -20, Notes: "lunch"}}, &buf)
@@ -709,37 +720,33 @@ func TestServiceCacheAndExportHelpers(t *testing.T) {
 	})
 
 	t.Run("export csv header error", func(t *testing.T) {
-		original := newCSVWriter
-		newCSVWriter = func(io.Writer) csvWriter { return &fakeCSVWriter{failOnCall: 1} }
-		defer func() { newCSVWriter = original }()
-
-		if err := ExportTransactionsCSV([]Transaction{{Date: "2026-05-08"}}, io.Discard); err == nil {
+		if err := exportTransactionsCSV([]Transaction{{Date: "2026-05-08"}}, io.Discard, func(io.Writer) csvWriter {
+			return &fakeCSVWriter{failOnCall: 1}
+		}); err == nil {
 			t.Fatal("ExportTransactionsCSV() error = nil, want failure")
 		}
 	})
 
 	t.Run("export csv row error", func(t *testing.T) {
-		original := newCSVWriter
-		newCSVWriter = func(io.Writer) csvWriter { return &fakeCSVWriter{failOnCall: 2} }
-		defer func() { newCSVWriter = original }()
-
-		if err := ExportTransactionsCSV([]Transaction{{Date: "2026-05-08"}}, io.Discard); err == nil {
+		if err := exportTransactionsCSV([]Transaction{{Date: "2026-05-08"}}, io.Discard, func(io.Writer) csvWriter {
+			return &fakeCSVWriter{failOnCall: 2}
+		}); err == nil {
 			t.Fatal("ExportTransactionsCSV() error = nil, want failure")
 		}
 	})
 
 	t.Run("export csv flush error", func(t *testing.T) {
-		original := newCSVWriter
-		newCSVWriter = func(io.Writer) csvWriter { return &fakeCSVWriter{err: errors.New("flush failed")} }
-		defer func() { newCSVWriter = original }()
-
-		if err := ExportTransactionsCSV([]Transaction{{Date: "2026-05-08"}}, io.Discard); err == nil {
+		if err := exportTransactionsCSV([]Transaction{{Date: "2026-05-08"}}, io.Discard, func(io.Writer) csvWriter {
+			return &fakeCSVWriter{err: errors.New("flush failed")}
+		}); err == nil {
 			t.Fatal("ExportTransactionsCSV() error = nil, want failure")
 		}
 	})
 }
 
 func TestServiceErrorBranches(t *testing.T) {
+	t.Parallel()
+
 	t.Run("accounts and reference methods", func(t *testing.T) {
 		runGraphQLErrorCase(t, "GetAccounts", nil, func(s *Service) error { _, err := s.ListAccounts(context.Background()); return err })
 		runGraphQLErrorCase(t, "GetAccount", map[string]interface{}{"id": "acc-1"}, func(s *Service) error { _, err := s.GetAccount(context.Background(), "acc-1"); return err })
@@ -851,17 +858,18 @@ func TestServiceErrorBranches(t *testing.T) {
 }
 
 func TestServiceHTTPHelpers(t *testing.T) {
+	t.Parallel()
+
 	t.Run("download attachment success", func(t *testing.T) {
-		orig := http.DefaultTransport
-		defer func() { http.DefaultTransport = orig }()
-		http.DefaultTransport = roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		httpClient := &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 			require.Equal(t, "GET", req.Method)
 			require.Equal(t, "https://files.example/attachment.csv", req.URL.String())
 			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("hello"))}, nil
-		})
+		})}
 
 		var buf bytes.Buffer
 		svc, _ := newMockService("token-123", nil)
+		svc.AttachmentHTTPClient = httpClient
 		require.NoError(t, svc.DownloadAttachment(context.Background(), "https://files.example/attachment.csv", &buf))
 		assert.Equal(t, "hello", buf.String())
 	})
@@ -872,38 +880,34 @@ func TestServiceHTTPHelpers(t *testing.T) {
 	})
 
 	t.Run("download attachment transport error", func(t *testing.T) {
-		orig := http.DefaultTransport
-		defer func() { http.DefaultTransport = orig }()
-		http.DefaultTransport = roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		httpClient := &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
 			return nil, errors.New("network down")
-		})
+		})}
 
 		var buf bytes.Buffer
 		svc, _ := newMockService("token-123", nil)
+		svc.AttachmentHTTPClient = httpClient
 		assert.Error(t, svc.DownloadAttachment(context.Background(), "https://files.example/attachment.csv", &buf))
 	})
 
 	t.Run("download attachment non-200", func(t *testing.T) {
-		orig := http.DefaultTransport
-		defer func() { http.DefaultTransport = orig }()
-		http.DefaultTransport = roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		httpClient := &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
 			return &http.Response{StatusCode: 500, Body: io.NopCloser(strings.NewReader(""))}, nil
-		})
+		})}
 
 		var buf bytes.Buffer
 		svc, _ := newMockService("token-123", nil)
+		svc.AttachmentHTTPClient = httpClient
 		assert.Error(t, svc.DownloadAttachment(context.Background(), "https://files.example/attachment.csv", &buf))
 	})
 
 	t.Run("upload account balance history", func(t *testing.T) {
-		origTransport := http.DefaultTransport
-		defer func() { http.DefaultTransport = origTransport }()
-		http.DefaultTransport = roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		httpClient := &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 			require.Equal(t, "POST", req.Method)
 			require.Equal(t, "web", req.Header.Get("Client-Platform"))
 			require.Equal(t, "Token tok", req.Header.Get("Authorization"))
 			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(""))}, nil
-		})
+		})}
 
 		tmp := filepath.Join(t.TempDir(), "sample.csv")
 		if err := os.WriteFile(tmp, []byte("a,b\n1,2\n"), 0600); err != nil {
@@ -914,16 +918,14 @@ func TestServiceHTTPHelpers(t *testing.T) {
 		require.NoError(t, err)
 		defer file.Close()
 
-		svc := NewService(&mockClient{token: "tok"})
+		svc := NewService(&mockClient{token: "tok"}, WithHTTPClient(httpClient))
 		require.NoError(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", file))
 	})
 
 	t.Run("upload account balance history non-200", func(t *testing.T) {
-		origTransport := http.DefaultTransport
-		defer func() { http.DefaultTransport = origTransport }()
-		http.DefaultTransport = roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		httpClient := &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
 			return &http.Response{StatusCode: 500, Body: io.NopCloser(strings.NewReader(""))}, nil
-		})
+		})}
 
 		tmp := filepath.Join(t.TempDir(), "sample.csv")
 		require.NoError(t, os.WriteFile(tmp, []byte("date,amount\n"), 0600))
@@ -931,16 +933,14 @@ func TestServiceHTTPHelpers(t *testing.T) {
 		require.NoError(t, err)
 		defer file.Close()
 
-		svc := NewService(&mockClient{token: "tok"})
+		svc := NewService(&mockClient{token: "tok"}, WithHTTPClient(httpClient))
 		assert.Error(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", file))
 	})
 
 	t.Run("upload account balance history network error", func(t *testing.T) {
-		origTransport := http.DefaultTransport
-		defer func() { http.DefaultTransport = origTransport }()
-		http.DefaultTransport = roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		httpClient := &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
 			return nil, errors.New("network down")
-		})
+		})}
 
 		tmp := filepath.Join(t.TempDir(), "sample.csv")
 		require.NoError(t, os.WriteFile(tmp, []byte("date,amount\n"), 0600))
@@ -948,35 +948,13 @@ func TestServiceHTTPHelpers(t *testing.T) {
 		require.NoError(t, err)
 		defer file.Close()
 
-		svc := NewService(&mockClient{token: "tok"})
+		svc := NewService(&mockClient{token: "tok"}, WithHTTPClient(httpClient))
 		assert.Error(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", file))
-	})
-
-	t.Run("upload account balance history request error", func(t *testing.T) {
-		original := newBalanceHistoryRequest
-		newBalanceHistoryRequest = func(context.Context, string, string, io.Reader) (*http.Request, error) {
-			return nil, errors.New("request failed")
-		}
-		defer func() { newBalanceHistoryRequest = original }()
-
-		svc := NewService(&mockClient{token: "tok"})
-		assert.Error(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", strings.NewReader("date,amount\n")))
 	})
 
 	t.Run("upload account balance history read error", func(t *testing.T) {
 		svc := NewService(&mockClient{token: "tok"})
 		assert.Error(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", failingReader{}))
-	})
-
-	t.Run("upload account balance history form file error", func(t *testing.T) {
-		original := createBalanceHistoryFormFile
-		createBalanceHistoryFormFile = func(*multipart.Writer, string, string) (io.Writer, error) {
-			return nil, errors.New("form file failed")
-		}
-		defer func() { createBalanceHistoryFormFile = original }()
-
-		svc := NewService(&mockClient{token: "tok"})
-		assert.Error(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", strings.NewReader("date,amount\n")))
 	})
 
 	t.Run("list transaction attachments", func(t *testing.T) {

@@ -181,7 +181,7 @@ func (a *App) buildBudgetsSet() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
-			logger := audit.NewLogger()
+			logger := a.Deps.NewAuditLogger()
 			categoryID := args[0]
 
 			if err := safety.Check(safety.TierMutation, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
@@ -254,7 +254,7 @@ func (a *App) buildBudgetsReset() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
-			logger := audit.NewLogger()
+			logger := a.Deps.NewAuditLogger()
 
 			if err := safety.Check(safety.TierDestructive, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
 				a.handleError(renderer, "budgets.reset", err.(*errors.Error), start)
@@ -374,7 +374,7 @@ func (a *App) buildBudgetsFlexibleSet() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
-			logger := audit.NewLogger()
+			logger := a.Deps.NewAuditLogger()
 
 			if err := safety.Check(safety.TierMutation, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
 				a.handleError(renderer, "budgets.flexible.set", err.(*errors.Error), start)
@@ -449,7 +449,7 @@ func (a *App) buildBudgetsFlexRolloverSet() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
-			logger := audit.NewLogger()
+			logger := a.Deps.NewAuditLogger()
 
 			if err := safety.Check(safety.TierMutation, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
 				a.handleError(renderer, "budgets.flex-rollover.set", err.(*errors.Error), start)

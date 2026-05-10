@@ -71,7 +71,7 @@ func (a *App) buildTagsCreate() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
-			logger := audit.NewLogger()
+			logger := a.Deps.NewAuditLogger()
 
 			if err := safety.Check(safety.TierMutation, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
 				a.handleError(renderer, "tags.create", err.(*errors.Error), start)

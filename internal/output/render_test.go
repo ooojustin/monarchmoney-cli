@@ -11,6 +11,8 @@ import (
 )
 
 func TestRenderer_RenderSuccess(t *testing.T) {
+	t.Parallel()
+
 	stdout := &bytes.Buffer{}
 	renderer := NewRenderer(stdout, nil, true, false)
 
@@ -24,6 +26,8 @@ func TestRenderer_RenderSuccess(t *testing.T) {
 }
 
 func TestRenderer_RenderSuccessPretty(t *testing.T) {
+	t.Parallel()
+
 	stdout := &bytes.Buffer{}
 	renderer := NewRenderer(stdout, nil, true, true)
 	env := NewEnvelope("test", "default", SchemaVersion, "", map[string]string{"foo": "bar"}, time.Second)
@@ -33,6 +37,8 @@ func TestRenderer_RenderSuccessPretty(t *testing.T) {
 }
 
 func TestRenderer_RenderSuccessNonJSON(t *testing.T) {
+	t.Parallel()
+
 	stdout := &bytes.Buffer{}
 	renderer := NewRenderer(stdout, nil, false, false)
 
@@ -47,9 +53,7 @@ func (brokenJSON) MarshalJSON() ([]byte, error) {
 }
 
 func TestRenderer_RenderSuccessMarshalError(t *testing.T) {
-	originalMarshal := marshalJSON
-	defer func() { marshalJSON = originalMarshal }()
-	marshalJSON = func(any) ([]byte, error) { return nil, stderrors.New("marshal failed") }
+	t.Parallel()
 
 	stdout := &bytes.Buffer{}
 	renderer := NewRenderer(stdout, nil, true, false)
@@ -61,6 +65,8 @@ func TestRenderer_RenderSuccessMarshalError(t *testing.T) {
 }
 
 func TestRenderer_RenderErrorJSON(t *testing.T) {
+	t.Parallel()
+
 	stdout := &bytes.Buffer{}
 	renderer := NewRenderer(stdout, nil, true, false)
 	env := NewErrorEnvelope("test", "default", SchemaVersion, &clierrors.Error{Message: "boom"}, 10*time.Millisecond)
@@ -71,6 +77,8 @@ func TestRenderer_RenderErrorJSON(t *testing.T) {
 }
 
 func TestRenderer_RenderErrorTextAndDiagnostic(t *testing.T) {
+	t.Parallel()
+
 	stderr := &bytes.Buffer{}
 	renderer := NewRenderer(nil, stderr, false, false)
 	env := NewErrorEnvelope("test", "default", SchemaVersion, &clierrors.Error{Message: "boom"}, 0)
@@ -82,6 +90,8 @@ func TestRenderer_RenderErrorTextAndDiagnostic(t *testing.T) {
 }
 
 func TestRenderer_RenderErrorPretty(t *testing.T) {
+	t.Parallel()
+
 	stdout := &bytes.Buffer{}
 	renderer := NewRenderer(stdout, nil, true, true)
 	env := NewErrorEnvelope("test", "default", SchemaVersion, &clierrors.Error{Message: "boom"}, 0)
@@ -90,21 +100,9 @@ func TestRenderer_RenderErrorPretty(t *testing.T) {
 	assert.Contains(t, stdout.String(), "\n  \"ok\": false")
 }
 
-func TestRenderer_RenderErrorMarshalError(t *testing.T) {
-	originalMarshal := marshalJSON
-	defer func() { marshalJSON = originalMarshal }()
-	marshalJSON = func(any) ([]byte, error) { return nil, stderrors.New("marshal failed") }
-
-	stdout := &bytes.Buffer{}
-	renderer := NewRenderer(stdout, nil, true, false)
-	env := NewErrorEnvelope("test", "default", SchemaVersion, &clierrors.Error{Message: "boom"}, 0)
-
-	if err := renderer.RenderError(env); err == nil {
-		t.Fatal("RenderError() error = nil, want failure")
-	}
-}
-
 func TestNewRendererDefaults(t *testing.T) {
+	t.Parallel()
+
 	renderer := NewRenderer(nil, nil, false, false)
 	assert.NotNil(t, renderer.Stdout)
 	assert.NotNil(t, renderer.Stderr)

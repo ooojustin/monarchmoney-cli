@@ -252,7 +252,7 @@ func (a *App) buildAccountsRefresh() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
-			logger := audit.NewLogger()
+			logger := a.Deps.NewAuditLogger()
 
 			if err := safety.Check(safety.TierRemoteAction, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
 				a.handleError(renderer, "accounts.refresh", err.(*errors.Error), start)
@@ -400,7 +400,7 @@ func (a *App) buildAccountsUpdate() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
-			logger := audit.NewLogger()
+			logger := a.Deps.NewAuditLogger()
 			id := args[0]
 
 			if err := safety.Check(safety.TierMutation, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
@@ -474,7 +474,7 @@ func (a *App) buildAccountsDelete() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
-			logger := audit.NewLogger()
+			logger := a.Deps.NewAuditLogger()
 			id := args[0]
 
 			if err := safety.Check(safety.TierDestructive, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
@@ -540,7 +540,7 @@ func (a *App) buildAccountsCreateManual() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
-			logger := audit.NewLogger()
+			logger := a.Deps.NewAuditLogger()
 
 			if err := safety.Check(safety.TierMutation, a.Flags.ReadOnly, a.Flags.DryRun, a.Flags.Confirm); err != nil {
 				a.handleError(renderer, "accounts.create-manual", err.(*errors.Error), start)
@@ -606,7 +606,7 @@ func (a *App) buildAccountsUploadHistory() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
-			logger := audit.NewLogger()
+			logger := a.Deps.NewAuditLogger()
 			id := args[0]
 			path := args[1]
 

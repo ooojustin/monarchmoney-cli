@@ -2,6 +2,8 @@ package monarch
 
 import (
 	"context"
+	"net/http"
+	"time"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 )
@@ -13,10 +15,54 @@ type graphQLClient interface {
 
 // Service provides access to Monarch Money data.
 type Service struct {
-	Client graphQLClient
+	Client               graphQLClient
+	HTTPClient           *http.Client
+	AttachmentHTTPClient *http.Client
+}
+
+type ServiceOption func(*Service)
+
+func WithHTTPClient(client *http.Client) ServiceOption {
+	return func(s *Service) {
+		if client != nil {
+			s.HTTPClient = client
+			s.AttachmentHTTPClient = client
+		}
+	}
+}
+
+func WithHTTPTransport(transport http.RoundTripper) ServiceOption {
+	return func(s *Service) {
+		if transport != nil {
+			s.HTTPClient = &http.Client{Transport: transport}
+			s.AttachmentHTTPClient = &http.Client{Timeout: 30 * time.Second, Transport: transport}
+		}
+	}
 }
 
 // NewService returns a new Service.
-func NewService(client graphQLClient) *Service {
-	return &Service{Client: client}
+func NewService(client graphQLClient, opts ...ServiceOption) *Service {
+	s := &Service{
+		Client:               client,
+		HTTPClient:           &http.Client{},
+		AttachmentHTTPClient: &http.Client{Timeout: 30 * time.Second},
+	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
+
+func (s *Service) httpClient() *http.Client {
+	if s.HTTPClient != nil {
+		return s.HTTPClient
+	}
+	return &http.Client{}
+}
+
+func (s *Service) attachmentHTTPClient() *http.Client {
+	if s.AttachmentHTTPClient != nil {
+		return s.AttachmentHTTPClient
+	}
+	return &http.Client{Timeout: 30 * time.Second}
 }

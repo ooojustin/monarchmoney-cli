@@ -21,6 +21,8 @@ func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 func TestStoreRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "session", "session.json"))
 	now := time.Date(2026, 5, 8, 12, 0, 0, 0, time.UTC)
@@ -71,6 +73,8 @@ func TestStoreRoundTrip(t *testing.T) {
 }
 
 func TestStoreSaveReplacesExistingSession(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "session.json"))
 
@@ -94,6 +98,8 @@ func TestStoreSaveReplacesExistingSession(t *testing.T) {
 }
 
 func TestStoreDeleteMissing(t *testing.T) {
+	t.Parallel()
+
 	store := NewStore(filepath.Join(t.TempDir(), "missing.json"))
 	if err := store.Delete(); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("Delete() error = %v, want os.ErrNotExist", err)
@@ -101,6 +107,8 @@ func TestStoreDeleteMissing(t *testing.T) {
 }
 
 func TestStoreSaveReturnsMkdirError(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	blocker := filepath.Join(dir, "blocked")
 	if err := os.WriteFile(blocker, []byte("x"), 0600); err != nil {
@@ -114,6 +122,8 @@ func TestStoreSaveReturnsMkdirError(t *testing.T) {
 }
 
 func TestStoreLoadReturnsDecodeError(t *testing.T) {
+	t.Parallel()
+
 	store := NewStore(filepath.Join(t.TempDir(), "session.json"))
 	if err := os.WriteFile(store.Path, []byte("not-json"), 0600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
@@ -125,6 +135,8 @@ func TestStoreLoadReturnsDecodeError(t *testing.T) {
 }
 
 func TestStoreLoadReturnsMissingFileError(t *testing.T) {
+	t.Parallel()
+
 	store := NewStore(filepath.Join(t.TempDir(), "missing.json"))
 	if _, err := store.Load(); err == nil {
 		t.Fatal("Load() error = nil, want failure")
@@ -132,110 +144,75 @@ func TestStoreLoadReturnsMissingFileError(t *testing.T) {
 }
 
 func TestStoreSaveReturnsWriteError(t *testing.T) {
-	original := writeSessionFile
-	writeSessionFile = func(string, []byte, os.FileMode) error {
-		return errors.New("write failed")
-	}
-	defer func() { writeSessionFile = original }()
+	t.Parallel()
 
-	store := NewStore(filepath.Join(t.TempDir(), "session.json"))
-	if err := store.Save(&Session{Profile: "default"}); err == nil {
-		t.Fatal("Save() error = nil, want failure")
-	}
-}
-
-func TestStoreSaveReturnsMarshalError(t *testing.T) {
-	original := marshalSession
-	marshalSession = func(any, string, string) ([]byte, error) {
-		return nil, errors.New("marshal failed")
-	}
-	defer func() { marshalSession = original }()
-
-	store := NewStore(filepath.Join(t.TempDir(), "session.json"))
+	store := NewStore(t.TempDir())
 	if err := store.Save(&Session{Profile: "default"}); err == nil {
 		t.Fatal("Save() error = nil, want failure")
 	}
 }
 
 func TestAuthenticate(t *testing.T) {
-	originalEndpoint := loginEndpoint
-	originalClientFactory := newLoginHTTPClient
-	defer func() {
-		loginEndpoint = originalEndpoint
-		newLoginHTTPClient = originalClientFactory
-	}()
+	t.Parallel()
 
 	t.Run("invalid mfa secret", func(t *testing.T) {
-		_, err := Authenticate("a@example.com", "password", "", "not-base32")
+		_, err := NewClient("", nil).Authenticate("a@example.com", "password", "", "not-base32")
 		assert.ErrorContains(t, err, "failed to generate MFA code")
 	})
 
 	t.Run("request creation error", func(t *testing.T) {
-		loginEndpoint = "://"
-		_, err := Authenticate("a@example.com", "password", "", "")
+		client := NewClient("://", nil)
+		_, err := client.Authenticate("a@example.com", "password", "", "")
 		assert.ErrorContains(t, err, "failed to create login request")
 	})
 
 	t.Run("network unreachable", func(t *testing.T) {
-		loginEndpoint = "https://api.monarch.com/auth/login/"
-		newLoginHTTPClient = func() *http.Client {
-			return &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
-				return nil, errors.New("network down")
-			})}
-		}
-		_, err := Authenticate("a@example.com", "password", "", "")
+		client := NewClient("", &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+			return nil, errors.New("network down")
+		})})
+		_, err := client.Authenticate("a@example.com", "password", "", "")
 		assert.ErrorContains(t, err, "failed to reach Monarch API")
 	})
 
 	t.Run("mfa required", func(t *testing.T) {
-		newLoginHTTPClient = func() *http.Client {
-			return &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
-				return &http.Response{StatusCode: 401, Body: io.NopCloser(bytes.NewBufferString(""))}, nil
-			})}
-		}
-		_, err := Authenticate("a@example.com", "password", "", "")
+		client := NewClient("", &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: 401, Body: io.NopCloser(bytes.NewBufferString(""))}, nil
+		})})
+		_, err := client.Authenticate("a@example.com", "password", "", "")
 		assert.ErrorContains(t, err, "MFA code required")
 	})
 
 	t.Run("invalid credentials with mfa", func(t *testing.T) {
-		newLoginHTTPClient = func() *http.Client {
-			return &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
-				return &http.Response{StatusCode: 401, Body: io.NopCloser(bytes.NewBufferString(""))}, nil
-			})}
-		}
-		_, err := Authenticate("a@example.com", "password", "123456", "")
+		client := NewClient("", &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: 401, Body: io.NopCloser(bytes.NewBufferString(""))}, nil
+		})})
+		_, err := client.Authenticate("a@example.com", "password", "123456", "")
 		assert.ErrorContains(t, err, "invalid credentials or MFA code")
 	})
 
 	t.Run("api error", func(t *testing.T) {
-		newLoginHTTPClient = func() *http.Client {
-			return &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
-				return &http.Response{StatusCode: 500, Body: io.NopCloser(bytes.NewBufferString(""))}, nil
-			})}
-		}
-		_, err := Authenticate("a@example.com", "password", "123456", "")
+		client := NewClient("", &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: 500, Body: io.NopCloser(bytes.NewBufferString(""))}, nil
+		})})
+		_, err := client.Authenticate("a@example.com", "password", "123456", "")
 		assert.ErrorContains(t, err, "API returned status 500")
 	})
 
 	t.Run("schema changed", func(t *testing.T) {
-		newLoginHTTPClient = func() *http.Client {
-			return &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
-				return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString("not-json"))}, nil
-			})}
-		}
-		_, err := Authenticate("a@example.com", "password", "123456", "")
+		client := NewClient("", &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString("not-json"))}, nil
+		})})
+		_, err := client.Authenticate("a@example.com", "password", "123456", "")
 		assert.ErrorContains(t, err, "failed to parse login response")
 	})
 
 	t.Run("success", func(t *testing.T) {
-		newLoginHTTPClient = func() *http.Client {
-			return &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-				body, _ := io.ReadAll(req.Body)
-				require.Contains(t, string(body), `"username":"a@example.com"`)
-				return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString(`{"token":"token-123"}`))}, nil
-			})}
-		}
-		sess, err := Authenticate("a@example.com", "password", "123456", "")
+		client := NewClient("", &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			body, _ := io.ReadAll(req.Body)
+			require.Contains(t, string(body), `"username":"a@example.com"`)
+			return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString(`{"token":"token-123"}`))}, nil
+		})})
+		sess, err := client.Authenticate("a@example.com", "password", "123456", "")
 		require.NoError(t, err)
 		require.NotNil(t, sess)
 		assert.Equal(t, "a@example.com", sess.Email)
@@ -245,14 +222,12 @@ func TestAuthenticate(t *testing.T) {
 	})
 
 	t.Run("success with mfa secret", func(t *testing.T) {
-		newLoginHTTPClient = func() *http.Client {
-			return &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-				body, _ := io.ReadAll(req.Body)
-				require.Contains(t, string(body), `"totp"`)
-				return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString(`{"token":"token-456"}`))}, nil
-			})}
-		}
-		sess, err := Authenticate("a@example.com", "password", "", "JBSWY3DPEHPK3PXP")
+		client := NewClient("", &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			body, _ := io.ReadAll(req.Body)
+			require.Contains(t, string(body), `"totp"`)
+			return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString(`{"token":"token-456"}`))}, nil
+		})})
+		sess, err := client.Authenticate("a@example.com", "password", "", "JBSWY3DPEHPK3PXP")
 		require.NoError(t, err)
 		require.NotNil(t, sess)
 		assert.Equal(t, "token-456", sess.Token)

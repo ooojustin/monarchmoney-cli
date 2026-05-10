@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/thedavidweng/monarchmoney-cli/internal/audit"
 	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
 )
 
@@ -17,6 +18,12 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 	return f(r)
+}
+
+type noopAuditLogger struct{}
+
+func (noopAuditLogger) Log(*audit.Record) error {
+	return nil
 }
 
 // newTestApp constructs an App wired for testing. It returns the App, a
@@ -35,6 +42,7 @@ func newTestApp(t *testing.T, sessionPath string) (*App, *bytes.Buffer, *int) {
 	deps.Stdout = &buf
 	deps.Stderr = &buf
 	deps.Exit = func(code int) { exitCode = code }
+	deps.NewAuditLogger = func() AuditLogger { return noopAuditLogger{} }
 
 	app := New(deps)
 
