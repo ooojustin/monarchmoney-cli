@@ -9,6 +9,7 @@ import (
 )
 
 func TestWriteVersion(t *testing.T) {
+	t.Parallel()
 	t.Run("plain text", func(t *testing.T) {
 		var buf bytes.Buffer
 		if err := writeVersion(&buf, "default", false, false, time.Second); err != nil {
@@ -63,6 +64,7 @@ func TestWriteVersion(t *testing.T) {
 }
 
 func TestEnvelopeWithWarnings(t *testing.T) {
+	t.Parallel()
 	a := &App{Flags: Flags{Profile: "default"}}
 	env := a.envelopeWithWarnings("transactions.list", map[string]string{"status": "ok"}, time.Now(), "uses legacy Monarch GraphQL root field: allTransactions")
 	if len(env.Meta.Warnings) != 1 || env.Meta.Warnings[0] == "" {

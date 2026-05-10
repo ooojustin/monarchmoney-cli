@@ -17,6 +17,7 @@ import (
 // network. Verifies the new App+Deps architecture: session is saved to the
 // test sessionPath via Deps.NewStore.
 func TestAuthLoginWithFlags(t *testing.T) {
+	t.Parallel()
 	sessionPath := filepath.Join(t.TempDir(), "session.json")
 	app, buf, exitCode := newTestApp(t, sessionPath)
 
@@ -98,6 +99,7 @@ func TestAuthStatusWithValidSession(t *testing.T) {
 // TestAuthStatusMissingSession verifies AUTH_REQUIRED is returned when no
 // session file exists at the configured path.
 func TestAuthStatusMissingSession(t *testing.T) {
+	t.Parallel()
 	sessionPath := filepath.Join(t.TempDir(), "missing.json")
 	app, buf, exitCode := newTestApp(t, sessionPath)
 

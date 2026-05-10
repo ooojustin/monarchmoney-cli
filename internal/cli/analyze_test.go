@@ -11,6 +11,7 @@ import (
 // through Deps.LoadService and reports AUTH_REQUIRED when the session is
 // missing, exercising the App+Deps flow end-to-end.
 func TestAnalyzeAnomaliesRequiresAuth(t *testing.T) {
+	t.Parallel()
 	sessionPath := filepath.Join(t.TempDir(), "missing.json")
 	app, buf, exitCode := newTestApp(t, sessionPath)
 
@@ -33,6 +34,7 @@ func TestAnalyzeAnomaliesRequiresAuth(t *testing.T) {
 // TestAnalyzeMerchantsRejectsUnsupportedCompare verifies validation errors
 // surface before any session load attempt.
 func TestAnalyzeMerchantsRejectsUnsupportedCompare(t *testing.T) {
+	t.Parallel()
 	sessionPath := filepath.Join(t.TempDir(), "session.json")
 	app, buf, exitCode := newTestApp(t, sessionPath)
 

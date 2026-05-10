@@ -23,9 +23,10 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 // stdout capture buffer, and a pointer to the captured exit code.
 //
 // Each test gets its own App with isolated Flags state, so tests are free
-// to call t.Parallel(). The exception is tests that touch the global viper
-// instance (e.g. via viper.Set / viper.Reset) — those still race with each
-// other and should not call t.Parallel() until viper is per-App as well.
+// to call t.Parallel(). The exceptions are tests that touch process-wide
+// globals — viper (via viper.Set / viper.Reset) and http.DefaultTransport.
+// Those still race with each other and should not call t.Parallel() until
+// viper and the http transport are per-App as well.
 func newTestApp(t *testing.T, sessionPath string) (*App, *bytes.Buffer, *int) {
 	t.Helper()
 
