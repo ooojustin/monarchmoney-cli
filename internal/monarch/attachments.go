@@ -24,7 +24,7 @@ func (s *Service) ListTransactionAttachments(ctx context.Context, txID string) (
 				ID               string `json:"id"`
 				Extension        string `json:"extension"`
 				Filename         string `json:"filename"`
-				OriginalAssetUrl string `json:"originalAssetUrl"`
+				OriginalAssetURL string `json:"originalAssetUrl"`
 				SizeBytes        int    `json:"sizeBytes"`
 			} `json:"attachments"`
 		} `json:"getTransaction"`
@@ -45,7 +45,7 @@ func (s *Service) ListTransactionAttachments(ctx context.Context, txID string) (
 			ID:        a.ID,
 			Filename:  a.Filename,
 			Extension: a.Extension,
-			URL:       a.OriginalAssetUrl,
+			URL:       a.OriginalAssetURL,
 			SizeBytes: a.SizeBytes,
 		}
 	}

@@ -1203,7 +1203,7 @@ func (a *App) buildTransactionsAttachmentsUpload() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
-			a.handleError(renderer, "transactions.attachments.upload", errors.New(errors.FEATURE_UNAVAILABLE, "transaction attachment upload is unavailable in the current Monarch API", errors.CatAPI, false, nil), start)
+			a.handleError(renderer, "transactions.attachments.upload", errors.New(errors.FeatureUnavailable, "transaction attachment upload is unavailable in the current Monarch API", errors.CatAPI, false, nil), start)
 		},
 	}
 }
