@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -18,6 +17,7 @@ import (
 // injected session path (via Deps), not config.DefaultSessionPath() directly.
 // Under the App+Deps architecture this works by construction.
 func TestCacheSyncPassesFromDateAndPersistsAccountID(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	sessionPath := filepath.Join(dir, "session.json")
 	cachePath := filepath.Join(dir, "cache.sqlite")
@@ -80,6 +80,7 @@ func TestCacheSyncPassesFromDateAndPersistsAccountID(t *testing.T) {
 // TestCacheSyncRejectsInvalidFromDate verifies that --from is validated
 // before any API call is made.
 func TestCacheSyncRejectsInvalidFromDate(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	sessionPath := filepath.Join(dir, "session.json")
 	app, buf, exitCode := newTestApp(t, sessionPath)
@@ -106,14 +107,12 @@ func TestCacheSyncRejectsInvalidFromDate(t *testing.T) {
 // TestCacheCleanupValidatesDate covers the cleanup command's date validation
 // and configured cache path resolution.
 func TestCacheCleanupValidatesDate(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	sessionPath := filepath.Join(dir, "session.json")
 	cachePath := filepath.Join(dir, "configured.sqlite")
 	app, buf, exitCode := newTestApp(t, sessionPath)
 	app.Deps.Viper.Set("cache_path", cachePath)
-
-	t.Setenv("HOME", filepath.Join(dir, "home"))
-	_ = os.MkdirAll(filepath.Join(dir, "home"), 0700)
 
 	store, err := cache.NewStore(cachePath)
 	if err != nil {
