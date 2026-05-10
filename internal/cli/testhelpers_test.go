@@ -12,7 +12,7 @@ import (
 )
 
 // roundTripFunc adapts a function to the http.RoundTripper interface so
-// tests can inject HTTP behavior via http.DefaultTransport overrides.
+// tests can inject HTTP behavior via app.Deps.HTTPTransport.
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
@@ -22,11 +22,11 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 // newTestApp constructs an App wired for testing. It returns the App, a
 // stdout capture buffer, and a pointer to the captured exit code.
 //
-// Each test gets its own App with isolated Flags state, so tests are free
-// to call t.Parallel(). The exceptions are tests that touch process-wide
-// globals — viper (via viper.Set / viper.Reset) and http.DefaultTransport.
-// Those still race with each other and should not call t.Parallel() until
-// viper and the http transport are per-App as well.
+// Each test gets its own App with isolated Flags state and an injected
+// HTTPTransport, so tests are free to call t.Parallel(). The remaining
+// exceptions are tests that touch the global viper instance (viper.Set /
+// viper.Reset). Those still race with each other and should not call
+// t.Parallel() until viper is per-App as well.
 func newTestApp(t *testing.T, sessionPath string) (*App, *bytes.Buffer, *int) {
 	t.Helper()
 

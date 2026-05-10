@@ -68,7 +68,7 @@ func Check(ctx context.Context, connect bool) *Result {
 	}
 
 	if connect && res.Session.Authenticated {
-		client := graphql.NewClient("https://api.monarch.com/graphql", sess.Token, 10*time.Second)
+		client := graphql.NewClient("https://api.monarch.com/graphql", sess.Token, 10*time.Second, nil)
 		var identity interface{}
 		err := client.Do(ctx, &graphql.Request{
 			OperationName: "GetIdentity",

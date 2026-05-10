@@ -25,15 +25,12 @@ func TestCacheSyncPassesFromDateAndPersistsAccountID(t *testing.T) {
 	app, buf, exitCode := newTestApp(t, sessionPath)
 	saveTestSession(t, sessionPath)
 
-	oldTransport := http.DefaultTransport
-	t.Cleanup(func() { http.DefaultTransport = oldTransport })
-
 	viper.Reset()
 	viper.Set("cache_path", cachePath)
 	t.Cleanup(viper.Reset)
 
 	var sawStartDate bool
-	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	app.Deps.HTTPTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		var gqlReq struct {
 			OperationName string                 `json:"operationName"`
 			Variables     map[string]interface{} `json:"variables"`
@@ -92,9 +89,7 @@ func TestCacheSyncRejectsInvalidFromDate(t *testing.T) {
 	app, buf, exitCode := newTestApp(t, sessionPath)
 	saveTestSession(t, sessionPath)
 
-	oldTransport := http.DefaultTransport
-	t.Cleanup(func() { http.DefaultTransport = oldTransport })
-	http.DefaultTransport = roundTripFunc(func(*http.Request) (*http.Response, error) {
+	app.Deps.HTTPTransport = roundTripFunc(func(*http.Request) (*http.Response, error) {
 		t.Fatal("cache sync should validate --from before making API requests")
 		return nil, nil
 	})

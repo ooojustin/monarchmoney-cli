@@ -1,6 +1,11 @@
 package cli
 
-import "github.com/spf13/cobra"
+import (
+	"time"
+
+	"github.com/spf13/cobra"
+	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
+)
 
 // App owns the root cobra command, the dependencies that command handlers
 // reach for at runtime, and the parsed values of root persistent flags.
@@ -15,10 +20,6 @@ type App struct {
 // Flags holds the parsed values of root persistent flags that command
 // bodies read at runtime. Cobra binds &a.Flags.X to each flag and
 // PersistentPreRun copies viper-resolved values back into these fields.
-//
-// Only flags actually consumed by command bodies live here. Flags wired
-// through cobra/viper but never read (e.g. --compact, --no-color) remain
-// as package-level vars in root.go for now.
 type Flags struct {
 	JSONMode bool
 	Pretty   bool
@@ -42,6 +43,16 @@ func New(deps Deps) *App {
 	defer globalRegistration.Unlock()
 
 	a := &App{Deps: deps}
+
+	// Install the default NewClient closure if the caller didn't supply one.
+	// The closure reads a.Deps.HTTPTransport at call time so tests can mutate
+	// app.Deps.HTTPTransport after construction and have it take effect.
+	if a.Deps.NewClient == nil {
+		a.Deps.NewClient = func(endpoint, token string, timeout time.Duration) GraphQLClient {
+			return graphql.NewClient(endpoint, token, timeout, a.Deps.HTTPTransport)
+		}
+	}
+
 	a.Root = a.buildRoot()
 
 	a.buildAuthCommands(a.Root)

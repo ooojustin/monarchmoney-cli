@@ -68,16 +68,15 @@ func TestAuthLoginWithFlags(t *testing.T) {
 
 // TestAuthStatusWithValidSession exercises the auth status command when the
 // session file exists and the GraphQL backend returns a successful identity.
-// Uses http.DefaultTransport injection because graphql.NewClient consumes
-// the default transport.
+// Injects a fake transport via Deps.HTTPTransport so this test does not touch
+// process-global state and is parallel-safe.
 func TestAuthStatusWithValidSession(t *testing.T) {
+	t.Parallel()
 	sessionPath := filepath.Join(t.TempDir(), "session.json")
 	app, buf, exitCode := newTestApp(t, sessionPath)
 	saveTestSession(t, sessionPath)
 
-	oldTransport := http.DefaultTransport
-	t.Cleanup(func() { http.DefaultTransport = oldTransport })
-	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	app.Deps.HTTPTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return jsonHTTPResponse(`{"data":{"me":{"email":"a@example.com"}}}`), nil
 	})
 

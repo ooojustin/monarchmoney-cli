@@ -33,12 +33,17 @@ func (c *Client) TokenValue() string {
 	return c.Token
 }
 
-// NewClient returns a new Client.
-func NewClient(endpoint, token string, timeout time.Duration) *Client {
+// NewClient returns a new Client. A nil transport falls back to
+// http.DefaultTransport; tests inject a custom RoundTripper to avoid
+// touching process-global HTTP state.
+func NewClient(endpoint, token string, timeout time.Duration, transport http.RoundTripper) *Client {
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
 	return &Client{
 		Endpoint: endpoint,
 		Token:    token,
-		HTTP:     &http.Client{Timeout: timeout},
+		HTTP:     &http.Client{Timeout: timeout, Transport: transport},
 	}
 }
 

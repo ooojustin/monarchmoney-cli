@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"time"
 
@@ -40,6 +41,11 @@ type Deps struct {
 	APIEndpoint func() string
 	Timeout     func() time.Duration
 
+	// HTTPTransport, if non-nil, is used for all outgoing GraphQL traffic.
+	// Tests inject a fake RoundTripper here to avoid touching the process-
+	// global http.DefaultTransport. Production leaves this nil.
+	HTTPTransport http.RoundTripper
+
 	// Auth and API factories.
 	NewStore     func(path string) *auth.Store
 	Authenticate func(email, password, mfaCode, mfaSecret string) (*auth.Session, error)
@@ -59,6 +65,11 @@ type Deps struct {
 }
 
 // DefaultDeps returns Deps wired to real implementations.
+//
+// NewClient is intentionally left nil here; App.New installs the default
+// NewClient closure with a pointer back to App.Deps so that tests which
+// mutate app.Deps.HTTPTransport after construction still take effect when
+// commands later call a.Deps.NewClient.
 func DefaultDeps() Deps {
 	return Deps{
 		SessionPath: config.DefaultSessionPath,
@@ -67,9 +78,6 @@ func DefaultDeps() Deps {
 
 		NewStore:     auth.NewStore,
 		Authenticate: auth.Authenticate,
-		NewClient: func(endpoint, token string, timeout time.Duration) GraphQLClient {
-			return graphql.NewClient(endpoint, token, timeout)
-		},
 		NewService: func(client GraphQLClient) *monarch.Service {
 			return monarch.NewService(client)
 		},
