@@ -10,18 +10,32 @@ type App struct {
 	Root *cobra.Command
 }
 
-// New constructs an App with the given dependencies. In Commit 1 it reuses
-// the existing package-level RootCmd so the binary still works while the
-// command-by-command migration happens in Commit 2.
+// New constructs an App with the given dependencies and registers all command
+// groups against a fresh root command. Tests can call this with custom Deps.
 func New(deps Deps) *App {
-	return &App{
-		Deps: deps,
-		Root: RootCmd,
-	}
+	a := &App{Deps: deps}
+	a.Root = a.buildRoot()
+
+	a.buildAuthCommands(a.Root)
+	a.buildAccountsCommands(a.Root)
+	a.buildTransactionsCommands(a.Root)
+	a.buildBudgetsCommands(a.Root)
+	a.buildCashflowCommands(a.Root)
+	a.buildCategoriesCommands(a.Root)
+	a.buildCreditCommands(a.Root)
+	a.buildInstitutionsCommands(a.Root)
+	a.buildRecurringCommands(a.Root)
+	a.buildRulesCommands(a.Root)
+	a.buildSubscriptionCommands(a.Root)
+	a.buildTagsCommands(a.Root)
+	a.buildCacheCommands(a.Root)
+	a.buildAnalyzeCommands(a.Root)
+	a.buildDoctorCommand(a.Root)
+
+	return a
 }
 
-// Execute runs the root command. Replaces the package-level Execute() once
-// the migration completes.
+// Execute runs the root command and returns its error.
 func (a *App) Execute() error {
 	return a.Root.Execute()
 }
