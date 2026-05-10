@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -25,25 +24,10 @@ var globalRegistration sync.Mutex
 
 // buildRoot constructs a fresh root cobra.Command and registers global flags
 // against it. Called once by App.New per App instance.
-//
-// Flags that drive command behavior live on a.Flags so each App owns its
-// state. Flags that exist for forward compatibility but are not yet consumed
-// by any command body (--compact, --full, --no-color, --verbose, --debug)
-// are bound to locals scoped to this function: cobra requires a stable
-// pointer for binding, but no command needs to read these values today, so
-// confining them here keeps App.Flags honest and lets future cleanup remove
-// the dead flags by deleting one BoolVar line each. --config and --timeout
-// are similarly local: --config is consumed only by initConfig (captured via
-// closure below), and --timeout is read by Deps.Timeout via viper directly.
 func (a *App) buildRoot() *cobra.Command {
 	var (
 		cfgFile string
-		compact bool
-		full    bool
 		timeout time.Duration
-		noColor bool
-		verbose bool
-		debug   bool
 	)
 
 	root := &cobra.Command{
@@ -60,43 +44,27 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 			a.Flags.Confirm = viper.GetBool("confirm")
 			a.Flags.Profile = viper.GetString("profile")
 			a.Flags.Events = viper.GetBool("events")
-			compact = viper.GetBool("compact")
-			full = viper.GetBool("full")
-			timeout = viper.GetDuration("timeout")
-			noColor = viper.GetBool("no-color")
-			verbose = viper.GetBool("verbose")
-			debug = viper.GetBool("debug")
 		},
 	}
 
 	root.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.monarchmoney-cli/config.yaml)")
 	root.PersistentFlags().BoolVar(&a.Flags.JSONMode, "json", false, "emit machine-readable JSON")
 	root.PersistentFlags().BoolVar(&a.Flags.Pretty, "pretty", false, "pretty-print JSON output")
-	root.PersistentFlags().BoolVar(&compact, "compact", false, "return compact output fields")
-	root.PersistentFlags().BoolVar(&full, "full", false, "return full normalized output fields")
 	root.PersistentFlags().BoolVar(&a.Flags.Events, "events", false, "emit NDJSON progress events for long-running commands")
 	root.PersistentFlags().BoolVar(&a.Flags.ReadOnly, "read-only", false, "block remote writes")
 	root.PersistentFlags().BoolVar(&a.Flags.DryRun, "dry-run", false, "preview a remote write without executing it")
 	root.PersistentFlags().BoolVar(&a.Flags.Confirm, "confirm", false, "explicitly execute a remote write")
 	root.PersistentFlags().DurationVar(&timeout, "timeout", 30*time.Second, "set command timeout")
 	root.PersistentFlags().StringVar(&a.Flags.Profile, "profile", "default", "use a named profile")
-	root.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable colored output")
-	root.PersistentFlags().BoolVar(&verbose, "verbose", false, "print more diagnostics to stderr")
-	root.PersistentFlags().BoolVar(&debug, "debug", false, "print debug diagnostics to stderr with secrets redacted")
 
 	viper.BindPFlag("json", root.PersistentFlags().Lookup("json"))
 	viper.BindPFlag("pretty", root.PersistentFlags().Lookup("pretty"))
-	viper.BindPFlag("compact", root.PersistentFlags().Lookup("compact"))
-	viper.BindPFlag("full", root.PersistentFlags().Lookup("full"))
 	viper.BindPFlag("events", root.PersistentFlags().Lookup("events"))
 	viper.BindPFlag("read-only", root.PersistentFlags().Lookup("read-only"))
 	viper.BindPFlag("dry-run", root.PersistentFlags().Lookup("dry-run"))
 	viper.BindPFlag("confirm", root.PersistentFlags().Lookup("confirm"))
 	viper.BindPFlag("timeout", root.PersistentFlags().Lookup("timeout"))
 	viper.BindPFlag("profile", root.PersistentFlags().Lookup("profile"))
-	viper.BindPFlag("no-color", root.PersistentFlags().Lookup("no-color"))
-	viper.BindPFlag("verbose", root.PersistentFlags().Lookup("verbose"))
-	viper.BindPFlag("debug", root.PersistentFlags().Lookup("debug"))
 
 	cobra.OnInitialize(func() {
 		if cfgFile != "" {
@@ -116,11 +84,7 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 		viper.BindEnv("timeout", "MONARCH_TIMEOUT")
 		viper.BindEnv("config", "MONARCH_CONFIG")
 
-		if err := viper.ReadInConfig(); err == nil {
-			if verbose {
-				fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
-			}
-		}
+		_ = viper.ReadInConfig()
 	})
 
 	root.AddCommand(a.buildVersion())
