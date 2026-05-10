@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/thedavidweng/monarchmoney-cli/internal/config"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 )
 
@@ -15,9 +16,10 @@ type graphQLClient interface {
 
 // Service provides access to Monarch Money data.
 type Service struct {
-	Client               graphQLClient
-	HTTPClient           *http.Client
-	AttachmentHTTPClient *http.Client
+	Client                       graphQLClient
+	HTTPClient                   *http.Client
+	AttachmentHTTPClient         *http.Client
+	BalanceHistoryUploadEndpoint string
 }
 
 type ServiceOption func(*Service)
@@ -40,17 +42,33 @@ func WithHTTPTransport(transport http.RoundTripper) ServiceOption {
 	}
 }
 
+func WithBalanceHistoryUploadEndpoint(endpoint string) ServiceOption {
+	return func(s *Service) {
+		if endpoint != "" {
+			s.BalanceHistoryUploadEndpoint = endpoint
+		}
+	}
+}
+
 // NewService returns a new Service.
 func NewService(client graphQLClient, opts ...ServiceOption) *Service {
 	s := &Service{
-		Client:               client,
-		HTTPClient:           &http.Client{},
-		AttachmentHTTPClient: &http.Client{Timeout: 30 * time.Second},
+		Client:                       client,
+		HTTPClient:                   &http.Client{},
+		AttachmentHTTPClient:         &http.Client{Timeout: 30 * time.Second},
+		BalanceHistoryUploadEndpoint: config.AccountBalanceHistoryUploadEndpoint(config.DefaultAPIBaseURL),
 	}
 	for _, opt := range opts {
 		opt(s)
 	}
 	return s
+}
+
+func (s *Service) balanceHistoryUploadEndpoint() string {
+	if s.BalanceHistoryUploadEndpoint != "" {
+		return s.BalanceHistoryUploadEndpoint
+	}
+	return config.AccountBalanceHistoryUploadEndpoint(config.DefaultAPIBaseURL)
 }
 
 func (s *Service) httpClient() *http.Client {

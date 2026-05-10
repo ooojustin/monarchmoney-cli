@@ -904,6 +904,7 @@ func TestServiceHTTPHelpers(t *testing.T) {
 	t.Run("upload account balance history", func(t *testing.T) {
 		httpClient := &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 			require.Equal(t, "POST", req.Method)
+			require.Equal(t, "https://upload.example/history", req.URL.String())
 			require.Equal(t, "web", req.Header.Get("Client-Platform"))
 			require.Equal(t, "Token tok", req.Header.Get("Authorization"))
 			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(""))}, nil
@@ -918,7 +919,11 @@ func TestServiceHTTPHelpers(t *testing.T) {
 		require.NoError(t, err)
 		defer file.Close()
 
-		svc := NewService(&mockClient{token: "tok"}, WithHTTPClient(httpClient))
+		svc := NewService(
+			&mockClient{token: "tok"},
+			WithHTTPClient(httpClient),
+			WithBalanceHistoryUploadEndpoint("https://upload.example/history"),
+		)
 		require.NoError(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", file))
 	})
 

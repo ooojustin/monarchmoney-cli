@@ -17,11 +17,11 @@ func (a *App) buildDoctorCommand(parent *cobra.Command) {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			res := doctor.Check(cmd.Context(), connect, doctor.Options{
-				ConfigPath:    a.Deps.ConfigPath(),
-				SessionPath:   a.Deps.SessionPath(),
-				APIEndpoint:   a.Deps.APIEndpoint(),
-				Timeout:       a.Deps.Timeout(),
-				HTTPTransport: a.Deps.HTTPTransport,
+				ConfigPath:      a.Deps.ConfigPath(),
+				SessionPath:     a.Deps.SessionPath(),
+				GraphQLEndpoint: a.Deps.GraphQLEndpoint(),
+				Timeout:         a.Deps.Timeout(),
+				HTTPTransport:   a.Deps.HTTPTransport,
 			})
 
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)

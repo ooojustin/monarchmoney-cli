@@ -8,11 +8,10 @@ import (
 	"time"
 
 	"github.com/pquerna/otp/totp"
+	"github.com/thedavidweng/monarchmoney-cli/internal/config"
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 )
-
-const defaultLoginEndpoint = "https://api.monarch.com/auth/login/"
 
 type Client struct {
 	Endpoint   string
@@ -21,7 +20,7 @@ type Client struct {
 
 func NewClient(endpoint string, httpClient *http.Client) *Client {
 	if endpoint == "" {
-		endpoint = defaultLoginEndpoint
+		endpoint = config.AuthEndpoint(config.DefaultAPIBaseURL)
 	}
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 10 * time.Second}
@@ -75,7 +74,7 @@ func (c *Client) Authenticate(email, password, mfaCode, mfaSecret string) (*Sess
 
 	endpoint := c.Endpoint
 	if endpoint == "" {
-		endpoint = defaultLoginEndpoint
+		endpoint = config.AuthEndpoint(config.DefaultAPIBaseURL)
 	}
 	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(body))
 	if err != nil {

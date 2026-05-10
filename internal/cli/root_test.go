@@ -2,13 +2,26 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 )
+
+type stubGraphQLClient struct{}
+
+func (stubGraphQLClient) Do(context.Context, *graphql.Request, any) error {
+	return nil
+}
+
+func (stubGraphQLClient) TokenValue() string {
+	return ""
+}
 
 func TestWriteVersion(t *testing.T) {
 	t.Parallel()
@@ -98,7 +111,13 @@ func TestRootLoadsConfigFlagIntoAppViper(t *testing.T) {
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
-	if err := os.WriteFile(configPath, []byte("audit_log: false\nprofile: custom\n"), 0600); err != nil {
+	configBody := strings.Join([]string{
+		"audit_log: false",
+		"profile: custom",
+		"api_base_url: https://api.example/",
+		"",
+	}, "\n")
+	if err := os.WriteFile(configPath, []byte(configBody), 0600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
@@ -119,6 +138,24 @@ func TestRootLoadsConfigFlagIntoAppViper(t *testing.T) {
 	}
 	if got := app.Flags.Profile; got != "custom" {
 		t.Fatalf("Profile = %q, want custom", got)
+	}
+	if got, want := app.Deps.APIBaseURL(), "https://api.example/"; got != want {
+		t.Fatalf("APIBaseURL() = %q, want %q", got, want)
+	}
+	if got, want := app.Deps.GraphQLEndpoint(), "https://api.example/graphql"; got != want {
+		t.Fatalf("GraphQLEndpoint() = %q, want %q", got, want)
+	}
+}
+
+func TestDefaultNewServiceUsesDerivedUploadEndpoint(t *testing.T) {
+	t.Parallel()
+
+	app := New(DefaultDeps())
+	app.Deps.Viper.Set("api_base_url", "https://api.example/")
+
+	svc := app.Deps.NewService(stubGraphQLClient{})
+	if got, want := svc.BalanceHistoryUploadEndpoint, "https://api.example/account-balance-history/upload/"; got != want {
+		t.Fatalf("BalanceHistoryUploadEndpoint = %q, want %q", got, want)
 	}
 }
 

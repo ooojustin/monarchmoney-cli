@@ -66,3 +66,7 @@ Every mutation that is successfully executed (or attempted with `--confirm`) is 
 ```
 
 Audit records **never** contain sensitive credentials, session tokens, or private financial details (like account numbers).
+
+The `api_base_url` endpoint override is intended for controlled test/proxy
+environments. GraphQL, login, and balance-history upload endpoints are derived
+from that base URL. Do not point it at untrusted services.

@@ -79,6 +79,7 @@ All mutations are protected by the [Safety Model](./safety.md).
 - **Confirmation**: Remote writes require the `--confirm` flag.
 - **Read-only**: Use `MONARCH_READONLY=1` to block all mutations.
 - **Audit Logs**: Executed mutations are logged to `~/.monarchmoney-cli/audit/` by default. Set `audit_log: false` in config to disable local audit logging.
+- **Endpoint Overrides**: `api_base_url` can be set in config for proxy/test environments; GraphQL, login, and balance-history upload endpoints are derived from it.
 
 ## Feature Parity with monarch-mcp-server
 

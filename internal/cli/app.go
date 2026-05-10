@@ -54,12 +54,17 @@ func New(deps Deps) *App {
 	if a.Deps.SessionPath == nil {
 		a.Deps.SessionPath = config.DefaultSessionPath
 	}
-	if a.Deps.APIEndpoint == nil {
-		a.Deps.APIEndpoint = func() string {
-			if endpoint := a.Deps.Viper.GetString("api_endpoint"); endpoint != "" {
-				return endpoint
+	if a.Deps.APIBaseURL == nil {
+		a.Deps.APIBaseURL = func() string {
+			if baseURL := a.Deps.Viper.GetString("api_base_url"); baseURL != "" {
+				return baseURL
 			}
-			return "https://api.monarch.com/graphql"
+			return config.DefaultAPIBaseURL
+		}
+	}
+	if a.Deps.GraphQLEndpoint == nil {
+		a.Deps.GraphQLEndpoint = func() string {
+			return config.GraphQLEndpoint(a.Deps.APIBaseURL())
 		}
 	}
 	if a.Deps.Timeout == nil {
@@ -73,7 +78,7 @@ func New(deps Deps) *App {
 	if a.Deps.Authenticate == nil {
 		a.Deps.Authenticate = func(email, password, mfaCode, mfaSecret string) (*auth.Session, error) {
 			client := &http.Client{Timeout: 10 * time.Second, Transport: a.Deps.HTTPTransport}
-			return auth.NewClient("", client).Authenticate(email, password, mfaCode, mfaSecret)
+			return auth.NewClient(config.AuthEndpoint(a.Deps.APIBaseURL()), client).Authenticate(email, password, mfaCode, mfaSecret)
 		}
 	}
 	if a.Deps.NewClient == nil {
@@ -83,7 +88,11 @@ func New(deps Deps) *App {
 	}
 	if a.Deps.NewService == nil {
 		a.Deps.NewService = func(client GraphQLClient) *monarch.Service {
-			return monarch.NewService(client, monarch.WithHTTPTransport(a.Deps.HTTPTransport))
+			return monarch.NewService(
+				client,
+				monarch.WithHTTPTransport(a.Deps.HTTPTransport),
+				monarch.WithBalanceHistoryUploadEndpoint(config.AccountBalanceHistoryUploadEndpoint(a.Deps.APIBaseURL())),
+			)
 		}
 	}
 	if a.Deps.NewAuditLogger == nil {

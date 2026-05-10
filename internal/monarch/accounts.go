@@ -578,8 +578,6 @@ func (s *Service) DeleteAccount(ctx context.Context, id string) error {
 func (s *Service) UploadAccountBalanceHistory(ctx context.Context, id string, r io.Reader) error {
 	// Monarch exposes balance history upload as a multipart REST endpoint, not GraphQL.
 	// Keep the same web headers and token shape as the GraphQL client.
-	url := "https://api.monarch.com/account-balance-history/upload/"
-
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 	part, err := writer.CreateFormFile("file", "history.csv")
@@ -592,7 +590,7 @@ func (s *Service) UploadAccountBalanceHistory(ctx context.Context, id string, r 
 	writer.WriteField("account_id", id)
 	writer.Close()
 
-	req, err := http.NewRequestWithContext(ctx, "POST", url, body)
+	req, err := http.NewRequestWithContext(ctx, "POST", s.balanceHistoryUploadEndpoint(), body)
 	if err != nil {
 		return err
 	}

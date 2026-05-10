@@ -35,11 +35,11 @@ type Report struct {
 }
 
 type Options struct {
-	ConfigPath    string
-	SessionPath   string
-	APIEndpoint   string
-	Timeout       time.Duration
-	HTTPTransport http.RoundTripper
+	ConfigPath      string
+	SessionPath     string
+	GraphQLEndpoint string
+	Timeout         time.Duration
+	HTTPTransport   http.RoundTripper
 }
 
 // Check performs local system and configuration checks.
@@ -70,7 +70,6 @@ func Check(ctx context.Context, connect bool, options ...Options) *Result {
 
 	if err == nil && sess != nil {
 		res.Session.Authenticated = true
-		// In a real implementation, we would check file permissions here for PermissionOK
 		info, err := os.Stat(sessPath)
 		if err == nil {
 			res.Session.PermissionOK = (info.Mode()&0777 == 0600)
@@ -78,7 +77,7 @@ func Check(ctx context.Context, connect bool, options ...Options) *Result {
 	}
 
 	if connect && res.Session.Authenticated {
-		client := graphql.NewClient(opts.APIEndpoint, sess.Token, opts.Timeout, opts.HTTPTransport)
+		client := graphql.NewClient(opts.GraphQLEndpoint, sess.Token, opts.Timeout, opts.HTTPTransport)
 		var identity interface{}
 		err := client.Do(ctx, &graphql.Request{
 			OperationName: "GetIdentity",
@@ -95,10 +94,10 @@ func Check(ctx context.Context, connect bool, options ...Options) *Result {
 
 func doctorOptions(options []Options) Options {
 	opts := Options{
-		ConfigPath:  config.DefaultConfigPath(),
-		SessionPath: config.DefaultSessionPath(),
-		APIEndpoint: "https://api.monarch.com/graphql",
-		Timeout:     10 * time.Second,
+		ConfigPath:      config.DefaultConfigPath(),
+		SessionPath:     config.DefaultSessionPath(),
+		GraphQLEndpoint: config.GraphQLEndpoint(config.DefaultAPIBaseURL),
+		Timeout:         10 * time.Second,
 	}
 	for _, override := range options {
 		if override.ConfigPath != "" {
@@ -107,8 +106,8 @@ func doctorOptions(options []Options) Options {
 		if override.SessionPath != "" {
 			opts.SessionPath = override.SessionPath
 		}
-		if override.APIEndpoint != "" {
-			opts.APIEndpoint = override.APIEndpoint
+		if override.GraphQLEndpoint != "" {
+			opts.GraphQLEndpoint = override.GraphQLEndpoint
 		}
 		if override.Timeout > 0 {
 			opts.Timeout = override.Timeout

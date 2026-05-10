@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -63,6 +64,44 @@ func TestAuthLoginWithFlags(t *testing.T) {
 	}
 	if loaded.Email != "a@example.com" || loaded.Token != "token-123" {
 		t.Fatalf("loaded session = %#v", loaded)
+	}
+}
+
+func TestAuthLoginUsesConfiguredEndpoint(t *testing.T) {
+	t.Parallel()
+
+	sessionPath := filepath.Join(t.TempDir(), "session.json")
+	app, _, exitCode := newTestApp(t, sessionPath)
+	app.Deps.Viper.Set("api_base_url", "https://api.example/")
+	app.Deps.HTTPTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if got, want := req.URL.String(), "https://api.example/auth/login/"; got != want {
+			t.Fatalf("request URL = %q, want %q", got, want)
+		}
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			t.Fatalf("ReadAll() error = %v", err)
+		}
+		if !strings.Contains(string(body), `"username":"a@example.com"`) {
+			t.Fatalf("request body = %s", string(body))
+		}
+		return &http.Response{
+			StatusCode: 200,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(`{"token":"token-123"}`)),
+		}, nil
+	})
+
+	cmd, _, err := app.Root.Find([]string{"auth", "login"})
+	if err != nil {
+		t.Fatalf("Find login = %v", err)
+	}
+	_ = cmd.Flags().Set("email", "a@example.com")
+	_ = cmd.Flags().Set("password", "secret")
+	cmd.SetContext(context.Background())
+	cmd.Run(cmd, nil)
+
+	if *exitCode != 0 {
+		t.Fatalf("exitCode = %d", *exitCode)
 	}
 }
 

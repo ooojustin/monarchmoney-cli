@@ -68,6 +68,10 @@ export MONARCH_READONLY="1"
 export MONARCH_CONFIG="/path/to/config.yaml"
 ```
 
+Endpoint overrides are available for controlled test/proxy environments via
+`MONARCH_API_BASE_URL`. GraphQL, login, and balance-history upload endpoints
+are derived from that base URL.
+
 Audit logging is enabled by default. Keep it enabled for agent-driven mutation
 workflows unless the runtime has a separate audit trail; set `audit_log: false`
 in the config file only when local JSONL audit records are intentionally

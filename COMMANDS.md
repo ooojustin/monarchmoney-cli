@@ -10,6 +10,11 @@
 - `--timeout <duration>`: Set command timeout.
 - `--profile <name>`: Use a named profile.
 
+## Config Keys
+- `api_base_url` / `MONARCH_API_BASE_URL`: Monarch API base URL. GraphQL, login, and balance-history upload endpoints are derived from it.
+- `audit_log`: Enable local JSONL audit logging for confirmed mutations (default: true).
+- `cache_path`, `session_path`, `profile`, `timeout`, and `read_only`: Local paths and runtime defaults.
+
 ## Authentication
 - `auth login`: Interactive login to Monarch Money.
 - `auth status`: Check session validity and profile.

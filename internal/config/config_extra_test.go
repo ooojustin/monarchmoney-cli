@@ -26,7 +26,13 @@ func TestLoadIncludesAllDefaults(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.Profile != "default" || cfg.APIEndpoint != "https://api.monarch.com/graphql" || cfg.Timeout != 30*time.Second || cfg.ReadOnly || cfg.SessionPath == "" || !cfg.AuditLog || cfg.CachePath == "" {
+	if cfg.Profile != "default" ||
+		cfg.APIBaseURL != DefaultAPIBaseURL ||
+		cfg.Timeout != 30*time.Second ||
+		cfg.ReadOnly ||
+		cfg.SessionPath == "" ||
+		!cfg.AuditLog ||
+		cfg.CachePath == "" {
 		t.Fatalf("Load() returned unexpected config: %#v", cfg)
 	}
 }

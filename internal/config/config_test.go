@@ -14,5 +14,13 @@ func TestLoadDefaults(t *testing.T) {
 	cfg, err := Load(v)
 	assert.NoError(t, err)
 	assert.Equal(t, "default", cfg.Profile)
-	assert.Equal(t, "https://api.monarch.com/graphql", cfg.APIEndpoint)
+	assert.Equal(t, DefaultAPIBaseURL, cfg.APIBaseURL)
+}
+
+func TestEndpointDerivation(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "https://api.example/graphql", GraphQLEndpoint("https://api.example/"))
+	assert.Equal(t, "https://api.example/auth/login/", AuthEndpoint("https://api.example"))
+	assert.Equal(t, "https://api.example/account-balance-history/upload/", AccountBalanceHistoryUploadEndpoint("https://api.example/"))
 }

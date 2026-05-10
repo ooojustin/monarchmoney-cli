@@ -10,6 +10,7 @@ import (
 
 func TestConfigPrecedence(t *testing.T) {
 	t.Setenv("MONARCH_PROFILE", "env-profile")
+	t.Setenv("MONARCH_API_BASE_URL", "https://api.example")
 
 	// Precedence: CLI overrides (viper.Set) > Env vars > Config file > Defaults.
 	v := viper.New()
@@ -22,6 +23,7 @@ func TestConfigPrecedence(t *testing.T) {
 	cfg, err := Load(v)
 	assert.NoError(t, err)
 	assert.Equal(t, "env-profile", cfg.Profile)
+	assert.Equal(t, "https://api.example", cfg.APIBaseURL)
 
 	// Explicit override beats env.
 	v.Set("profile", "flag-profile")

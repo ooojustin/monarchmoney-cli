@@ -53,11 +53,12 @@ type Deps struct {
 
 	// Configuration accessors evaluated at command time. Defaults are
 	// installed by App.New if left nil so that test mutations to Viper
-	// after construction (e.g. viper.Set("api_endpoint", ...)) take effect.
-	ConfigPath  func() string
-	SessionPath func() string
-	APIEndpoint func() string
-	Timeout     func() time.Duration
+	// after construction (e.g. viper.Set("api_base_url", ...)) take effect.
+	ConfigPath      func() string
+	SessionPath     func() string
+	APIBaseURL      func() string
+	GraphQLEndpoint func() string
+	Timeout         func() time.Duration
 
 	// Auth and API factories.
 	NewStore       func(path string) *auth.Store
@@ -81,10 +82,10 @@ type Deps struct {
 // DefaultDeps returns Deps wired to real implementations against a fresh
 // *viper.Viper with application defaults and env-var bindings installed.
 //
-// SessionPath/APIEndpoint/Timeout/NewClient are intentionally left nil; App.New
-// fills them in with closures that capture &a.Deps so that test code which
-// mutates app.Deps.Viper or app.Deps.HTTPTransport after construction still
-// takes effect when commands later invoke these accessors.
+// SessionPath/APIBaseURL/GraphQLEndpoint/Timeout/NewClient are intentionally
+// left nil; App.New fills them in with closures that capture &a.Deps so that
+// test code which mutates app.Deps.Viper or app.Deps.HTTPTransport after
+// construction still takes effect when commands later invoke these accessors.
 func DefaultDeps() Deps {
 	v := viper.New()
 	v.SetEnvPrefix("MONARCH")
@@ -142,7 +143,7 @@ func (d Deps) LoadService() (*monarch.Service, *auth.Session, error) {
 			err,
 		)
 	}
-	client := d.NewClient(d.APIEndpoint(), sess.Token, d.Timeout())
+	client := d.NewClient(d.GraphQLEndpoint(), sess.Token, d.Timeout())
 	return d.NewService(client), sess, nil
 }
 
@@ -150,7 +151,7 @@ func (d Deps) LoadService() (*monarch.Service, *auth.Session, error) {
 // Tests typically inject a mock via Deps.NewClient rather than overriding
 // this method directly.
 func (d Deps) FetchIdentity(ctx context.Context, token string) (*identityResult, error) {
-	client := d.NewClient(d.APIEndpoint(), token, d.Timeout())
+	client := d.NewClient(d.GraphQLEndpoint(), token, d.Timeout())
 	var resp struct {
 		Me struct {
 			Email string `json:"email"`
