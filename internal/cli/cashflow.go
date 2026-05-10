@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
+	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 )
 
@@ -26,6 +27,9 @@ func (a *App) buildCashflowCommands(parent *cobra.Command) {
 		}
 		return s, e
 	}
+	rawDates := func() (string, string) {
+		return cfStartDate, cfEndDate
+	}
 
 	cashflowCmd := &cobra.Command{
 		Use:   "cashflow",
@@ -38,6 +42,7 @@ func (a *App) buildCashflowCommands(parent *cobra.Command) {
 	cashflowCmd.AddCommand(a.buildCashflowSummary(resolveDates))
 	cashflowCmd.AddCommand(a.buildCashflowCategories(resolveDates))
 	cashflowCmd.AddCommand(a.buildCashflowMerchants(resolveDates))
+	cashflowCmd.AddCommand(a.buildCashflowTrends(rawDates))
 	cashflowCmd.AddCommand(a.buildCashflowSpending(resolveDates))
 
 	parent.AddCommand(cashflowCmd)
@@ -202,6 +207,92 @@ func (a *App) buildCashflowMerchants(resolveDates func() (string, string)) *cobr
 			}
 		},
 	}
+}
+
+func (a *App) buildCashflowTrends(rawDates func() (string, string)) *cobra.Command {
+	var (
+		cfTrendGroupBy     string
+		cfTrendPeriod      string
+		cfTrendAccountIDs  []string
+		cfTrendCategoryIDs []string
+	)
+	cmd := &cobra.Command{
+		Use:   "trends",
+		Short: "Get cashflow trends grouped by category or category group",
+		Long:  "Get aggregate cashflow rows grouped by category or category group and bucketed by month, quarter, or year.",
+		Example: `  monarch cashflow trends --from 2026-01-01 --to 2026-03-31 --group-by category --period month
+  monarch cashflow trends --from 2026-01-01 --to 2026-12-31 --group-by category-group --period quarter --account-id acc_123 --json --pretty`,
+		Run: func(cmd *cobra.Command, args []string) {
+			start := time.Now()
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
+			cfStartDate, cfEndDate := rawDates()
+
+			if cfStartDate == "" || cfEndDate == "" {
+				a.handleError(renderer, "cashflow.trends", errors.New(errors.InvalidArguments, "--from and --to are required", errors.CatValidation, false, nil), start)
+				return
+			}
+			if _, err := time.Parse("2006-01-02", cfStartDate); err != nil {
+				a.handleError(renderer, "cashflow.trends", errors.New(errors.InvalidArguments, "from date must use YYYY-MM-DD", errors.CatValidation, false, err), start)
+				return
+			}
+			if _, err := time.Parse("2006-01-02", cfEndDate); err != nil {
+				a.handleError(renderer, "cashflow.trends", errors.New(errors.InvalidArguments, "to date must use YYYY-MM-DD", errors.CatValidation, false, err), start)
+				return
+			}
+			if cfTrendGroupBy != "category" && cfTrendGroupBy != "category-group" {
+				a.handleError(renderer, "cashflow.trends", errors.New(errors.InvalidArguments, "group-by must be category or category-group", errors.CatValidation, false, nil), start)
+				return
+			}
+			if cfTrendPeriod != "month" && cfTrendPeriod != "quarter" && cfTrendPeriod != "year" {
+				a.handleError(renderer, "cashflow.trends", errors.New(errors.InvalidArguments, "period must be month, quarter, or year", errors.CatValidation, false, nil), start)
+				return
+			}
+
+			svc, _, err := a.Deps.LoadService()
+			if err != nil {
+				a.handleError(renderer, "cashflow.trends", err.(*errors.Error), start)
+				return
+			}
+
+			rows, err := svc.GetCashflowTrends(cmd.Context(), monarch.CashflowTrendOptions{
+				StartDate:   cfStartDate,
+				EndDate:     cfEndDate,
+				GroupBy:     cfTrendGroupBy,
+				Period:      cfTrendPeriod,
+				AccountIDs:  cfTrendAccountIDs,
+				CategoryIDs: cfTrendCategoryIDs,
+			})
+			if err != nil {
+				var cliErr *errors.Error
+				if e, ok := err.(*errors.Error); ok {
+					cliErr = e
+				} else {
+					cliErr = errors.New(errors.APIError, "failed to get cashflow trends", errors.CatAPI, false, err)
+				}
+				a.handleError(renderer, "cashflow.trends", cliErr, start)
+				return
+			}
+
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("cashflow.trends", a.Flags.Profile, output.SchemaVersion, "", rows, time.Since(start))
+				a.renderSuccess(renderer, env, start)
+			} else {
+				fmt.Printf("%-12s %-30s %12s %12s %12s\n", "PERIOD", "GROUP", "SUM", "INCOME", "EXPENSE")
+				for _, row := range rows {
+					group := row.GroupName
+					if group == "" {
+						group = row.GroupID
+					}
+					fmt.Printf("%-12s %-30s %12.2f %12.2f %12.2f\n", row.Period, group, row.Sum, row.SumIncome, row.SumExpense)
+				}
+			}
+		},
+	}
+	cmd.Flags().StringVar(&cfTrendGroupBy, "group-by", "category", "group dimension: category or category-group")
+	cmd.Flags().StringVar(&cfTrendPeriod, "period", "month", "period bucket: month, quarter, or year")
+	cmd.Flags().StringSliceVar(&cfTrendAccountIDs, "account-id", nil, "account id filter (repeatable)")
+	cmd.Flags().StringSliceVar(&cfTrendCategoryIDs, "category-id", nil, "category id filter (repeatable)")
+	return cmd
 }
 
 func (a *App) buildCashflowSpending(resolveDates func() (string, string)) *cobra.Command {

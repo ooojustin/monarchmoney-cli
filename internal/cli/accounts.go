@@ -21,6 +21,7 @@ func (a *App) buildAccountsCommands(parent *cobra.Command) {
 	accountsCmd.AddCommand(a.buildAccountsShow())
 	accountsCmd.AddCommand(a.buildAccountsTypes())
 	accountsCmd.AddCommand(a.buildAccountsHoldings())
+	accountsCmd.AddCommand(a.buildAccountsBalanceAt())
 	accountsCmd.AddCommand(a.buildAccountsHistory())
 	accountsCmd.AddCommand(a.buildAccountsRefresh())
 	accountsCmd.AddCommand(a.buildAccountsRefreshStatus())
@@ -192,6 +193,61 @@ func (a *App) buildAccountsHoldings() *cobra.Command {
 			}
 		},
 	}
+}
+
+func (a *App) buildAccountsBalanceAt() *cobra.Command {
+	var (
+		balanceAtDate string
+		accountIDs    []string
+	)
+	cmd := &cobra.Command{
+		Use:   "balance-at",
+		Short: "Get account balances at a specific date",
+		Long:  "Get display balances for all accounts, or selected accounts, as of a specific date.",
+		Example: `  monarch accounts balance-at --date 2026-05-10
+  monarch accounts balance-at --date 2026-05-10 --account-id acc_123 --account-id acc_456 --json --pretty`,
+		Run: func(cmd *cobra.Command, args []string) {
+			start := time.Now()
+			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
+
+			if _, err := time.Parse("2006-01-02", balanceAtDate); err != nil {
+				a.handleError(renderer, "accounts.balance-at", errors.New(errors.InvalidArguments, "date must use YYYY-MM-DD", errors.CatValidation, false, err), start)
+				return
+			}
+
+			svc, _, err := a.Deps.LoadService()
+			if err != nil {
+				a.handleError(renderer, "accounts.balance-at", err.(*errors.Error), start)
+				return
+			}
+
+			balances, err := svc.GetAccountBalancesAt(cmd.Context(), balanceAtDate, accountIDs)
+			if err != nil {
+				var cliErr *errors.Error
+				if e, ok := err.(*errors.Error); ok {
+					cliErr = e
+				} else {
+					cliErr = errors.New(errors.APIError, "failed to get account balances", errors.CatAPI, false, err)
+				}
+				a.handleError(renderer, "accounts.balance-at", cliErr, start)
+				return
+			}
+
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("accounts.balance-at", a.Flags.Profile, output.SchemaVersion, "", balances, time.Since(start))
+				a.renderSuccess(renderer, env, start)
+			} else {
+				fmt.Printf("%-20s %-30s %-15s %12s\n", "ID", "NAME", "TYPE", "BALANCE")
+				for _, balance := range balances {
+					fmt.Printf("%-20s %-30s %-15s %12.2f\n", balance.ID, balance.DisplayName, balance.AccountType, balance.DisplayBalance)
+				}
+			}
+		},
+	}
+	cmd.Flags().StringVar(&balanceAtDate, "date", "", "balance date (YYYY-MM-DD)")
+	cmd.Flags().StringSliceVar(&accountIDs, "account-id", nil, "account id to include (repeatable)")
+	mustMarkFlagRequired(cmd, "date")
+	return cmd
 }
 
 func (a *App) buildAccountsHistory() *cobra.Command {

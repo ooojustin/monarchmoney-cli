@@ -64,10 +64,13 @@ func (a *App) buildTransactionsList(resolveDates func() (string, string)) *cobra
 		filterCategoryIDs []string
 		filterAccountIDs  []string
 		filterTagIDs      []string
+		filterGoalIDs     []string
 		filterNeedsReview bool
 		filterHasNotes    bool
 		filterIsSplit     bool
 		filterIsRecurring bool
+		filterPending     bool
+		filterHideReports bool
 	)
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -91,6 +94,7 @@ func (a *App) buildTransactionsList(resolveDates func() (string, string)) *cobra
 				CategoryIDs: filterCategoryIDs,
 				AccountIDs:  filterAccountIDs,
 				TagIDs:      filterTagIDs,
+				GoalIDs:     filterGoalIDs,
 			}
 			if cmd.Flags().Changed("needs-review") {
 				opts.NeedsReview = &filterNeedsReview
@@ -103,6 +107,12 @@ func (a *App) buildTransactionsList(resolveDates func() (string, string)) *cobra
 			}
 			if cmd.Flags().Changed("is-recurring") {
 				opts.IsRecurring = &filterIsRecurring
+			}
+			if cmd.Flags().Changed("pending") {
+				opts.Pending = &filterPending
+			}
+			if cmd.Flags().Changed("hide-from-reports") {
+				opts.HideFromReports = &filterHideReports
 			}
 
 			txs, total, err := svc.ListTransactions(cmd.Context(), opts)
@@ -135,10 +145,13 @@ func (a *App) buildTransactionsList(resolveDates func() (string, string)) *cobra
 	cmd.Flags().StringSliceVar(&filterCategoryIDs, "category-id", nil, "filter by category ID (repeatable)")
 	cmd.Flags().StringSliceVar(&filterAccountIDs, "account-id", nil, "filter by account ID (repeatable)")
 	cmd.Flags().StringSliceVar(&filterTagIDs, "tag-id", nil, "filter by tag ID (repeatable)")
+	cmd.Flags().StringSliceVar(&filterGoalIDs, "goal-id", nil, "filter by goal ID (repeatable)")
 	cmd.Flags().BoolVar(&filterNeedsReview, "needs-review", false, "filter for transactions needing review")
 	cmd.Flags().BoolVar(&filterHasNotes, "has-notes", false, "filter for transactions with notes")
 	cmd.Flags().BoolVar(&filterIsSplit, "is-split", false, "filter for split transactions")
 	cmd.Flags().BoolVar(&filterIsRecurring, "is-recurring", false, "filter for recurring transactions")
+	cmd.Flags().BoolVar(&filterPending, "pending", false, "filter by pending status")
+	cmd.Flags().BoolVar(&filterHideReports, "hide-from-reports", false, "filter by hide-from-reports status")
 	return cmd
 }
 
@@ -358,10 +371,13 @@ func (a *App) buildTransactionsSplits() *cobra.Command {
 
 func (a *App) buildTransactionsExport(resolveDates func() (string, string)) *cobra.Command {
 	var (
-		limit      int
-		offset     int
-		format     string
-		outputFile string
+		limit             int
+		offset            int
+		format            string
+		outputFile        string
+		filterGoalIDs     []string
+		filterPending     bool
+		filterHideReports bool
 	)
 	cmd := &cobra.Command{
 		Use:   "export",
@@ -377,9 +393,20 @@ func (a *App) buildTransactionsExport(resolveDates func() (string, string)) *cob
 			}
 
 			txStartDate, txEndDate := resolveDates()
-			txs, _, err := svc.ListTransactions(cmd.Context(), monarch.ListTransactionsOptions{
-				Limit: limit, Offset: offset, StartDate: txStartDate, EndDate: txEndDate,
-			})
+			opts := monarch.ListTransactionsOptions{
+				Limit:     limit,
+				Offset:    offset,
+				StartDate: txStartDate,
+				EndDate:   txEndDate,
+				GoalIDs:   filterGoalIDs,
+			}
+			if cmd.Flags().Changed("pending") {
+				opts.Pending = &filterPending
+			}
+			if cmd.Flags().Changed("hide-from-reports") {
+				opts.HideFromReports = &filterHideReports
+			}
+			txs, _, err := svc.ListTransactions(cmd.Context(), opts)
 			if err != nil {
 				var cliErr *errors.Error
 				if e, ok := err.(*errors.Error); ok {
@@ -419,6 +446,9 @@ func (a *App) buildTransactionsExport(resolveDates func() (string, string)) *cob
 	cmd.Flags().IntVar(&offset, "offset", 0, "number of transactions to skip")
 	cmd.Flags().StringVar(&format, "format", "json", "export format (json or csv)")
 	cmd.Flags().StringVar(&outputFile, "output", "", "output file path")
+	cmd.Flags().StringSliceVar(&filterGoalIDs, "goal-id", nil, "filter by goal ID (repeatable)")
+	cmd.Flags().BoolVar(&filterPending, "pending", false, "filter by pending status")
+	cmd.Flags().BoolVar(&filterHideReports, "hide-from-reports", false, "filter by hide-from-reports status")
 	return cmd
 }
 

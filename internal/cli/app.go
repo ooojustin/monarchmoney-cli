@@ -105,6 +105,8 @@ func New(deps Deps) *App {
 
 	a.buildAuthCommands(a.Root)
 	a.buildAccountsCommands(a.Root)
+	a.buildGoalsCommands(a.Root)
+	a.buildInvestmentsCommands(a.Root)
 	a.buildTransactionsCommands(a.Root)
 	a.buildBudgetsCommands(a.Root)
 	a.buildCashflowCommands(a.Root)

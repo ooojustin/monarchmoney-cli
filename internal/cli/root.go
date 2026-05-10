@@ -110,6 +110,12 @@ func writeVersion(out io.Writer, profileName string, jsonOut, prettyOut bool, du
 		return renderer.RenderSuccess(env)
 	}
 
+	if _, err := fmt.Fprint(out, monarchBanner); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(out); err != nil {
+		return err
+	}
 	_, err := fmt.Fprintf(out, "monarch version %s (commit: %s, date: %s)\n", version.Version, version.Commit, version.Date)
 	return err
 }
