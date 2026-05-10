@@ -1,7 +1,7 @@
 package config
 
 import (
-	"os"
+	"strings"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -9,18 +9,23 @@ import (
 )
 
 func TestConfigPrecedence(t *testing.T) {
-	viper.Reset()
-	os.Setenv("MONARCH_PROFILE", "env-profile")
-	defer os.Unsetenv("MONARCH_PROFILE")
+	t.Setenv("MONARCH_PROFILE", "env-profile")
 
-	// Precedence: CLI flags (passed via viper.Set) > Env vars > Config file > Defaults
+	// Precedence: CLI overrides (viper.Set) > Env vars > Config file > Defaults.
+	v := viper.New()
+	v.SetEnvPrefix("MONARCH")
+	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	v.AutomaticEnv()
+	SetDefaults(v)
 
-	// Default
-	cfg, _ := Load()
-	assert.Equal(t, "env-profile", cfg.Profile) // Env takes precedence over default "default"
+	// Env beats default.
+	cfg, err := Load(v)
+	assert.NoError(t, err)
+	assert.Equal(t, "env-profile", cfg.Profile)
 
-	// Flag override
-	viper.Set("profile", "flag-profile")
-	cfg, _ = Load()
+	// Explicit override beats env.
+	v.Set("profile", "flag-profile")
+	cfg, err = Load(v)
+	assert.NoError(t, err)
 	assert.Equal(t, "flag-profile", cfg.Profile)
 }

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 )
@@ -48,26 +47,21 @@ func (a *App) buildLogin() *cobra.Command {
 
 			// Priority: Flags > Env Vars > Prompt. Read flag values from
 			// the closure-captured locals (per-App, never shared) and fall
-			// back to viper.GetString which picks up MONARCH_* env vars via
-			// AutomaticEnv. Don't use viper.BindPFlag here: it binds the
-			// viper key to one cobra flagset globally, which races and
-			// crosses wires when multiple Apps are constructed in parallel.
-			// Hold globalRegistration during the viper reads since viper has
-			// no internal locking.
-			globalRegistration.Lock()
+			// back to a.Deps.Viper which picks up MONARCH_* env vars via
+			// AutomaticEnv configured in DefaultDeps.
+			v := a.Deps.Viper
 			if email == "" {
-				email = viper.GetString("email")
+				email = v.GetString("email")
 			}
 			if password == "" {
-				password = viper.GetString("password")
+				password = v.GetString("password")
 			}
 			if mfaCode == "" {
-				mfaCode = viper.GetString("mfa-code")
+				mfaCode = v.GetString("mfa-code")
 			}
 			if mfaSecret == "" {
-				mfaSecret = viper.GetString("mfa-secret")
+				mfaSecret = v.GetString("mfa-secret")
 			}
-			globalRegistration.Unlock()
 
 			if email == "" {
 				fmt.Fprint(a.Deps.Stdout, "Email: ")

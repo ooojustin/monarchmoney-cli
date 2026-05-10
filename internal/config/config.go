@@ -6,10 +6,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-var unmarshalConfig = func(rawVal any, opts ...viper.DecoderConfigOption) error {
-	return viper.Unmarshal(rawVal, opts...)
-}
-
 // Config represents the application configuration.
 type Config struct {
 	Profile     string        `mapstructure:"profile"`
@@ -22,24 +18,25 @@ type Config struct {
 	CachePath   string        `mapstructure:"cache_path"`
 }
 
-// Load loads the configuration from viper.
-func Load() (*Config, error) {
-	viper.SetEnvPrefix("MONARCH")
-	viper.AutomaticEnv()
+// SetDefaults applies the application's default configuration values onto v.
+// Callers (cli.DefaultDeps, tests) invoke this once on a fresh *viper.Viper
+// so that subsequent v.GetX calls see sensible defaults.
+func SetDefaults(v *viper.Viper) {
+	v.SetDefault("profile", "default")
+	v.SetDefault("api_endpoint", "https://api.monarch.com/graphql")
+	v.SetDefault("timeout", 30*time.Second)
+	v.SetDefault("read_only", false)
+	v.SetDefault("session_path", DefaultSessionPath())
+	v.SetDefault("audit_log", true)
+	v.SetDefault("cache_path", DefaultCachePath())
+}
 
-	// Set defaults in viper
-	viper.SetDefault("profile", "default")
-	viper.SetDefault("api_endpoint", "https://api.monarch.com/graphql")
-	viper.SetDefault("timeout", 30*time.Second)
-	viper.SetDefault("read_only", false)
-	viper.SetDefault("session_path", DefaultSessionPath())
-	viper.SetDefault("audit_log", true)
-	viper.SetDefault("cache_path", DefaultCachePath())
-
+// Load unmarshals v into a Config. Defaults must be set on v beforehand
+// (via SetDefaults). v is per-App; callers pass app.Deps.Viper.
+func Load(v *viper.Viper) (*Config, error) {
 	var cfg Config
-	if err := unmarshalConfig(&cfg); err != nil {
+	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, err
 	}
-
 	return &cfg, nil
 }

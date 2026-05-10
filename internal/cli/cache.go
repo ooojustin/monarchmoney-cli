@@ -53,7 +53,7 @@ func (a *App) buildCacheSync() *cobra.Command {
 				return
 			}
 
-			cfg, _ := config.Load()
+			cfg, _ := config.Load(a.Deps.Viper)
 			cacheStore, err := cache.NewStore(cfg.CachePath)
 			if err != nil {
 				a.handleError(renderer, "cache.sync", errors.New(errors.InternalError, "failed to open cache", errors.CatInternal, false, err), start)
@@ -135,7 +135,7 @@ func (a *App) buildCacheSearch() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
-			cfg, _ := config.Load()
+			cfg, _ := config.Load(a.Deps.Viper)
 			cacheStore, err := cache.NewStore(cfg.CachePath)
 			if err != nil {
 				a.handleError(renderer, "cache.search", errors.New(errors.InternalError, "failed to open cache", errors.CatInternal, false, err), start)
@@ -170,7 +170,7 @@ func (a *App) buildCacheStats() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode, a.Flags.Pretty)
 
-			cfg, _ := config.Load()
+			cfg, _ := config.Load(a.Deps.Viper)
 			cacheStore, err := cache.NewStore(cfg.CachePath)
 			if err != nil {
 				a.handleError(renderer, "cache.stats", errors.New(errors.InternalError, "failed to open cache", errors.CatInternal, false, err), start)
@@ -210,7 +210,7 @@ func (a *App) buildCacheCleanup() *cobra.Command {
 				return
 			}
 
-			cfg, _ := config.Load()
+			cfg, _ := config.Load(a.Deps.Viper)
 			store, err := cache.NewStore(cfg.CachePath)
 			if err != nil {
 				a.handleError(renderer, "cache.cleanup", errors.New(errors.InternalError, "failed to open cache", errors.CatInternal, false, err), start)

@@ -8,8 +8,10 @@ import (
 )
 
 func TestLoadDefaults(t *testing.T) {
-	viper.Reset()
-	cfg, err := Load()
+	t.Parallel()
+	v := viper.New()
+	SetDefaults(v)
+	cfg, err := Load(v)
 	assert.NoError(t, err)
 	assert.Equal(t, "default", cfg.Profile)
 	assert.Equal(t, "https://api.monarch.com/graphql", cfg.APIEndpoint)

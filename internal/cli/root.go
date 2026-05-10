@@ -3,27 +3,18 @@ package cli
 import (
 	"fmt"
 	"io"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/thedavidweng/monarchmoney-cli/internal/config"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 	"github.com/thedavidweng/monarchmoney-cli/internal/version"
 )
 
-// globalRegistration serializes the parts of buildRoot that touch
-// process-global state: viper's flag bindings and cobra's OnInitialize hook.
-// Production constructs exactly one App so the mutex is uncontended; parallel
-// tests construct one App per test and the mutex prevents concurrent map
-// writes inside viper. Per-App state (App.Flags, the cobra command tree)
-// stays lock-free.
-var globalRegistration sync.Mutex
-
 // buildRoot constructs a fresh root cobra.Command and registers global flags
-// against it. Called once by App.New per App instance.
+// against it. Called once by App.New per App instance. All viper calls go
+// through a.Deps.Viper, so each App owns its configuration state and parallel
+// construction is race-free.
 func (a *App) buildRoot() *cobra.Command {
 	var (
 		cfgFile string
@@ -37,12 +28,28 @@ func (a *App) buildRoot() *cobra.Command {
 		Long: `monarchmoney-cli is a single-binary command line tool for working with
 Monarch Money data from your terminal, scripts, and local agents.`,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			a.Flags.JSONMode = viper.GetBool("json")
-			a.Flags.Pretty = viper.GetBool("pretty")
-			a.Flags.ReadOnly = viper.GetBool("read-only")
-			a.Flags.DryRun = viper.GetBool("dry-run")
-			a.Flags.Confirm = viper.GetBool("confirm")
-			a.Flags.Profile = viper.GetString("profile")
+			v := a.Deps.Viper
+
+			// Resolve config file from flag or default locations and merge
+			// it into the per-App viper. Errors are intentionally ignored:
+			// running without a config file is supported. Done here rather
+			// than via cobra.OnInitialize so each App's setup is fully
+			// scoped to its own viper, avoiding the global hook list.
+			if cfgFile != "" {
+				v.SetConfigFile(cfgFile)
+			} else {
+				v.AddConfigPath(config.DefaultDir())
+				v.SetConfigType("yaml")
+				v.SetConfigName("config")
+			}
+			_ = v.ReadInConfig()
+
+			a.Flags.JSONMode = v.GetBool("json")
+			a.Flags.Pretty = v.GetBool("pretty")
+			a.Flags.ReadOnly = v.GetBool("read-only")
+			a.Flags.DryRun = v.GetBool("dry-run")
+			a.Flags.Confirm = v.GetBool("confirm")
+			a.Flags.Profile = v.GetString("profile")
 		},
 	}
 
@@ -55,34 +62,13 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 	root.PersistentFlags().DurationVar(&timeout, "timeout", 30*time.Second, "set command timeout")
 	root.PersistentFlags().StringVar(&a.Flags.Profile, "profile", "default", "use a named profile")
 
-	viper.BindPFlag("json", root.PersistentFlags().Lookup("json"))
-	viper.BindPFlag("pretty", root.PersistentFlags().Lookup("pretty"))
-	viper.BindPFlag("read-only", root.PersistentFlags().Lookup("read-only"))
-	viper.BindPFlag("dry-run", root.PersistentFlags().Lookup("dry-run"))
-	viper.BindPFlag("confirm", root.PersistentFlags().Lookup("confirm"))
-	viper.BindPFlag("timeout", root.PersistentFlags().Lookup("timeout"))
-	viper.BindPFlag("profile", root.PersistentFlags().Lookup("profile"))
-
-	cobra.OnInitialize(func() {
-		if cfgFile != "" {
-			viper.SetConfigFile(cfgFile)
-		} else {
-			viper.AddConfigPath(config.DefaultDir())
-			viper.SetConfigType("yaml")
-			viper.SetConfigName("config")
-		}
-
-		viper.SetEnvPrefix("MONARCH")
-		viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-		viper.AutomaticEnv()
-
-		viper.BindEnv("read-only", "MONARCH_READONLY")
-		viper.BindEnv("profile", "MONARCH_PROFILE")
-		viper.BindEnv("timeout", "MONARCH_TIMEOUT")
-		viper.BindEnv("config", "MONARCH_CONFIG")
-
-		_ = viper.ReadInConfig()
-	})
+	a.Deps.Viper.BindPFlag("json", root.PersistentFlags().Lookup("json"))
+	a.Deps.Viper.BindPFlag("pretty", root.PersistentFlags().Lookup("pretty"))
+	a.Deps.Viper.BindPFlag("read-only", root.PersistentFlags().Lookup("read-only"))
+	a.Deps.Viper.BindPFlag("dry-run", root.PersistentFlags().Lookup("dry-run"))
+	a.Deps.Viper.BindPFlag("confirm", root.PersistentFlags().Lookup("confirm"))
+	a.Deps.Viper.BindPFlag("timeout", root.PersistentFlags().Lookup("timeout"))
+	a.Deps.Viper.BindPFlag("profile", root.PersistentFlags().Lookup("profile"))
 
 	root.AddCommand(a.buildVersion())
 

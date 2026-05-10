@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/thedavidweng/monarchmoney-cli/internal/config"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 )
 
@@ -32,21 +33,32 @@ type Flags struct {
 // New constructs an App with the given dependencies and registers all command
 // groups against a fresh root command. Tests can call this with custom Deps.
 //
-// App construction touches process-global state in cobra and viper (flag
-// registration via viper.BindPFlag, the cobra.OnInitialize hook). Production
-// constructs exactly one App so this is uncontended; parallel tests construct
-// one App per test, so we serialize the construction with globalRegistration
-// to avoid concurrent map writes inside viper. Per-App state (App.Flags, the
-// cobra command tree) is not touched by other Apps after New returns.
+// Default accessor closures are installed for any nil function fields so they
+// can capture &a.Deps and observe later mutations to app.Deps.Viper or
+// app.Deps.HTTPTransport. Construction is lock-free: each App owns its own
+// *viper.Viper and cobra command tree, so parallel test construction is safe.
 func New(deps Deps) *App {
-	globalRegistration.Lock()
-	defer globalRegistration.Unlock()
-
 	a := &App{Deps: deps}
 
-	// Install the default NewClient closure if the caller didn't supply one.
-	// The closure reads a.Deps.HTTPTransport at call time so tests can mutate
-	// app.Deps.HTTPTransport after construction and have it take effect.
+	if a.Deps.SessionPath == nil {
+		a.Deps.SessionPath = config.DefaultSessionPath
+	}
+	if a.Deps.APIEndpoint == nil {
+		a.Deps.APIEndpoint = func() string {
+			if endpoint := a.Deps.Viper.GetString("api_endpoint"); endpoint != "" {
+				return endpoint
+			}
+			return "https://api.monarch.com/graphql"
+		}
+	}
+	if a.Deps.Timeout == nil {
+		a.Deps.Timeout = func() time.Duration {
+			if t := a.Deps.Viper.GetDuration("timeout"); t > 0 {
+				return t
+			}
+			return 30 * time.Second
+		}
+	}
 	if a.Deps.NewClient == nil {
 		a.Deps.NewClient = func(endpoint, token string, timeout time.Duration) GraphQLClient {
 			return graphql.NewClient(endpoint, token, timeout, a.Deps.HTTPTransport)

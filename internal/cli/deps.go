@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/viper"
@@ -35,16 +36,22 @@ type identityResult struct {
 // Production code constructs Deps via DefaultDeps; tests construct Deps with
 // custom fields to inject behavior.
 type Deps struct {
-	// Configuration accessors evaluated at command time so cobra's
-	// PersistentPreRun (which populates viper from flags) can run first.
-	SessionPath func() string
-	APIEndpoint func() string
-	Timeout     func() time.Duration
+	// Viper is the configuration store this App reads and writes. Each App
+	// owns its own *viper.Viper so parallel tests don't fight over the
+	// process-global instance.
+	Viper *viper.Viper
 
 	// HTTPTransport, if non-nil, is used for all outgoing GraphQL traffic.
 	// Tests inject a fake RoundTripper here to avoid touching the process-
 	// global http.DefaultTransport. Production leaves this nil.
 	HTTPTransport http.RoundTripper
+
+	// Configuration accessors evaluated at command time. Defaults are
+	// installed by App.New if left nil so that test mutations to Viper
+	// after construction (e.g. viper.Set("api_endpoint", ...)) take effect.
+	SessionPath func() string
+	APIEndpoint func() string
+	Timeout     func() time.Duration
 
 	// Auth and API factories.
 	NewStore     func(path string) *auth.Store
@@ -64,17 +71,28 @@ type Deps struct {
 	JSONUnmarshal func([]byte, any) error
 }
 
-// DefaultDeps returns Deps wired to real implementations.
+// DefaultDeps returns Deps wired to real implementations against a fresh
+// *viper.Viper with application defaults and env-var bindings installed.
 //
-// NewClient is intentionally left nil here; App.New installs the default
-// NewClient closure with a pointer back to App.Deps so that tests which
-// mutate app.Deps.HTTPTransport after construction still take effect when
-// commands later call a.Deps.NewClient.
+// SessionPath/APIEndpoint/Timeout/NewClient are intentionally left nil; App.New
+// fills them in with closures that capture &a.Deps so that test code which
+// mutates app.Deps.Viper or app.Deps.HTTPTransport after construction still
+// takes effect when commands later invoke these accessors.
 func DefaultDeps() Deps {
+	v := viper.New()
+	v.SetEnvPrefix("MONARCH")
+	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	v.AutomaticEnv()
+	config.SetDefaults(v)
+
+	// Legacy env var aliases that don't follow the prefix-replacer convention.
+	v.BindEnv("read-only", "MONARCH_READONLY")
+	v.BindEnv("profile", "MONARCH_PROFILE")
+	v.BindEnv("timeout", "MONARCH_TIMEOUT")
+	v.BindEnv("config", "MONARCH_CONFIG")
+
 	return Deps{
-		SessionPath: config.DefaultSessionPath,
-		APIEndpoint: defaultAPIEndpoint,
-		Timeout:     defaultTimeout,
+		Viper: v,
 
 		NewStore:     auth.NewStore,
 		Authenticate: auth.Authenticate,
@@ -91,34 +109,6 @@ func DefaultDeps() Deps {
 
 		JSONUnmarshal: json.Unmarshal,
 	}
-}
-
-// defaultAPIEndpoint reads the GraphQL endpoint from viper, with the default
-// set in internal/config. Allows MONARCH_API_ENDPOINT to take effect.
-//
-// Held under globalRegistration because viper has no internal locking and a
-// concurrent App construction (which calls viper.BindPFlag) would race with
-// this read.
-func defaultAPIEndpoint() string {
-	globalRegistration.Lock()
-	endpoint := viper.GetString("api_endpoint")
-	globalRegistration.Unlock()
-	if endpoint != "" {
-		return endpoint
-	}
-	return "https://api.monarch.com/graphql"
-}
-
-// defaultTimeout reads the request timeout from viper. Falls back to 30s.
-// Locked for the same reason as defaultAPIEndpoint.
-func defaultTimeout() time.Duration {
-	globalRegistration.Lock()
-	t := viper.GetDuration("timeout")
-	globalRegistration.Unlock()
-	if t > 0 {
-		return t
-	}
-	return 30 * time.Second
 }
 
 // LoadService runs the load-session-then-build-service boilerplate that ~50

@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/viper"
 	"github.com/thedavidweng/monarchmoney-cli/internal/cache"
 )
 
@@ -24,10 +23,7 @@ func TestCacheSyncPassesFromDateAndPersistsAccountID(t *testing.T) {
 	cachePath := filepath.Join(dir, "cache.sqlite")
 	app, buf, exitCode := newTestApp(t, sessionPath)
 	saveTestSession(t, sessionPath)
-
-	viper.Reset()
-	viper.Set("cache_path", cachePath)
-	t.Cleanup(viper.Reset)
+	app.Deps.Viper.Set("cache_path", cachePath)
 
 	var sawStartDate bool
 	app.Deps.HTTPTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -114,10 +110,7 @@ func TestCacheCleanupValidatesDate(t *testing.T) {
 	sessionPath := filepath.Join(dir, "session.json")
 	cachePath := filepath.Join(dir, "configured.sqlite")
 	app, buf, exitCode := newTestApp(t, sessionPath)
-
-	viper.Reset()
-	viper.Set("cache_path", cachePath)
-	t.Cleanup(viper.Reset)
+	app.Deps.Viper.Set("cache_path", cachePath)
 
 	t.Setenv("HOME", filepath.Join(dir, "home"))
 	_ = os.MkdirAll(filepath.Join(dir, "home"), 0700)
