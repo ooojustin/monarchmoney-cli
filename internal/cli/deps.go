@@ -94,7 +94,7 @@ func DefaultDeps() Deps {
 	config.SetDefaults(v)
 
 	// Legacy env var aliases that don't follow the prefix-replacer convention.
-	mustBindEnv(v, "read-only", "MONARCH_READONLY")
+	mustBindEnv(v, "read_only", "MONARCH_READONLY")
 	mustBindEnv(v, "profile", "MONARCH_PROFILE")
 	mustBindEnv(v, "timeout", "MONARCH_TIMEOUT")
 	mustBindEnv(v, "config", "MONARCH_CONFIG")

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -30,13 +29,13 @@ func (a *App) buildDoctorCommand(parent *cobra.Command) {
 				env := output.NewEnvelope("doctor", a.Flags.Profile, output.SchemaVersion, "", res, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Println("Monarch Money CLI Doctor")
-				fmt.Printf("Version: %s\n", res.Version)
-				fmt.Printf("OS/Arch: %s/%s\n", res.OS, res.Arch)
-				fmt.Printf("Config Path: %s (Exists: %v)\n", res.Config.Path, res.Config.Exists)
-				fmt.Printf("Session Path: %s (Exists: %v, Auth: %v, PermOK: %v)\n", res.Session.Path, res.Session.Exists, res.Session.Authenticated, res.Session.PermissionOK)
+				printlnText(a.Deps.Stdout, "Monarch Money CLI Doctor")
+				writeText(a.Deps.Stdout, "Version: %s\n", res.Version)
+				writeText(a.Deps.Stdout, "OS/Arch: %s/%s\n", res.OS, res.Arch)
+				writeText(a.Deps.Stdout, "Config Path: %s (Exists: %v)\n", res.Config.Path, res.Config.Exists)
+				writeText(a.Deps.Stdout, "Session Path: %s (Exists: %v, Auth: %v, PermOK: %v)\n", res.Session.Path, res.Session.Exists, res.Session.Authenticated, res.Session.PermissionOK)
 				if connect {
-					fmt.Printf("API Connected: %v\n", res.Network.APIReachable)
+					writeText(a.Deps.Stdout, "API Connected: %v\n", res.Network.APIReachable)
 				}
 			}
 		},

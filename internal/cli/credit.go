@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -48,9 +47,9 @@ func (a *App) buildCreditHistory() *cobra.Command {
 				env := output.NewEnvelope("credit.history", a.Flags.Profile, output.SchemaVersion, "", history, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-12s %s\n", "DATE", "SCORE")
+				writeText(a.Deps.Stdout, "%-12s %s\n", "DATE", "SCORE")
 				for _, r := range history {
-					fmt.Printf("%-12s %d\n", r.Date, r.Score)
+					writeText(a.Deps.Stdout, "%-12s %d\n", r.Date, r.Score)
 				}
 			}
 		},

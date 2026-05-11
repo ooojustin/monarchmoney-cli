@@ -50,12 +50,15 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 
 			a.Flags.JSONMode = v.GetBool("json")
 			a.Flags.Pretty = v.GetBool("pretty")
-			a.Flags.ReadOnly = v.GetBool("read-only")
+			a.Flags.ReadOnly = v.GetBool("read_only")
 			a.Flags.DryRun = v.GetBool("dry-run")
 			a.Flags.Confirm = v.GetBool("confirm")
 			a.Flags.Profile = v.GetString("profile")
 		},
 	}
+	root.SetOut(a.Deps.Stdout)
+	root.SetErr(a.Deps.Stderr)
+	root.SetIn(a.Deps.Stdin)
 
 	root.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.monarchmoney-cli/config.yaml)")
 	root.PersistentFlags().BoolVar(&a.Flags.JSONMode, "json", false, "emit machine-readable JSON")
@@ -68,7 +71,7 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 
 	mustBindPFlag(a.Deps.Viper, "json", root.PersistentFlags().Lookup("json"))
 	mustBindPFlag(a.Deps.Viper, "pretty", root.PersistentFlags().Lookup("pretty"))
-	mustBindPFlag(a.Deps.Viper, "read-only", root.PersistentFlags().Lookup("read-only"))
+	mustBindPFlag(a.Deps.Viper, "read_only", root.PersistentFlags().Lookup("read-only"))
 	mustBindPFlag(a.Deps.Viper, "dry-run", root.PersistentFlags().Lookup("dry-run"))
 	mustBindPFlag(a.Deps.Viper, "confirm", root.PersistentFlags().Lookup("confirm"))
 	mustBindPFlag(a.Deps.Viper, "timeout", root.PersistentFlags().Lookup("timeout"))

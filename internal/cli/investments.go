@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -68,10 +67,10 @@ func (a *App) buildInvestmentsPortfolio() *cobra.Command {
 				env := output.NewEnvelope("investments.portfolio", a.Flags.Profile, output.SchemaVersion, "", portfolio, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Total Value: %.2f\n", portfolio.Performance.TotalValue)
-				fmt.Printf("%-20s %-10s %12s\n", "SECURITY", "TICKER", "VALUE")
+				writeText(a.Deps.Stdout, "Total Value: %.2f\n", portfolio.Performance.TotalValue)
+				writeText(a.Deps.Stdout, "%-20s %-10s %12s\n", "SECURITY", "TICKER", "VALUE")
 				for _, holding := range portfolio.Holdings {
-					fmt.Printf("%-20s %-10s %12.2f\n", holding.Security.Name, holding.Security.Ticker, holding.TotalValue)
+					writeText(a.Deps.Stdout, "%-20s %-10s %12.2f\n", holding.Security.Name, holding.Security.Ticker, holding.TotalValue)
 				}
 			}
 		},
@@ -136,9 +135,9 @@ func (a *App) buildInvestmentsPerformance() *cobra.Command {
 				env := output.NewEnvelope("investments.performance", a.Flags.Profile, output.SchemaVersion, "", performance, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-20s %-10s %6s\n", "SECURITY", "TICKER", "POINTS")
+				writeText(a.Deps.Stdout, "%-20s %-10s %6s\n", "SECURITY", "TICKER", "POINTS")
 				for _, item := range performance {
-					fmt.Printf("%-20s %-10s %6d\n", item.Security.Name, item.Security.Ticker, len(item.HistoricalChart))
+					writeText(a.Deps.Stdout, "%-20s %-10s %6d\n", item.Security.Name, item.Security.Ticker, len(item.HistoricalChart))
 				}
 			}
 		},

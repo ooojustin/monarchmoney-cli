@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -48,9 +47,9 @@ func (a *App) buildInstitutionsList() *cobra.Command {
 				env := output.NewEnvelope("institutions.list", a.Flags.Profile, output.SchemaVersion, "", insts, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-20s %-30s %s\n", "ID", "NAME", "URL")
+				writeText(a.Deps.Stdout, "%-20s %-30s %s\n", "ID", "NAME", "URL")
 				for _, inst := range insts {
-					fmt.Printf("%-20s %-30s %s\n", inst.ID, inst.Name, inst.URL)
+					writeText(a.Deps.Stdout, "%-20s %-30s %s\n", inst.ID, inst.Name, inst.URL)
 				}
 			}
 		},

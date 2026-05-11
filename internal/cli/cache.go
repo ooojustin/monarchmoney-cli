@@ -118,7 +118,7 @@ func (a *App) buildCacheSync() *cobra.Command {
 				env := output.NewEnvelope("cache.sync", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "sync complete"}, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Println("Sync complete.")
+				printlnText(a.Deps.Stdout, "Sync complete.")
 			}
 		},
 	}
@@ -152,11 +152,11 @@ func (a *App) buildCacheSearch() *cobra.Command {
 				env := output.NewEnvelope("cache.search", a.Flags.Profile, output.SchemaVersion, "", txs, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES")
+				writeText(a.Deps.Stdout, "%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES")
 				for _, t := range txs {
-					fmt.Printf("%-12s %-20s %-15s %10.2f %s\n", t.Date.Format("2006-01-02"), t.Merchant, t.Category, t.Amount, t.Notes)
+					writeText(a.Deps.Stdout, "%-12s %-20s %-15s %10.2f %s\n", t.Date.Format("2006-01-02"), t.Merchant, t.Category, t.Amount, t.Notes)
 				}
-				fmt.Printf("\nTotal matches: %d\n", len(txs))
+				writeText(a.Deps.Stdout, "\nTotal matches: %d\n", len(txs))
 			}
 		},
 	}
@@ -183,9 +183,9 @@ func (a *App) buildCacheStats() *cobra.Command {
 				env := output.NewEnvelope("cache.stats", a.Flags.Profile, output.SchemaVersion, "", stats, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Println("Cache Statistics")
+				printlnText(a.Deps.Stdout, "Cache Statistics")
 				for k, v := range stats {
-					fmt.Printf("%s: %d\n", k, v)
+					writeText(a.Deps.Stdout, "%s: %d\n", k, v)
 				}
 			}
 		},
@@ -227,7 +227,7 @@ func (a *App) buildCacheCleanup() *cobra.Command {
 				env := output.NewEnvelope("cache.cleanup", a.Flags.Profile, output.SchemaVersion, "", map[string]int64{"deleted": affected}, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Deleted %d transactions from cache.\n", affected)
+				writeText(a.Deps.Stdout, "Deleted %d transactions from cache.\n", affected)
 			}
 		},
 	}

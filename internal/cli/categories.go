@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -57,9 +56,9 @@ func (a *App) buildCategoriesList() *cobra.Command {
 				env := output.NewEnvelope("categories.list", a.Flags.Profile, output.SchemaVersion, "", cats, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-20s %-30s %s\n", "ID", "NAME", "GROUP")
+				writeText(a.Deps.Stdout, "%-20s %-30s %s\n", "ID", "NAME", "GROUP")
 				for _, c := range cats {
-					fmt.Printf("%-20s %-30s %s\n", c.ID, c.Name, c.GroupName)
+					writeText(a.Deps.Stdout, "%-20s %-30s %s\n", c.ID, c.Name, c.GroupName)
 				}
 			}
 		},
@@ -96,9 +95,9 @@ func (a *App) buildCategoriesGroups() *cobra.Command {
 				env := output.NewEnvelope("categories.groups", a.Flags.Profile, output.SchemaVersion, "", groups, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-20s %-30s %s\n", "ID", "NAME", "TYPE")
+				writeText(a.Deps.Stdout, "%-20s %-30s %s\n", "ID", "NAME", "TYPE")
 				for _, g := range groups {
-					fmt.Printf("%-20s %-30s %s\n", g.ID, g.Name, g.Type)
+					writeText(a.Deps.Stdout, "%-20s %-30s %s\n", g.ID, g.Name, g.Type)
 				}
 			}
 		},
@@ -171,7 +170,7 @@ func (a *App) buildCategoriesCreate() *cobra.Command {
 				env := output.NewEnvelope("categories.create", a.Flags.Profile, output.SchemaVersion, "", cat, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Successfully created category %s (%s).\n", cat.Name, cat.ID)
+				writeText(a.Deps.Stdout, "Successfully created category %s (%s).\n", cat.Name, cat.ID)
 			}
 		},
 	}
@@ -247,7 +246,7 @@ func (a *App) buildCategoriesDelete() *cobra.Command {
 				env := output.NewEnvelope("categories.delete", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "deleted"}, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Successfully deleted category %s.\n", id)
+				writeText(a.Deps.Stdout, "Successfully deleted category %s.\n", id)
 			}
 		},
 	}
@@ -339,7 +338,7 @@ func (a *App) buildCategoriesDeleteMany() *cobra.Command {
 				env := output.NewEnvelope("categories.delete-many", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "categories deleted"}, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Successfully deleted %d categories.\n", len(ids))
+				writeText(a.Deps.Stdout, "Successfully deleted %d categories.\n", len(ids))
 			}
 		},
 	}

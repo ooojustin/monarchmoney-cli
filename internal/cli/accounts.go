@@ -67,9 +67,9 @@ func (a *App) buildAccountsList() *cobra.Command {
 				env := output.NewEnvelope("accounts.list", a.Flags.Profile, output.SchemaVersion, "", accounts, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-20s %-15s %-15s %s\n", "ID", "NAME", "TYPE", "BALANCE")
+				writeText(a.Deps.Stdout, "%-20s %-15s %-15s %s\n", "ID", "NAME", "TYPE", "BALANCE")
 				for _, ac := range accounts {
-					fmt.Printf("%-20s %-15s %-15s %.2f\n", ac.ID, ac.DisplayName, ac.AccountType, ac.DisplayBalance)
+					writeText(a.Deps.Stdout, "%-20s %-15s %-15s %.2f\n", ac.ID, ac.DisplayName, ac.AccountType, ac.DisplayBalance)
 				}
 			}
 		},
@@ -107,11 +107,11 @@ func (a *App) buildAccountsShow() *cobra.Command {
 				env := output.NewEnvelope("accounts.show", a.Flags.Profile, output.SchemaVersion, "", acc, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("ID:       %s\n", acc.ID)
-				fmt.Printf("Name:     %s\n", acc.DisplayName)
-				fmt.Printf("Type:     %s\n", acc.AccountType)
-				fmt.Printf("Balance:  %.2f\n", acc.DisplayBalance)
-				fmt.Printf("Updated:  %s\n", acc.UpdatedAt)
+				writeText(a.Deps.Stdout, "ID:       %s\n", acc.ID)
+				writeText(a.Deps.Stdout, "Name:     %s\n", acc.DisplayName)
+				writeText(a.Deps.Stdout, "Type:     %s\n", acc.AccountType)
+				writeText(a.Deps.Stdout, "Balance:  %.2f\n", acc.DisplayBalance)
+				writeText(a.Deps.Stdout, "Updated:  %s\n", acc.UpdatedAt)
 			}
 		},
 	}
@@ -148,7 +148,7 @@ func (a *App) buildAccountsTypes() *cobra.Command {
 				a.renderSuccess(renderer, env, start)
 			} else {
 				for _, t := range types {
-					fmt.Println(t)
+					printlnText(a.Deps.Stdout, t)
 				}
 			}
 		},
@@ -186,9 +186,9 @@ func (a *App) buildAccountsHoldings() *cobra.Command {
 				env := output.NewEnvelope("accounts.holdings", a.Flags.Profile, output.SchemaVersion, "", holdings, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-20s %12s %12s %12s\n", "ID", "QUANTITY", "BASIS", "TOTAL VALUE")
+				writeText(a.Deps.Stdout, "%-20s %12s %12s %12s\n", "ID", "QUANTITY", "BASIS", "TOTAL VALUE")
 				for _, h := range holdings {
-					fmt.Printf("%-20s %12.2f %12.2f %12.2f\n", h.ID, h.Quantity, h.Basis, h.TotalValue)
+					writeText(a.Deps.Stdout, "%-20s %12.2f %12.2f %12.2f\n", h.ID, h.Quantity, h.Basis, h.TotalValue)
 				}
 			}
 		},
@@ -237,9 +237,9 @@ func (a *App) buildAccountsBalanceAt() *cobra.Command {
 				env := output.NewEnvelope("accounts.balance-at", a.Flags.Profile, output.SchemaVersion, "", balances, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-20s %-30s %-15s %12s\n", "ID", "NAME", "TYPE", "BALANCE")
+				writeText(a.Deps.Stdout, "%-20s %-30s %-15s %12s\n", "ID", "NAME", "TYPE", "BALANCE")
 				for _, balance := range balances {
-					fmt.Printf("%-20s %-30s %-15s %12.2f\n", balance.ID, balance.DisplayName, balance.AccountType, balance.DisplayBalance)
+					writeText(a.Deps.Stdout, "%-20s %-30s %-15s %12.2f\n", balance.ID, balance.DisplayName, balance.AccountType, balance.DisplayBalance)
 				}
 			}
 		},
@@ -285,9 +285,9 @@ func (a *App) buildAccountsHistory() *cobra.Command {
 				env := a.envelopeWithWarnings("accounts.history", history, start, "uses aggregateSnapshots for account history; per-account snapshots are not currently available")
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-12s %10s\n", "DATE", "AMOUNT")
+				writeText(a.Deps.Stdout, "%-12s %10s\n", "DATE", "AMOUNT")
 				for _, r := range history {
-					fmt.Printf("%-12s %10.2f\n", r.Date, r.Amount)
+					writeText(a.Deps.Stdout, "%-12s %10.2f\n", r.Date, r.Amount)
 				}
 			}
 		},
@@ -393,15 +393,15 @@ func (a *App) buildAccountsRefresh() *cobra.Command {
 				a.renderSuccess(renderer, env, start)
 			} else {
 				if refreshWait {
-					fmt.Println("Refresh complete.")
+					printlnText(a.Deps.Stdout, "Refresh complete.")
 				} else {
-					fmt.Println("Refresh requested successfully.")
+					printlnText(a.Deps.Stdout, "Refresh requested successfully.")
 				}
 			}
 		},
 	}
 	cmd.Flags().BoolVar(&refreshWait, "wait", false, "wait for refresh to complete")
-	cmd.Flags().BoolVar(&emitEvents, "events", false, "emit NDJSON progress events while waiting")
+	cmd.Flags().BoolVar(&emitEvents, "events", false, "emit NDJSON progress events while waiting (requires --json)")
 	return cmd
 }
 
@@ -435,10 +435,10 @@ func (a *App) buildAccountsRefreshStatus() *cobra.Command {
 				env := output.NewEnvelope("accounts.refresh-status", a.Flags.Profile, output.SchemaVersion, "", status, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Complete:   %v\n", status["is_complete"])
-				fmt.Printf("Status:     %s\n", status["status"])
-				fmt.Printf("Start Time: %s\n", status["start_time"])
-				fmt.Printf("End Time:   %s\n", status["end_time"])
+				writeText(a.Deps.Stdout, "Complete:   %v\n", status["is_complete"])
+				writeText(a.Deps.Stdout, "Status:     %s\n", status["status"])
+				writeText(a.Deps.Stdout, "Start Time: %s\n", status["start_time"])
+				writeText(a.Deps.Stdout, "End Time:   %s\n", status["end_time"])
 			}
 		},
 	}
@@ -513,7 +513,7 @@ func (a *App) buildAccountsUpdate() *cobra.Command {
 				env := output.NewEnvelope("accounts.update", a.Flags.Profile, output.SchemaVersion, "", acc, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Successfully updated account %s.\n", acc.ID)
+				writeText(a.Deps.Stdout, "Successfully updated account %s.\n", acc.ID)
 			}
 		},
 	}
@@ -578,7 +578,7 @@ func (a *App) buildAccountsDelete() *cobra.Command {
 				env := output.NewEnvelope("accounts.delete", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "deleted"}, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Successfully deleted account %s.\n", id)
+				writeText(a.Deps.Stdout, "Successfully deleted account %s.\n", id)
 			}
 		},
 	}
@@ -643,7 +643,7 @@ func (a *App) buildAccountsCreateManual() *cobra.Command {
 				env := output.NewEnvelope("accounts.create-manual", a.Flags.Profile, output.SchemaVersion, "", acc, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Successfully created manual account %s (%s).\n", acc.DisplayName, acc.ID)
+				writeText(a.Deps.Stdout, "Successfully created manual account %s (%s).\n", acc.DisplayName, acc.ID)
 			}
 		},
 	}
@@ -720,7 +720,7 @@ func (a *App) buildAccountsUploadHistory() *cobra.Command {
 				env := output.NewEnvelope("accounts.upload-history", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "uploaded"}, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Successfully uploaded history for account %s.\n", id)
+				writeText(a.Deps.Stdout, "Successfully uploaded history for account %s.\n", id)
 			}
 		},
 	}
@@ -761,7 +761,7 @@ func (a *App) buildAccountsRecentBalances() *cobra.Command {
 				env := output.NewEnvelope("accounts.recent-balances", a.Flags.Profile, output.SchemaVersion, "", res, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Println("Recent daily balances fetched.")
+				printlnText(a.Deps.Stdout, "Recent daily balances fetched.")
 			}
 		},
 	}
@@ -807,7 +807,7 @@ func (a *App) buildAccountsSnapshots() *cobra.Command {
 				env := output.NewEnvelope("accounts.snapshots", a.Flags.Profile, output.SchemaVersion, "", res, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Println("Account type snapshots fetched.")
+				printlnText(a.Deps.Stdout, "Account type snapshots fetched.")
 			}
 		},
 	}
@@ -851,7 +851,7 @@ func (a *App) buildAccountsAggregateSnapshots() *cobra.Command {
 				env := output.NewEnvelope("accounts.aggregate-snapshots", a.Flags.Profile, output.SchemaVersion, "", res, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Println("Aggregate snapshots fetched.")
+				printlnText(a.Deps.Stdout, "Aggregate snapshots fetched.")
 			}
 		},
 	}
@@ -896,7 +896,7 @@ func (a *App) buildNetworthCommand() *cobra.Command {
 				env := output.NewEnvelope("networth", a.Flags.Profile, output.SchemaVersion, "", res, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Println("Net worth snapshots fetched.")
+				printlnText(a.Deps.Stdout, "Net worth snapshots fetched.")
 			}
 		},
 	}

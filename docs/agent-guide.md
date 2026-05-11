@@ -56,6 +56,8 @@ subjective recommendations, or mutate Monarch data.
 2. Agent presents the dry-run plan to the user.
 3. If user approves, Agent runs: `monarch transactions update tx_123 --category cat_food --confirm --json`
 
+Account refresh is a remote action, not a read. For progress events, use `monarch accounts refresh --confirm --json --wait --events`; progress envelopes are emitted while the command waits for completion.
+
 ## Error Handling
 
 Agents should check the `ok` field in the JSON envelope and the process exit code.

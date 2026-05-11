@@ -107,9 +107,9 @@ func (a *App) buildBudgetsList() *cobra.Command {
 				env := output.NewEnvelope("budgets.list", a.Flags.Profile, output.SchemaVersion, "", budgets, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-30s %10s %10s %10s\n", "CATEGORY", "PLANNED", "ACTUAL", "REMAINING")
+				writeText(a.Deps.Stdout, "%-30s %10s %10s %10s\n", "CATEGORY", "PLANNED", "ACTUAL", "REMAINING")
 				for _, b := range budgets {
-					fmt.Printf("%-30s %10.2f %10.2f %10.2f\n", b.CategoryName, b.Planned, b.Actual, b.Planned-b.Actual)
+					writeText(a.Deps.Stdout, "%-30s %10.2f %10.2f %10.2f\n", b.CategoryName, b.Planned, b.Actual, b.Planned-b.Actual)
 				}
 			}
 		},
@@ -158,10 +158,10 @@ func (a *App) buildBudgetsShow() *cobra.Command {
 				env := output.NewEnvelope("budgets.show", a.Flags.Profile, output.SchemaVersion, "", budget, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Category:  %s\n", budget.CategoryName)
-				fmt.Printf("Planned:   %.2f\n", budget.Planned)
-				fmt.Printf("Actual:    %.2f\n", budget.Actual)
-				fmt.Printf("Remaining: %.2f\n", budget.Planned-budget.Actual)
+				writeText(a.Deps.Stdout, "Category:  %s\n", budget.CategoryName)
+				writeText(a.Deps.Stdout, "Planned:   %.2f\n", budget.Planned)
+				writeText(a.Deps.Stdout, "Actual:    %.2f\n", budget.Actual)
+				writeText(a.Deps.Stdout, "Remaining: %.2f\n", budget.Planned-budget.Actual)
 			}
 		},
 	}
@@ -236,7 +236,7 @@ func (a *App) buildBudgetsSet() *cobra.Command {
 				env := output.NewEnvelope("budgets.set", a.Flags.Profile, output.SchemaVersion, "", budget, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Successfully set budget for %s to %.2f.\n", budget.CategoryName, budget.Planned)
+				writeText(a.Deps.Stdout, "Successfully set budget for %s to %.2f.\n", budget.CategoryName, budget.Planned)
 			}
 		},
 	}
@@ -312,7 +312,7 @@ func (a *App) buildBudgetsReset() *cobra.Command {
 				env := output.NewEnvelope("budgets.reset", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "budget reset"}, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Successfully reset budget for %d-%02d.\n", y, m)
+				writeText(a.Deps.Stdout, "Successfully reset budget for %d-%02d.\n", y, m)
 			}
 		},
 	}
@@ -428,7 +428,7 @@ func (a *App) buildBudgetsFlexibleSet() *cobra.Command {
 				env := output.NewEnvelope("budgets.flexible.set", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "budget set"}, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Successfully set flexible budget for %d-%02d to %.2f.\n", y, m, budgetAmount)
+				writeText(a.Deps.Stdout, "Successfully set flexible budget for %d-%02d to %.2f.\n", y, m, budgetAmount)
 			}
 		},
 	}
@@ -497,7 +497,7 @@ func (a *App) buildBudgetsFlexRolloverSet() *cobra.Command {
 				env := output.NewEnvelope("budgets.flex-rollover.set", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "rollover set"}, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Successfully set flex rollover starting %s with balance %.2f.\n", monthStr, budgetAmount)
+				writeText(a.Deps.Stdout, "Successfully set flex rollover starting %s with balance %.2f.\n", monthStr, budgetAmount)
 			}
 		},
 	}

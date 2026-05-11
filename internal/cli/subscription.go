@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -48,11 +47,11 @@ func (a *App) buildSubscriptionShow() *cobra.Command {
 				env := a.envelopeWithWarnings("subscription.show", sub, start, "uses legacy Monarch GraphQL root field: subscription")
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("ID:                      %s\n", sub.ID)
-				fmt.Printf("Payment Source:          %s\n", sub.PaymentSource)
-				fmt.Printf("Referral Code:           %s\n", sub.ReferralCode)
-				fmt.Printf("On Free Trial:           %v\n", sub.IsOnFreeTrial)
-				fmt.Printf("Has Premium Entitlement: %v\n", sub.HasPremiumEntitlement)
+				writeText(a.Deps.Stdout, "ID:                      %s\n", sub.ID)
+				writeText(a.Deps.Stdout, "Payment Source:          %s\n", sub.PaymentSource)
+				writeText(a.Deps.Stdout, "Referral Code:           %s\n", sub.ReferralCode)
+				writeText(a.Deps.Stdout, "On Free Trial:           %v\n", sub.IsOnFreeTrial)
+				writeText(a.Deps.Stdout, "Has Premium Entitlement: %v\n", sub.HasPremiumEntitlement)
 			}
 		},
 	}

@@ -28,6 +28,8 @@
   - `--account-id`: Limit to account IDs (repeatable).
 - `accounts history <id>`: Get balance history for an account.
 - `accounts refresh`: Trigger a remote sync of all accounts.
+  - `--wait`: Wait for refresh completion.
+  - `--events`: Emit NDJSON progress events while waiting. Requires `--json`.
 - `accounts refresh-status`: Check refresh progress.
 - `accounts create-manual`: Create a new manual tracking account.
 - `accounts update <id>`: Update account metadata or balance.

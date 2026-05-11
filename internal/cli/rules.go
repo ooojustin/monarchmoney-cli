@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -80,7 +79,7 @@ func (a *App) buildRulesList() *cobra.Command {
 				env := output.NewEnvelope("rules.list", a.Flags.Profile, output.SchemaVersion, "", rules, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-36s %-12s %-20s %s\n", "ID", "OPERATOR", "MATCH", "ACTION")
+				writeText(a.Deps.Stdout, "%-36s %-12s %-20s %s\n", "ID", "OPERATOR", "MATCH", "ACTION")
 				for _, r := range rules {
 					match := ""
 					if len(r.MerchantNameCriteria) > 0 {
@@ -94,9 +93,9 @@ func (a *App) buildRulesList() *cobra.Command {
 					if len(r.MerchantNameCriteria) > 0 {
 						operator = r.MerchantNameCriteria[0].Operator
 					}
-					fmt.Printf("%-36s %-12s %-20s %s\n", r.ID, operator, match, action)
+					writeText(a.Deps.Stdout, "%-36s %-12s %-20s %s\n", r.ID, operator, match, action)
 				}
-				fmt.Printf("\nTotal rules: %d\n", len(rules))
+				writeText(a.Deps.Stdout, "\nTotal rules: %d\n", len(rules))
 			}
 		},
 	}
@@ -171,7 +170,7 @@ func (a *App) buildRulesCreate() *cobra.Command {
 				env := output.NewEnvelope("rules.create", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "created"}, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Println("Successfully created rule.")
+				printlnText(a.Deps.Stdout, "Successfully created rule.")
 			}
 		},
 	}
@@ -251,7 +250,7 @@ func (a *App) buildRulesUpdate() *cobra.Command {
 				env := output.NewEnvelope("rules.update", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "updated"}, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Successfully updated rule %s.\n", id)
+				writeText(a.Deps.Stdout, "Successfully updated rule %s.\n", id)
 			}
 		},
 	}
@@ -315,7 +314,7 @@ func (a *App) buildRulesDelete() *cobra.Command {
 				env := output.NewEnvelope("rules.delete", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "deleted"}, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Successfully deleted rule %s.\n", id)
+				writeText(a.Deps.Stdout, "Successfully deleted rule %s.\n", id)
 			}
 		},
 	}

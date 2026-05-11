@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -56,9 +55,9 @@ func (a *App) buildRecurringList() *cobra.Command {
 				env := output.NewEnvelope("recurring.list", a.Flags.Profile, output.SchemaVersion, "", recurring, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-20s %10s %-12s %-12s %s\n", "MERCHANT", "AMOUNT", "FREQUENCY", "NEXT DATE", "STATUS")
+				writeText(a.Deps.Stdout, "%-20s %10s %-12s %-12s %s\n", "MERCHANT", "AMOUNT", "FREQUENCY", "NEXT DATE", "STATUS")
 				for _, r := range recurring {
-					fmt.Printf("%-20s %10.2f %-12s %-12s %s\n", r.Merchant, r.Amount, r.Frequency, r.NextDate, r.Status)
+					writeText(a.Deps.Stdout, "%-20s %10.2f %-12s %-12s %s\n", r.Merchant, r.Amount, r.Frequency, r.NextDate, r.Status)
 				}
 			}
 		},
@@ -131,7 +130,7 @@ func (a *App) buildRecurringUpdate() *cobra.Command {
 				env := output.NewEnvelope("recurring.update", a.Flags.Profile, output.SchemaVersion, "", r, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Successfully updated recurring transaction %s.\n", r.ID)
+				writeText(a.Deps.Stdout, "Successfully updated recurring transaction %s.\n", r.ID)
 			}
 		},
 	}

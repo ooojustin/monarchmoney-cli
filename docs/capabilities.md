@@ -61,6 +61,7 @@ All mutations are protected by the [Safety Model](./safety.md).
 
 - `monarch auth login`: Authenticate and persist session.
 - `monarch accounts refresh`: Trigger a remote sync of all accounts.
+- `monarch accounts refresh --confirm --json --wait --events`: Trigger a remote sync and emit JSON progress envelopes while waiting.
 - `monarch accounts create-manual`: Create a manual account.
 - `monarch accounts update <id>`: Update account name or balance.
 - `monarch accounts delete <id>`: Delete an account.

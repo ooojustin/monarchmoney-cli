@@ -96,9 +96,9 @@ locally so agents do not need to group transactions themselves.`,
 				a.renderSuccess(renderer, env, start)
 				return
 			}
-			fmt.Printf("%-30s %12s %12s %8s %-8s %-20s %12s\n", "CATEGORY", "CURRENT", "AVG", "RATIO", "SEVERITY", "LARGEST MERCHANT", "AMOUNT")
+			writeText(a.Deps.Stdout, "%-30s %12s %12s %8s %-8s %-20s %12s\n", "CATEGORY", "CURRENT", "AVG", "RATIO", "SEVERITY", "LARGEST MERCHANT", "AMOUNT")
 			for _, an := range result {
-				fmt.Printf("%-30s %12.2f %12.2f %8.2f %-8s %-20s %12.2f\n", an.Category, an.CurrentMonth, an.AvgHistory, an.Ratio, an.Severity, an.LargestMerchant, an.LargestAmount)
+				writeText(a.Deps.Stdout, "%-30s %12.2f %12.2f %8.2f %-8s %-20s %12.2f\n", an.Category, an.CurrentMonth, an.AvgHistory, an.Ratio, an.Severity, an.LargestMerchant, an.LargestAmount)
 			}
 		},
 	}
@@ -150,9 +150,9 @@ the services are wasteful.`,
 				a.renderSuccess(renderer, env, start)
 				return
 			}
-			fmt.Printf("%-24s %10s %10s %-12s %-12s %-12s %s\n", "MERCHANT", "MONTHLY", "ANNUAL", "FREQUENCY", "LAST", "NEXT", "CATEGORY")
+			writeText(a.Deps.Stdout, "%-24s %10s %10s %-12s %-12s %-12s %s\n", "MERCHANT", "MONTHLY", "ANNUAL", "FREQUENCY", "LAST", "NEXT", "CATEGORY")
 			for _, sub := range result.Subscriptions {
-				fmt.Printf("%-24s %10.2f %10.2f %-12s %-12s %-12s %s\n", sub.Merchant, sub.Monthly, sub.Annual, sub.Frequency, sub.LastCharge, sub.NextCharge, sub.Category)
+				writeText(a.Deps.Stdout, "%-24s %10.2f %10.2f %-12s %-12s %-12s %s\n", sub.Merchant, sub.Monthly, sub.Annual, sub.Frequency, sub.LastCharge, sub.NextCharge, sub.Category)
 			}
 		},
 	}
@@ -210,13 +210,13 @@ expense_previous, change_pct, and direction with stable semantics for agents.`,
 				a.renderSuccess(renderer, env, start)
 				return
 			}
-			fmt.Printf("%-24s %12s %12s %12s %s\n", "MERCHANT", "CURRENT", "PREVIOUS", "CHANGE %", "DIRECTION")
+			writeText(a.Deps.Stdout, "%-24s %12s %12s %12s %s\n", "MERCHANT", "CURRENT", "PREVIOUS", "CHANGE %", "DIRECTION")
 			for _, row := range result {
 				change := "null"
 				if row.ChangePct != nil {
 					change = fmt.Sprintf("%.2f", *row.ChangePct)
 				}
-				fmt.Printf("%-24s %12.2f %12.2f %12s %s\n", row.Merchant, row.ExpenseCurrent, row.ExpensePrevious, change, row.Direction)
+				writeText(a.Deps.Stdout, "%-24s %12.2f %12.2f %12s %s\n", row.Merchant, row.ExpenseCurrent, row.ExpensePrevious, change, row.Direction)
 			}
 		},
 	}
@@ -271,9 +271,9 @@ math. It does not re-sum transactions or make subjective budget advice.`,
 				a.renderSuccess(renderer, env, start)
 				return
 			}
-			fmt.Printf("%-30s %10s %10s %10s %8s %8s %s\n", "CATEGORY", "BUDGETED", "SPENT", "REMAINING", "BURN %", "TIME %", "STATUS")
+			writeText(a.Deps.Stdout, "%-30s %10s %10s %10s %8s %8s %s\n", "CATEGORY", "BUDGETED", "SPENT", "REMAINING", "BURN %", "TIME %", "STATUS")
 			for _, b := range result {
-				fmt.Printf("%-30s %10.2f %10.2f %10.2f %8.2f %8.2f %s\n", b.Category, b.Budgeted, b.Spent, b.Remaining, b.BurnPct, b.TimePct, b.Status)
+				writeText(a.Deps.Stdout, "%-30s %10.2f %10.2f %10.2f %8.2f %8.2f %s\n", b.Category, b.Budgeted, b.Spent, b.Remaining, b.BurnPct, b.TimePct, b.Status)
 			}
 		},
 	}

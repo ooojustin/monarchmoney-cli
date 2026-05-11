@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -79,9 +78,9 @@ func (a *App) buildCashflowList(resolveDates func() (string, string)) *cobra.Com
 				env := output.NewEnvelope("cashflow.list", a.Flags.Profile, output.SchemaVersion, "", records, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-12s %10s %10s %10s\n", "PERIOD", "INCOME", "EXPENSE", "SAVINGS")
+				writeText(a.Deps.Stdout, "%-12s %10s %10s %10s\n", "PERIOD", "INCOME", "EXPENSE", "SAVINGS")
 				for _, r := range records {
-					fmt.Printf("%-12s %10.2f %10.2f %10.2f\n", r.Period, r.Income, r.Expense, r.Savings)
+					writeText(a.Deps.Stdout, "%-12s %10.2f %10.2f %10.2f\n", r.Period, r.Income, r.Expense, r.Savings)
 				}
 			}
 		},
@@ -119,11 +118,11 @@ func (a *App) buildCashflowSummary(resolveDates func() (string, string)) *cobra.
 				env := output.NewEnvelope("cashflow.summary", a.Flags.Profile, output.SchemaVersion, "", summary, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Cashflow Summary (%s to %s):\n", cfStart, cfEnd)
-				fmt.Printf("Income:       %.2f\n", summary.Income)
-				fmt.Printf("Expense:      %.2f\n", summary.Expense)
-				fmt.Printf("Savings:      %.2f\n", summary.Savings)
-				fmt.Printf("Savings Rate: %.2f%%\n", summary.SavingsRate*100)
+				writeText(a.Deps.Stdout, "Cashflow Summary (%s to %s):\n", cfStart, cfEnd)
+				writeText(a.Deps.Stdout, "Income:       %.2f\n", summary.Income)
+				writeText(a.Deps.Stdout, "Expense:      %.2f\n", summary.Expense)
+				writeText(a.Deps.Stdout, "Savings:      %.2f\n", summary.Savings)
+				writeText(a.Deps.Stdout, "Savings Rate: %.2f%%\n", summary.SavingsRate*100)
 			}
 		},
 	}
@@ -160,9 +159,9 @@ func (a *App) buildCashflowCategories(resolveDates func() (string, string)) *cob
 				env := output.NewEnvelope("cashflow.categories", a.Flags.Profile, output.SchemaVersion, "", records, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-30s %10s\n", "CATEGORY", "AMOUNT")
+				writeText(a.Deps.Stdout, "%-30s %10s\n", "CATEGORY", "AMOUNT")
 				for _, r := range records {
-					fmt.Printf("%-30s %10.2f\n", r.Name, r.Amount)
+					writeText(a.Deps.Stdout, "%-30s %10.2f\n", r.Name, r.Amount)
 				}
 			}
 		},
@@ -200,9 +199,9 @@ func (a *App) buildCashflowMerchants(resolveDates func() (string, string)) *cobr
 				env := output.NewEnvelope("cashflow.merchants", a.Flags.Profile, output.SchemaVersion, "", records, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-30s %10s\n", "MERCHANT", "AMOUNT")
+				writeText(a.Deps.Stdout, "%-30s %10s\n", "MERCHANT", "AMOUNT")
 				for _, r := range records {
-					fmt.Printf("%-30s %10.2f\n", r.Name, r.Amount)
+					writeText(a.Deps.Stdout, "%-30s %10.2f\n", r.Name, r.Amount)
 				}
 			}
 		},
@@ -277,13 +276,13 @@ func (a *App) buildCashflowTrends(rawDates func() (string, string)) *cobra.Comma
 				env := output.NewEnvelope("cashflow.trends", a.Flags.Profile, output.SchemaVersion, "", rows, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-12s %-30s %12s %12s %12s\n", "PERIOD", "GROUP", "SUM", "INCOME", "EXPENSE")
+				writeText(a.Deps.Stdout, "%-12s %-30s %12s %12s %12s\n", "PERIOD", "GROUP", "SUM", "INCOME", "EXPENSE")
 				for _, row := range rows {
 					group := row.GroupName
 					if group == "" {
 						group = row.GroupID
 					}
-					fmt.Printf("%-12s %-30s %12.2f %12.2f %12.2f\n", row.Period, group, row.Sum, row.SumIncome, row.SumExpense)
+					writeText(a.Deps.Stdout, "%-12s %-30s %12.2f %12.2f %12.2f\n", row.Period, group, row.Sum, row.SumIncome, row.SumExpense)
 				}
 			}
 		},
@@ -342,14 +341,14 @@ func (a *App) buildCashflowSpending(resolveDates func() (string, string)) *cobra
 				env := output.NewEnvelope("cashflow.spending", a.Flags.Profile, output.SchemaVersion, "", data, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Spending Summary (%s to %s):\n\n", cfStart, cfEnd)
-				fmt.Printf("%-30s %10s\n", "CATEGORY", "AMOUNT")
+				writeText(a.Deps.Stdout, "Spending Summary (%s to %s):\n\n", cfStart, cfEnd)
+				writeText(a.Deps.Stdout, "%-30s %10s\n", "CATEGORY", "AMOUNT")
 				for _, r := range records {
-					fmt.Printf("%-30s %10.2f\n", r.Name, r.Amount)
+					writeText(a.Deps.Stdout, "%-30s %10.2f\n", r.Name, r.Amount)
 				}
-				fmt.Printf("\n%-30s %10.2f\n", "Total Income:", totalIncome)
-				fmt.Printf("%-30s %10.2f\n", "Total Expenses:", totalExpenses)
-				fmt.Printf("%-30s %10.2f\n", "Net:", totalIncome-totalExpenses)
+				writeText(a.Deps.Stdout, "\n%-30s %10.2f\n", "Total Income:", totalIncome)
+				writeText(a.Deps.Stdout, "%-30s %10.2f\n", "Total Expenses:", totalExpenses)
+				writeText(a.Deps.Stdout, "%-30s %10.2f\n", "Net:", totalIncome-totalExpenses)
 			}
 		},
 	}

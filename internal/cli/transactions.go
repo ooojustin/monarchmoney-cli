@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"os"
 	"time"
 
@@ -132,11 +131,11 @@ func (a *App) buildTransactionsList(resolveDates func() (string, string)) *cobra
 				env := a.envelopeWithWarnings("transactions.list", data, start, "uses legacy Monarch GraphQL root field: allTransactions")
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES")
+				writeText(a.Deps.Stdout, "%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES")
 				for _, t := range txs {
-					fmt.Printf("%-12s %-20s %-15s %10.2f %s\n", t.Date, t.Merchant, t.Category, t.Amount, t.Notes)
+					writeText(a.Deps.Stdout, "%-12s %-20s %-15s %10.2f %s\n", t.Date, t.Merchant, t.Category, t.Amount, t.Notes)
 				}
-				fmt.Printf("\nTotal transactions: %d\n", total)
+				writeText(a.Deps.Stdout, "\nTotal transactions: %d\n", total)
 			}
 		},
 	}
@@ -194,11 +193,11 @@ func (a *App) buildTransactionsSearch(resolveDates func() (string, string)) *cob
 				env := a.envelopeWithWarnings("transactions.search", data, start, "uses legacy Monarch GraphQL root field: allTransactions")
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES")
+				writeText(a.Deps.Stdout, "%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES")
 				for _, t := range txs {
-					fmt.Printf("%-12s %-20s %-15s %10.2f %s\n", t.Date, t.Merchant, t.Category, t.Amount, t.Notes)
+					writeText(a.Deps.Stdout, "%-12s %-20s %-15s %10.2f %s\n", t.Date, t.Merchant, t.Category, t.Amount, t.Notes)
 				}
-				fmt.Printf("\nTotal matches: %d\n", total)
+				writeText(a.Deps.Stdout, "\nTotal matches: %d\n", total)
 			}
 		},
 	}
@@ -238,12 +237,12 @@ func (a *App) buildTransactionsShow() *cobra.Command {
 				env := output.NewEnvelope("transactions.show", a.Flags.Profile, output.SchemaVersion, "", tx, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("ID:       %s\n", tx.ID)
-				fmt.Printf("Date:     %s\n", tx.Date)
-				fmt.Printf("Merchant: %s\n", tx.Merchant)
-				fmt.Printf("Category: %s\n", tx.Category)
-				fmt.Printf("Amount:   %.2f\n", tx.Amount)
-				fmt.Printf("Notes:    %s\n", tx.Notes)
+				writeText(a.Deps.Stdout, "ID:       %s\n", tx.ID)
+				writeText(a.Deps.Stdout, "Date:     %s\n", tx.Date)
+				writeText(a.Deps.Stdout, "Merchant: %s\n", tx.Merchant)
+				writeText(a.Deps.Stdout, "Category: %s\n", tx.Category)
+				writeText(a.Deps.Stdout, "Amount:   %.2f\n", tx.Amount)
+				writeText(a.Deps.Stdout, "Notes:    %s\n", tx.Notes)
 			}
 		},
 	}
@@ -280,7 +279,7 @@ func (a *App) buildTransactionsSummary(resolveDates func() (string, string)) *co
 				env := output.NewEnvelope("transactions.summary", a.Flags.Profile, output.SchemaVersion, "", summary, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Println("Transaction Summary")
+				printlnText(a.Deps.Stdout, "Transaction Summary")
 			}
 		},
 	}
@@ -320,9 +319,9 @@ func (a *App) buildTransactionsDuplicates() *cobra.Command {
 				env := a.envelopeWithWarnings("transactions.duplicates", txs, start, "uses legacy Monarch GraphQL root field: allTransactions")
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-12s %-20s %10s %s\n", "DATE", "MERCHANT", "AMOUNT", "ID")
+				writeText(a.Deps.Stdout, "%-12s %-20s %10s %s\n", "DATE", "MERCHANT", "AMOUNT", "ID")
 				for _, t := range txs {
-					fmt.Printf("%-12s %-20s %10.2f %s\n", t.Date, t.Merchant, t.Amount, t.ID)
+					writeText(a.Deps.Stdout, "%-12s %-20s %10.2f %s\n", t.Date, t.Merchant, t.Amount, t.ID)
 				}
 			}
 		},
@@ -360,9 +359,9 @@ func (a *App) buildTransactionsSplits() *cobra.Command {
 				env := output.NewEnvelope("transactions.splits", a.Flags.Profile, output.SchemaVersion, "", splits, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-20s %10s %s\n", "CATEGORY", "AMOUNT", "NOTES")
+				writeText(a.Deps.Stdout, "%-20s %10s %s\n", "CATEGORY", "AMOUNT", "NOTES")
 				for _, s := range splits {
-					fmt.Printf("%-20s %10.2f %s\n", s.Category, s.Amount, s.Notes)
+					writeText(a.Deps.Stdout, "%-20s %10.2f %s\n", s.Category, s.Amount, s.Notes)
 				}
 			}
 		},
@@ -551,7 +550,7 @@ func (a *App) buildTransactionsUpdate() *cobra.Command {
 				env := output.NewEnvelope("transactions.update", a.Flags.Profile, output.SchemaVersion, "", tx, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Successfully updated transaction %s.\n", tx.ID)
+				writeText(a.Deps.Stdout, "Successfully updated transaction %s.\n", tx.ID)
 			}
 		},
 	}
@@ -622,7 +621,7 @@ func (a *App) buildTransactionsDelete() *cobra.Command {
 				env := output.NewEnvelope("transactions.delete", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "deleted"}, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Successfully deleted transaction %s.\n", id)
+				writeText(a.Deps.Stdout, "Successfully deleted transaction %s.\n", id)
 			}
 		},
 	}
@@ -694,7 +693,7 @@ func (a *App) buildTransactionsCreate() *cobra.Command {
 				env := output.NewEnvelope("transactions.create", a.Flags.Profile, output.SchemaVersion, "", tx, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Successfully created transaction %s.\n", tx.ID)
+				writeText(a.Deps.Stdout, "Successfully created transaction %s.\n", tx.ID)
 			}
 		},
 	}
@@ -779,7 +778,7 @@ func (a *App) buildTransactionsSplit() *cobra.Command {
 				env := output.NewEnvelope("transactions.split", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "split updated"}, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Successfully split transaction %s.\n", id)
+				writeText(a.Deps.Stdout, "Successfully split transaction %s.\n", id)
 			}
 		},
 	}
@@ -845,7 +844,7 @@ func (a *App) buildTransactionsTagsSet() *cobra.Command {
 				env := output.NewEnvelope("transactions.tags.set", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "tags set"}, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Successfully set tags for transaction %s.\n", id)
+				writeText(a.Deps.Stdout, "Successfully set tags for transaction %s.\n", id)
 			}
 		},
 	}
@@ -936,7 +935,7 @@ func (a *App) buildTransactionsTagsAdd() *cobra.Command {
 				env := output.NewEnvelope("transactions.tags.add", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "tags added"}, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Successfully added tags to transaction %s.\n", id)
+				writeText(a.Deps.Stdout, "Successfully added tags to transaction %s.\n", id)
 			}
 		},
 	}
@@ -1001,7 +1000,7 @@ func (a *App) buildTransactionsTagsClear() *cobra.Command {
 				env := output.NewEnvelope("transactions.tags.clear", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "tags cleared"}, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Successfully cleared tags for transaction %s.\n", id)
+				writeText(a.Deps.Stdout, "Successfully cleared tags for transaction %s.\n", id)
 			}
 		},
 	}
@@ -1081,9 +1080,9 @@ func (a *App) buildTransactionsBulkCategorize() *cobra.Command {
 				env := output.NewEnvelope("transactions.bulk-categorize", a.Flags.Profile, output.SchemaVersion, "", data, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Bulk categorize: %d/%d successful.\n", successes, len(bulkTxIDs))
+				writeText(a.Deps.Stdout, "Bulk categorize: %d/%d successful.\n", successes, len(bulkTxIDs))
 				for _, f := range failures {
-					fmt.Printf("  FAILED: %s\n", f)
+					writeText(a.Deps.Stdout, "  FAILED: %s\n", f)
 				}
 			}
 		},
@@ -1126,11 +1125,11 @@ func (a *App) buildTransactionsAttachmentsList() *cobra.Command {
 				a.renderSuccess(renderer, env, start)
 			} else {
 				if len(attachments) == 0 {
-					fmt.Println("No attachments found.")
+					printlnText(a.Deps.Stdout, "No attachments found.")
 				} else {
-					fmt.Printf("%-36s %-20s %s\n", "ID", "FILENAME", "SIZE")
+					writeText(a.Deps.Stdout, "%-36s %-20s %s\n", "ID", "FILENAME", "SIZE")
 					for _, at := range attachments {
-						fmt.Printf("%-36s %-20s %d bytes\n", at.ID, at.Filename, at.SizeBytes)
+						writeText(a.Deps.Stdout, "%-36s %-20s %d bytes\n", at.ID, at.Filename, at.SizeBytes)
 					}
 				}
 			}
@@ -1216,7 +1215,7 @@ func (a *App) buildTransactionsAttachmentsDownload() *cobra.Command {
 				env := output.NewEnvelope("transactions.attachments.download", a.Flags.Profile, output.SchemaVersion, "", map[string]string{"status": "downloaded", "path": outPath}, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("Downloaded attachment to %s\n", outPath)
+				writeText(a.Deps.Stdout, "Downloaded attachment to %s\n", outPath)
 			}
 		},
 	}

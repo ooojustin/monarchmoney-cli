@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -48,9 +47,9 @@ func (a *App) buildGoalsList() *cobra.Command {
 				env := output.NewEnvelope("goals.list", a.Flags.Profile, output.SchemaVersion, "", goals, time.Since(start))
 				a.renderSuccess(renderer, env, start)
 			} else {
-				fmt.Printf("%-20s %s\n", "ID", "NAME")
+				writeText(a.Deps.Stdout, "%-20s %s\n", "ID", "NAME")
 				for _, goal := range goals {
-					fmt.Printf("%-20s %s\n", goal.ID, goal.Name)
+					writeText(a.Deps.Stdout, "%-20s %s\n", goal.ID, goal.Name)
 				}
 			}
 		},

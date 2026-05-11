@@ -115,6 +115,8 @@ func TestRootLoadsConfigFlagIntoAppViper(t *testing.T) {
 		"audit_log: false",
 		"profile: custom",
 		"api_base_url: https://api.example/",
+		"read_only: true",
+		"session_path: " + filepath.Join(dir, "configured-session.json"),
 		"",
 	}, "\n")
 	if err := os.WriteFile(configPath, []byte(configBody), 0600); err != nil {
@@ -144,6 +146,90 @@ func TestRootLoadsConfigFlagIntoAppViper(t *testing.T) {
 	}
 	if got, want := app.Deps.GraphQLEndpoint(), "https://api.example/graphql"; got != want {
 		t.Fatalf("GraphQLEndpoint() = %q, want %q", got, want)
+	}
+	if !app.Flags.ReadOnly {
+		t.Fatal("ReadOnly = false, want true from config file")
+	}
+	if got, want := app.Deps.SessionPath(), filepath.Join(dir, "configured-session.json"); got != want {
+		t.Fatalf("SessionPath() = %q, want %q", got, want)
+	}
+}
+
+func TestReadOnlyConfigBlocksConfirmedMutationBeforeAuth(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte("read_only: true\n"), 0600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var out bytes.Buffer
+	exitCode := 0
+	deps := DefaultDeps()
+	deps.Stdout = &out
+	deps.Stderr = &out
+	deps.Exit = func(code int) { exitCode = code }
+
+	app := New(deps)
+	app.Root.SetArgs([]string{"--config", configPath, "--json", "accounts", "refresh", "--confirm"})
+
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if exitCode == 0 {
+		t.Fatalf("exitCode = 0, want read-only failure; output=%q", out.String())
+	}
+	if !strings.Contains(out.String(), "READ_ONLY_VIOLATION") {
+		t.Fatalf("output = %q, want READ_ONLY_VIOLATION", out.String())
+	}
+	if strings.Contains(out.String(), "AUTH_REQUIRED") {
+		t.Fatalf("output = %q, read-only should fail before auth load", out.String())
+	}
+}
+
+func TestConfigSessionPathCommandUsesConfiguredPath(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	sessionPath := filepath.Join(dir, "custom-session.json")
+	configPath := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte("session_path: "+sessionPath+"\n"), 0600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var out bytes.Buffer
+	deps := DefaultDeps()
+	deps.Stdout = &out
+	deps.Stderr = &out
+
+	app := New(deps)
+	app.Root.SetArgs([]string{"--config", configPath, "auth", "session", "path"})
+
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if got := strings.TrimSpace(out.String()); got != sessionPath {
+		t.Fatalf("auth session path = %q, want %q", got, sessionPath)
+	}
+}
+
+func TestRootUsesDepsStdoutForTextVersion(t *testing.T) {
+	t.Parallel()
+
+	var out bytes.Buffer
+	deps := DefaultDeps()
+	deps.Stdout = &out
+	deps.Stderr = &out
+
+	app := New(deps)
+	app.Root.SetArgs([]string{"version"})
+
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(out.String(), "monarch version ") {
+		t.Fatalf("version output = %q", out.String())
 	}
 }
 

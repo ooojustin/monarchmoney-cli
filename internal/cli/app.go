@@ -52,7 +52,12 @@ func New(deps Deps) *App {
 		}
 	}
 	if a.Deps.SessionPath == nil {
-		a.Deps.SessionPath = config.DefaultSessionPath
+		a.Deps.SessionPath = func() string {
+			if path := a.Deps.Viper.GetString("session_path"); path != "" {
+				return path
+			}
+			return config.DefaultSessionPath()
+		}
 	}
 	if a.Deps.APIBaseURL == nil {
 		a.Deps.APIBaseURL = func() string {
