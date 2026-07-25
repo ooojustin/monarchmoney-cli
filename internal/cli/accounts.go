@@ -1,11 +1,13 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
 
 	"github.com/spf13/cobra"
+
 	"github.com/thedavidweng/monarchmoney-cli/internal/audit"
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
@@ -36,30 +38,16 @@ var accountsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all accounts",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "accounts.list", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		accounts, err := svc.ListAccounts(cmd.Context())
-		if err != nil {
-			handleError(renderer, "accounts.list", wrapError(err, "failed to list accounts"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("accounts.list", profile, output.SchemaVersion, "", accounts, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
-		} else {
-			fmt.Printf("%-20s %-15s %-15s %s\n", "ID", "NAME", "TYPE", "BALANCE")
-			for _, a := range accounts {
-				fmt.Printf("%-20s %-15s %-15s %.2f\n", a.ID, a.DisplayName, a.AccountType, a.DisplayBalance)
-			}
-		}
+		run(cmd.Context(), "accounts.list", "failed to list accounts",
+			func(ctx context.Context, svc *monarch.Service) ([]monarch.Account, error) {
+				return svc.ListAccounts(ctx)
+			},
+			func(accounts []monarch.Account) {
+				fmt.Printf("%-20s %-15s %-15s %s\n", "ID", "NAME", "TYPE", "BALANCE")
+				for _, a := range accounts {
+					fmt.Printf("%-20s %-15s %-15s %.2f\n", a.ID, a.DisplayName, a.AccountType, a.DisplayBalance)
+				}
+			})
 	},
 }
 
@@ -68,30 +56,16 @@ var accountsHoldingsCmd = &cobra.Command{
 	Short: "List holdings for an account",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "accounts.holdings", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		holdings, err := svc.GetAccountHoldings(cmd.Context(), args[0])
-		if err != nil {
-			handleError(renderer, "accounts.holdings", wrapError(err, "failed to get holdings"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("accounts.holdings", profile, output.SchemaVersion, "", holdings, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
-		} else {
-			fmt.Printf("%-20s %12s %12s %12s\n", "ID", "QUANTITY", "BASIS", "TOTAL VALUE")
-			for _, h := range holdings {
-				fmt.Printf("%-20s %12.2f %12.2f %12.2f\n", h.ID, h.Quantity, h.Basis, h.TotalValue)
-			}
-		}
+		run(cmd.Context(), "accounts.holdings", "failed to get holdings",
+			func(ctx context.Context, svc *monarch.Service) ([]monarch.Holding, error) {
+				return svc.GetAccountHoldings(ctx, args[0])
+			},
+			func(holdings []monarch.Holding) {
+				fmt.Printf("%-20s %12s %12s %12s\n", "ID", "QUANTITY", "BASIS", "TOTAL VALUE")
+				for _, h := range holdings {
+					fmt.Printf("%-20s %12.2f %12.2f %12.2f\n", h.ID, h.Quantity, h.Basis, h.TotalValue)
+				}
+			})
 	},
 }
 
@@ -123,8 +97,8 @@ var accountsBalanceAtCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("accounts.balance-at", profile, output.SchemaVersion, "", balances, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("accounts.balance-at", profile, output.SchemaVersion, requestID, balances, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("%-20s %-30s %-15s %12s\n", "ID", "NAME", "TYPE", "BALANCE")
 			for _, balance := range balances {
@@ -156,7 +130,7 @@ var accountsHistoryCmd = &cobra.Command{
 
 		if jsonMode {
 			env := envelopeWithWarnings("accounts.history", history, start, "uses aggregateSnapshots for account history; per-account snapshots are not currently available")
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("%-12s %10s\n", "DATE", "AMOUNT")
 			for _, r := range history {
@@ -175,15 +149,15 @@ var accountsRefreshCmd = &cobra.Command{
 		logger := audit.NewLogger()
 
 		if err := safety.Check(safety.TierRemoteAction, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "accounts.refresh", err.(*errors.Error), start)
+			handleError(renderer, "accounts.refresh", err, start)
 			return
 		}
 
 		if dryRun {
 			plan := safety.NewPlan()
 			plan.Add("accounts.refresh", "", nil, map[string]any{"account_ids": args})
-			env := output.NewEnvelope("accounts.refresh", profile, output.SchemaVersion, "", plan, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("accounts.refresh", profile, output.SchemaVersion, requestID, plan, time.Since(start))
+			renderer.RenderSuccess(env)
 			return
 		}
 
@@ -225,7 +199,7 @@ var accountsRefreshCmd = &cobra.Command{
 			for {
 				select {
 				case <-cmd.Context().Done():
-					handleError(renderer, "accounts.refresh", errors.New(errors.InternalError, "context cancelled", errors.CatInternal, false, cmd.Context().Err()), start)
+					handleError(renderer, "accounts.refresh", errors.New(errors.InternalError, "context canceled", errors.CatInternal, false, cmd.Context().Err()), start)
 					return
 				case <-ticker.C:
 					status, err := svc.GetAccountsRefreshStatus(cmd.Context())
@@ -235,11 +209,11 @@ var accountsRefreshCmd = &cobra.Command{
 					}
 
 					if events {
-						env := output.NewEnvelope("accounts.refresh.progress", profile, output.SchemaVersion, "", status, time.Since(start))
-						renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+						env := output.NewEnvelope("accounts.refresh.progress", profile, output.SchemaVersion, requestID, status, time.Since(start))
+						renderer.RenderSuccess(env)
 					}
 
-					if status["is_complete"].(bool) {
+					if done, _ := status["is_complete"].(bool); done {
 						goto complete
 					}
 				}
@@ -254,8 +228,8 @@ var accountsRefreshCmd = &cobra.Command{
 			} else {
 				status = "refresh requested"
 			}
-			env := output.NewEnvelope("accounts.refresh", profile, output.SchemaVersion, "", map[string]string{"status": status}, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("accounts.refresh", profile, output.SchemaVersion, requestID, map[string]string{"status": status}, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			if refreshWait {
 				fmt.Println("Refresh complete.")
@@ -276,7 +250,7 @@ var accountsUpdateCmd = &cobra.Command{
 		id := args[0]
 
 		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "accounts.update", err.(*errors.Error), start)
+			handleError(renderer, "accounts.update", err, start)
 			return
 		}
 
@@ -292,8 +266,8 @@ var accountsUpdateCmd = &cobra.Command{
 		if dryRun {
 			plan := safety.NewPlan()
 			plan.Add("accounts.update", id, nil, map[string]any{"name": name, "balance": balance})
-			env := output.NewEnvelope("accounts.update", profile, output.SchemaVersion, "", plan, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("accounts.update", profile, output.SchemaVersion, requestID, plan, time.Since(start))
+			renderer.RenderSuccess(env)
 			return
 		}
 
@@ -308,11 +282,11 @@ var accountsUpdateCmd = &cobra.Command{
 		if err != nil {
 			return
 		}
-		acc := result.(*monarch.Account)
+		acc, _ := result.(*monarch.Account)
 
 		if jsonMode {
-			env := output.NewEnvelope("accounts.update", profile, output.SchemaVersion, "", acc, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("accounts.update", profile, output.SchemaVersion, requestID, acc, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Successfully updated account %s.\n", acc.ID)
 		}
@@ -329,15 +303,15 @@ var accountsDeleteCmd = &cobra.Command{
 		id := args[0]
 
 		if err := safety.Check(safety.TierDestructive, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "accounts.delete", err.(*errors.Error), start)
+			handleError(renderer, "accounts.delete", err, start)
 			return
 		}
 
 		if dryRun {
 			plan := safety.NewPlan()
 			plan.Add("accounts.delete", id, nil, nil)
-			env := output.NewEnvelope("accounts.delete", profile, output.SchemaVersion, "", plan, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("accounts.delete", profile, output.SchemaVersion, requestID, plan, time.Since(start))
+			renderer.RenderSuccess(env)
 			return
 		}
 
@@ -353,8 +327,8 @@ var accountsDeleteCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("accounts.delete", profile, output.SchemaVersion, "", map[string]string{"status": "deleted"}, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("accounts.delete", profile, output.SchemaVersion, requestID, map[string]string{"status": "deleted"}, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Successfully deleted account %s.\n", id)
 		}
@@ -369,15 +343,15 @@ var accountsCreateManualCmd = &cobra.Command{
 		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 
 		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "accounts.create-manual", err.(*errors.Error), start)
+			handleError(renderer, "accounts.create-manual", err, start)
 			return
 		}
 
 		if dryRun {
 			plan := safety.NewPlan()
 			plan.Add("accounts.create-manual", "", nil, map[string]any{"name": accountName, "type": accountType, "balance": accountBalance})
-			env := output.NewEnvelope("accounts.create-manual", profile, output.SchemaVersion, "", plan, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("accounts.create-manual", profile, output.SchemaVersion, requestID, plan, time.Since(start))
+			renderer.RenderSuccess(env)
 			return
 		}
 
@@ -392,11 +366,11 @@ var accountsCreateManualCmd = &cobra.Command{
 		if err != nil {
 			return
 		}
-		acc := result.(*monarch.Account)
+		acc, _ := result.(*monarch.Account)
 
 		if jsonMode {
-			env := output.NewEnvelope("accounts.create-manual", profile, output.SchemaVersion, "", acc, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("accounts.create-manual", profile, output.SchemaVersion, requestID, acc, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Successfully created manual account %s (%s).\n", acc.DisplayName, acc.ID)
 		}
@@ -414,15 +388,15 @@ var accountsUploadHistoryCmd = &cobra.Command{
 		path := args[1]
 
 		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "accounts.upload-history", err.(*errors.Error), start)
+			handleError(renderer, "accounts.upload-history", err, start)
 			return
 		}
 
 		if dryRun {
 			plan := safety.NewPlan()
 			plan.Add("accounts.upload-history", id, nil, map[string]string{"file": path})
-			env := output.NewEnvelope("accounts.upload-history", profile, output.SchemaVersion, "", plan, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("accounts.upload-history", profile, output.SchemaVersion, requestID, plan, time.Since(start))
+			renderer.RenderSuccess(env)
 			return
 		}
 
@@ -449,8 +423,8 @@ var accountsUploadHistoryCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("accounts.upload-history", profile, output.SchemaVersion, "", map[string]string{"status": "uploaded"}, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("accounts.upload-history", profile, output.SchemaVersion, requestID, map[string]string{"status": "uploaded"}, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Successfully uploaded history for account %s.\n", id)
 		}
@@ -462,31 +436,17 @@ var accountsShowCmd = &cobra.Command{
 	Short: "Show detailed information for an account",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "accounts.show", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		acc, err := svc.GetAccount(cmd.Context(), args[0])
-		if err != nil {
-			handleError(renderer, "accounts.show", wrapError(err, "failed to get account"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("accounts.show", profile, output.SchemaVersion, "", acc, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
-		} else {
-			fmt.Printf("ID:       %s\n", acc.ID)
-			fmt.Printf("Name:     %s\n", acc.DisplayName)
-			fmt.Printf("Type:     %s\n", acc.AccountType)
-			fmt.Printf("Balance:  %.2f\n", acc.DisplayBalance)
-			fmt.Printf("Updated:  %s\n", acc.UpdatedAt)
-		}
+		run(cmd.Context(), "accounts.show", "failed to get account",
+			func(ctx context.Context, svc *monarch.Service) (*monarch.Account, error) {
+				return svc.GetAccount(ctx, args[0])
+			},
+			func(acc *monarch.Account) {
+				fmt.Printf("ID:       %s\n", acc.ID)
+				fmt.Printf("Name:     %s\n", acc.DisplayName)
+				fmt.Printf("Type:     %s\n", acc.AccountType)
+				fmt.Printf("Balance:  %.2f\n", acc.DisplayBalance)
+				fmt.Printf("Updated:  %s\n", acc.UpdatedAt)
+			})
 	},
 }
 
@@ -494,29 +454,15 @@ var accountsTypesCmd = &cobra.Command{
 	Use:   "types",
 	Short: "List all available account types",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "accounts.types", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		types, err := svc.GetAccountTypes(cmd.Context())
-		if err != nil {
-			handleError(renderer, "accounts.types", wrapError(err, "failed to get account types"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("accounts.types", profile, output.SchemaVersion, "", types, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
-		} else {
-			for _, t := range types {
-				fmt.Println(t)
-			}
-		}
+		run(cmd.Context(), "accounts.types", "failed to get account types",
+			func(ctx context.Context, svc *monarch.Service) ([]string, error) {
+				return svc.GetAccountTypes(ctx)
+			},
+			func(types []string) {
+				for _, t := range types {
+					fmt.Println(t)
+				}
+			})
 	},
 }
 
@@ -524,30 +470,16 @@ var accountsRefreshStatusCmd = &cobra.Command{
 	Use:   "refresh-status",
 	Short: "Check the status of the latest account refresh",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "accounts.refresh-status", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		status, err := svc.GetAccountsRefreshStatus(cmd.Context())
-		if err != nil {
-			handleError(renderer, "accounts.refresh-status", wrapError(err, "failed to get refresh status"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("accounts.refresh-status", profile, output.SchemaVersion, "", status, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
-		} else {
-			fmt.Printf("Complete:   %v\n", status["is_complete"])
-			fmt.Printf("Status:     %s\n", status["status"])
-			fmt.Printf("Start Time: %s\n", status["start_time"])
-			fmt.Printf("End Time:   %s\n", status["end_time"])
-		}
+		run(cmd.Context(), "accounts.refresh-status", "failed to get refresh status",
+			func(ctx context.Context, svc *monarch.Service) (map[string]any, error) {
+				return svc.GetAccountsRefreshStatus(ctx)
+			},
+			func(status map[string]any) {
+				fmt.Printf("Complete:   %v\n", status["is_complete"])
+				fmt.Printf("Status:     %s\n", status["status"])
+				fmt.Printf("Start Time: %s\n", status["start_time"])
+				fmt.Printf("End Time:   %s\n", status["end_time"])
+			})
 	},
 }
 
@@ -575,8 +507,8 @@ var accountsRecentBalancesCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("accounts.recent-balances", profile, output.SchemaVersion, "", res, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("accounts.recent-balances", profile, output.SchemaVersion, requestID, res, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Println("Recent daily balances fetched.")
 		}
@@ -607,8 +539,8 @@ var accountsSnapshotsCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("accounts.snapshots", profile, output.SchemaVersion, "", res, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("accounts.snapshots", profile, output.SchemaVersion, requestID, res, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Println("Account type snapshots fetched.")
 		}
@@ -635,8 +567,8 @@ var accountsAggregateSnapshotsCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("accounts.aggregate-snapshots", profile, output.SchemaVersion, "", res, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("accounts.aggregate-snapshots", profile, output.SchemaVersion, requestID, res, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Println("Aggregate snapshots fetched.")
 		}
@@ -663,8 +595,8 @@ var networthCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("networth", profile, output.SchemaVersion, "", res, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("networth", profile, output.SchemaVersion, requestID, res, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Println("Net worth snapshots fetched.")
 		}

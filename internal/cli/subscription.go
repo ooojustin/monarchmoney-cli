@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 )
@@ -43,7 +44,7 @@ var subscriptionShowCmd = &cobra.Command{
 
 		if jsonMode {
 			env := envelopeWithWarnings("subscription.show", sub, start, "uses legacy Monarch GraphQL root field: subscription")
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("ID:                      %s\n", sub.ID)
 			fmt.Printf("Payment Source:          %s\n", sub.PaymentSource)

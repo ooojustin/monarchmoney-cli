@@ -1,23 +1,25 @@
-## Doc sync
+# AGENTS.md
 
-When modifying CLI commands, flags, JSON output structure, command behavior, or help text, update all three surfaces:
+Instructions for every coding agent working in this repo. This is the only agent-instruction file — never create CLAUDE.md, .cursorrules, .windsurfrules, .clinerules, GEMINI.md, or any other per-tool variant (CI fails the build if one appears).
 
-1. **Cobra help** — `Use` / `Short`, plus `Long` / `Example` where warranted
-2. **`docs/capabilities.md`** — capability matrix
-3. **`docs/agent-guide.md`** — agent-facing behavior docs (when behavior changes affect agents)
+## Code principles
 
-Don't ship an implementation change without the matching doc updates.
+1. Self-explanatory code, no comments. Write a comment only for a constraint the code cannot express (a protocol quirk, a required ordering, a spec reference). Decision rationale goes in `docs/adr/`, conventions go here — never in code. CI enforces a comment budget of 5% of non-test lines.
+2. Fewest lines that stay clear. No fallback code, no speculative features, no dead code, no abstraction with a single caller. Delete before you add.
+3. Code and docs move together: a change to commands, flags, output, or behavior updates the cobra help, COMMANDS.md, and JSON_SCHEMA.md in the same change.
 
-## Agent skills
+## Verification
 
-### Issue tracker
+`mise run check` (fmt + build + test + lint + conventions) must pass before every push. CI runs the same gates.
 
-GitHub Issues via `gh` CLI. See `docs/agents/issue-tracker.md`.
+## Decisions
 
-### Triage labels
+Architectural decisions live in `docs/adr/NNNN-slug.md` (Status / Context / Decision / Consequences). A new dependency, a new abstraction, or a change to the public JSON/exit-code contract requires an ADR in the same change.
 
-Five canonical roles (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+## Domain
 
-### Domain docs
+`CONTEXT.md` at the repo root is the domain glossary.
 
-Single-context — `CONTEXT.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`.
+## Issues
+
+GitHub Issues via `gh`. Labels: needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix.

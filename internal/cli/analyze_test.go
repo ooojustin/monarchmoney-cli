@@ -65,7 +65,7 @@ func TestAnalyzeAnomaliesJSON(t *testing.T) {
 		if gqlReq.OperationName != "GetTransactionsList" {
 			t.Fatalf("operation = %q, want GetTransactionsList", gqlReq.OperationName)
 		}
-		filters := gqlReq.Variables["filters"].(map[string]any)
+		filters, _ := gqlReq.Variables["filters"].(map[string]any)
 		if filters["startDate"] == "2025-11-01" && filters["endDate"] == "2026-05-31" {
 			sawHistoryStart = true
 		}

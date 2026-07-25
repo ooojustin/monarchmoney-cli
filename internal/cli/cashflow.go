@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
@@ -48,8 +49,8 @@ var cashflowSummaryCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("cashflow.summary", profile, output.SchemaVersion, "", summary, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("cashflow.summary", profile, output.SchemaVersion, requestID, summary, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Cashflow Summary (%s to %s):\n", cfStartDate, cfEndDate)
 			fmt.Printf("Income:       %.2f\n", summary.Income)
@@ -82,8 +83,8 @@ var cashflowCategoriesCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("cashflow.categories", profile, output.SchemaVersion, "", records, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("cashflow.categories", profile, output.SchemaVersion, requestID, records, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("%-30s %10s\n", "CATEGORY", "AMOUNT")
 			for _, r := range records {
@@ -115,8 +116,8 @@ var cashflowMerchantsCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("cashflow.merchants", profile, output.SchemaVersion, "", records, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("cashflow.merchants", profile, output.SchemaVersion, requestID, records, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("%-30s %10s\n", "MERCHANT", "AMOUNT")
 			for _, r := range records {
@@ -177,8 +178,8 @@ var cashflowTrendsCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("cashflow.trends", profile, output.SchemaVersion, "", rows, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("cashflow.trends", profile, output.SchemaVersion, requestID, rows, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("%-12s %-30s %12s %12s %12s\n", "PERIOD", "GROUP", "SUM", "INCOME", "EXPENSE")
 			for _, row := range rows {
@@ -225,8 +226,8 @@ var cashflowListCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("cashflow.list", profile, output.SchemaVersion, "", records, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("cashflow.list", profile, output.SchemaVersion, requestID, records, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("%-12s %10s %10s %10s\n", "PERIOD", "INCOME", "EXPENSE", "SAVINGS")
 			for _, r := range records {
@@ -299,8 +300,8 @@ var cashflowSpendingCmd = &cobra.Command{
 				"net":            totalIncome - totalExpenses,
 				"by_category":    records,
 			}
-			env := output.NewEnvelope("cashflow.spending", profile, output.SchemaVersion, "", data, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("cashflow.spending", profile, output.SchemaVersion, requestID, data, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Spending Summary (%s to %s):\n\n", cfStartDate, cfEndDate)
 			fmt.Printf("%-30s %10s\n", "CATEGORY", "AMOUNT")

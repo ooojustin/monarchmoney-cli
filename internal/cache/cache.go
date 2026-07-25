@@ -22,7 +22,7 @@ var migrateStore = Migrate
 
 func NewStore(path string) (*Store, error) {
 	dir := filepath.Dir(path)
-	if err := mkdirAll(dir, 0700); err != nil {
+	if err := mkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
 
@@ -30,7 +30,7 @@ func NewStore(path string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.Chmod(path, 0600); err != nil {
+	if err := os.Chmod(path, 0o600); err != nil {
 		return nil, err
 	}
 
@@ -42,7 +42,7 @@ func NewStore(path string) (*Store, error) {
 	if err := migrateStore(db); err != nil {
 		dbSQL, _ := db.DB()
 		if dbSQL != nil {
-			dbSQL.Close() //nolint:errcheck // cleanup in error path
+			dbSQL.Close()
 		}
 		return nil, err
 	}

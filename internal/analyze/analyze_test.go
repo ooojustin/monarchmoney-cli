@@ -106,7 +106,7 @@ func TestBuildBurnRateUsesBudgetAndElapsedTime(t *testing.T) {
 	}
 
 	wantStatuses := []string{"overspending", "underused"}
-	var statuses []string
+	statuses := make([]string, 0, len(got))
 	for _, b := range got {
 		statuses = append(statuses, b.Status)
 	}

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
@@ -58,8 +59,8 @@ var investmentsPortfolioCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("investments.portfolio", profile, output.SchemaVersion, "", portfolio, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("investments.portfolio", profile, output.SchemaVersion, requestID, portfolio, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Total Value: %.2f\n", portfolio.Performance.TotalValue)
 			fmt.Printf("%-20s %-10s %12s\n", "SECURITY", "TICKER", "VALUE")
@@ -108,8 +109,8 @@ var investmentsPerformanceCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("investments.performance", profile, output.SchemaVersion, "", performance, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("investments.performance", profile, output.SchemaVersion, requestID, performance, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("%-20s %-10s %6s\n", "SECURITY", "TICKER", "POINTS")
 			for _, item := range performance {

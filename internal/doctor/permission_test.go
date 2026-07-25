@@ -10,7 +10,7 @@ import (
 
 func TestCheckFilePermission_0600(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "testfile")
-	if err := os.WriteFile(path, []byte("secret"), 0600); err != nil {
+	if err := os.WriteFile(path, []byte("secret"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	info, err := os.Stat(path)
@@ -19,13 +19,13 @@ func TestCheckFilePermission_0600(t *testing.T) {
 	}
 
 	if !checkFilePermission(info) {
-		t.Fatal("checkFilePermission(0600) = false, want true")
+		t.Fatal("checkFilePermission(0o600) = false, want true")
 	}
 }
 
 func TestCheckFilePermission_0644(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "testfile")
-	if err := os.WriteFile(path, []byte("content"), 0644); err != nil {
+	if err := os.WriteFile(path, []byte("content"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	info, err := os.Stat(path)
@@ -34,6 +34,6 @@ func TestCheckFilePermission_0644(t *testing.T) {
 	}
 
 	if checkFilePermission(info) {
-		t.Fatal("checkFilePermission(0644) = true, want false")
+		t.Fatal("checkFilePermission(0o644) = true, want false")
 	}
 }

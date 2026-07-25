@@ -37,7 +37,7 @@ func TestCleanupRemovesOldFiles(t *testing.T) {
 	}
 	for _, d := range oldDates {
 		path := filepath.Join(dir, d+".jsonl")
-		if err := os.WriteFile(path, []byte(`{"test":true}`), 0600); err != nil {
+		if err := os.WriteFile(path, []byte(`{"test":true}`), 0o600); err != nil {
 			t.Fatalf("WriteFile(%s) error = %v", path, err)
 		}
 	}
@@ -45,13 +45,13 @@ func TestCleanupRemovesOldFiles(t *testing.T) {
 	// Create a recent file (should not be removed).
 	recent := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
 	recentPath := filepath.Join(dir, recent+".jsonl")
-	if err := os.WriteFile(recentPath, []byte(`{"test":true}`), 0600); err != nil {
+	if err := os.WriteFile(recentPath, []byte(`{"test":true}`), 0o600); err != nil {
 		t.Fatalf("WriteFile(%s) error = %v", recentPath, err)
 	}
 
 	// Create a non-jsonl file (should be ignored).
 	junkPath := filepath.Join(dir, "README.txt")
-	if err := os.WriteFile(junkPath, []byte("ignore me"), 0600); err != nil {
+	if err := os.WriteFile(junkPath, []byte("ignore me"), 0o600); err != nil {
 		t.Fatalf("WriteFile(%s) error = %v", junkPath, err)
 	}
 

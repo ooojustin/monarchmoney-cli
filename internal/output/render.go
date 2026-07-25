@@ -8,10 +8,6 @@ import (
 	"os"
 )
 
-var marshalJSON = json.Marshal
-var marshalJSONIndent = json.MarshalIndent
-
-// Renderer handles writing data to the appropriate output streams.
 type Renderer struct {
 	Stdout io.Writer
 	Stderr io.Writer
@@ -19,7 +15,6 @@ type Renderer struct {
 	Pretty bool
 }
 
-// NewRenderer returns a new Renderer.
 func NewRenderer(stdout, stderr io.Writer, jsonMode, pretty bool) *Renderer {
 	if stdout == nil {
 		stdout = os.Stdout
@@ -35,49 +30,30 @@ func NewRenderer(stdout, stderr io.Writer, jsonMode, pretty bool) *Renderer {
 	}
 }
 
-// RenderSuccess writes a successful result to stdout.
-func (r *Renderer) RenderSuccess(env *Envelope) error {
+func (r *Renderer) RenderSuccess(env *Envelope) {
 	if r.JSON {
-		var data []byte
-		var err error
-		if r.Pretty {
-			data, err = marshalJSONIndent(env, "", "  ")
-		} else {
-			data, err = marshalJSON(env)
-		}
-		if err != nil {
-			return err
-		}
-		fmt.Fprintln(r.Stdout, string(data)) //nolint:errcheck // best-effort stdout
-		return nil
+		fmt.Fprintln(r.Stdout, r.marshal(env))
 	}
-
-	// Non-JSON success rendering is command-specific; Renderer intentionally stays silent here.
-	return nil
 }
 
-// RenderError writes an error to stdout (as JSON) or stderr (as text).
-func (r *Renderer) RenderError(env *ErrorEnvelope) error {
+func (r *Renderer) RenderError(env *ErrorEnvelope) {
 	if r.JSON {
-		var data []byte
-		var err error
-		if r.Pretty {
-			data, err = marshalJSONIndent(env, "", "  ")
-		} else {
-			data, err = marshalJSON(env)
-		}
-		if err != nil {
-			return err
-		}
-		fmt.Fprintln(r.Stdout, string(data)) //nolint:errcheck // best-effort stdout
-		return nil
+		fmt.Fprintln(r.Stdout, r.marshal(env))
+		return
 	}
-
-	fmt.Fprintf(r.Stderr, "Error: %s\n", env.Error.Message) //nolint:errcheck // best-effort stderr
-	return nil
+	fmt.Fprintf(r.Stderr, "Error: %s\n", env.Error.Message)
 }
 
-// PrintDiagnostic writes a diagnostic message to stderr.
 func (r *Renderer) PrintDiagnostic(msg string) {
-	fmt.Fprintln(r.Stderr, msg) //nolint:errcheck // best-effort stderr
+	fmt.Fprintln(r.Stderr, msg)
+}
+
+func (r *Renderer) marshal(v any) string {
+	var data []byte
+	if r.Pretty {
+		data, _ = json.MarshalIndent(v, "", "  ")
+	} else {
+		data, _ = json.Marshal(v)
+	}
+	return string(data)
 }

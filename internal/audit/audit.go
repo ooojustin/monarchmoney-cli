@@ -35,7 +35,7 @@ func NewLogger() *Logger {
 
 // Log writes a record to the daily audit log file.
 func (l *Logger) Log(r *Record) (err error) {
-	if err := os.MkdirAll(l.Dir, 0700); err != nil {
+	if err := os.MkdirAll(l.Dir, 0o700); err != nil {
 		return err
 	}
 
@@ -48,7 +48,7 @@ func (l *Logger) Log(r *Record) (err error) {
 		return err
 	}
 
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}

@@ -17,7 +17,7 @@ const (
 )
 
 // Check validates if an operation is allowed based on global flags and tier.
-func Check(tier OperationTier, readOnly, dryRun, confirmed bool) error {
+func Check(tier OperationTier, readOnly, dryRun, confirmed bool) *errors.Error {
 	if tier == TierRead {
 		return nil
 	}

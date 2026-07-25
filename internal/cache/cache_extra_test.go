@@ -15,7 +15,7 @@ import (
 func TestNewStoreFailsWhenParentPathIsAFile(t *testing.T) {
 	dir := t.TempDir()
 	blocker := filepath.Join(dir, "blocked")
-	if err := os.WriteFile(blocker, []byte("x"), 0600); err != nil {
+	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
@@ -61,7 +61,7 @@ func TestNewStoreSetsPrivateFilePermissions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
-	defer store.Close() //nolint:errcheck // test cleanup
+	defer store.Close()
 
 	info, err := os.Stat(path)
 	if err != nil {
@@ -69,7 +69,7 @@ func TestNewStoreSetsPrivateFilePermissions(t *testing.T) {
 	}
 	// Windows uses ACLs, not Unix permission bits.
 	if runtime.GOOS != "windows" {
-		if got, want := info.Mode().Perm(), os.FileMode(0600); got != want {
+		if got, want := info.Mode().Perm(), os.FileMode(0o600); got != want {
 			t.Fatalf("permissions = %v, want %v", got, want)
 		}
 	}

@@ -111,13 +111,13 @@ func TestAuditCleanupRemovesOldFiles(t *testing.T) {
 
 	oldDate := time.Now().AddDate(0, 0, -60).Format("2006-01-02")
 	oldFile := filepath.Join(dir, oldDate+".jsonl")
-	if err := os.WriteFile(oldFile, []byte(`{"command":"test"}`), 0600); err != nil {
+	if err := os.WriteFile(oldFile, []byte(`{"command":"test"}`), 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
 	recentDate := time.Now().AddDate(0, 0, -5).Format("2006-01-02")
 	recentFile := filepath.Join(dir, recentDate+".jsonl")
-	if err := os.WriteFile(recentFile, []byte(`{"command":"test"}`), 0600); err != nil {
+	if err := os.WriteFile(recentFile, []byte(`{"command":"test"}`), 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
@@ -157,7 +157,7 @@ func TestAuditCleanupSkipsNonJSONL(t *testing.T) {
 	oldDate := time.Now().AddDate(0, 0, -60).Format("2006-01-02")
 	// Write a .txt file that looks like it could be an old log.
 	txtFile := filepath.Join(dir, oldDate+".txt")
-	if err := os.WriteFile(txtFile, []byte("not a log"), 0600); err != nil {
+	if err := os.WriteFile(txtFile, []byte("not a log"), 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 

@@ -516,7 +516,7 @@ func testAccountsUploadHistoryJSON(t *testing.T) {
 
 	// Create a temp CSV file for upload.
 	csvPath := filepath.Join(dir, "history.csv")
-	if err := os.WriteFile(csvPath, []byte("date,balance\n2026-01-01,100\n"), 0600); err != nil {
+	if err := os.WriteFile(csvPath, []byte("date,balance\n2026-01-01,100\n"), 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 

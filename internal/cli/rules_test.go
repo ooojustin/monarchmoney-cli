@@ -79,7 +79,7 @@ func testRulesUpdateJSON(t *testing.T) {
 		if gqlReq.OperationName != "Common_UpdateTransactionRuleMutationV2" {
 			t.Fatalf("operation = %q, want Common_UpdateTransactionRuleMutationV2", gqlReq.OperationName)
 		}
-		input := gqlReq.Variables["input"].(map[string]any)
+		input, _ := gqlReq.Variables["input"].(map[string]any)
 		if input["id"] != "rule-1" {
 			t.Fatalf("input id = %v, want rule-1", input["id"])
 		}

@@ -8,12 +8,13 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/term"
+
 	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
 	"github.com/thedavidweng/monarchmoney-cli/internal/config"
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
-	"golang.org/x/term"
 )
 
 var (
@@ -121,7 +122,7 @@ var loginCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("auth.login", profile, output.SchemaVersion, "", map[string]any{
+			env := output.NewEnvelope("auth.login", profile, output.SchemaVersion, requestID, map[string]any{
 				"status":       "logged in",
 				"email":        sess.Email,
 				"profile":      sess.Profile,
@@ -129,7 +130,7 @@ var loginCmd = &cobra.Command{
 				"updated_at":   sess.UpdatedAt,
 				"session_path": defaultSessionPath(),
 			}, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Successfully logged in as %s.\n", sess.Email)
 			fmt.Printf("Logged in at: %s\n", sess.CreatedAt.Format(time.RFC3339))
@@ -178,8 +179,8 @@ var statusCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("auth.status", profile, output.SchemaVersion, "", data, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("auth.status", profile, output.SchemaVersion, requestID, data, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Authenticated: yes\n")
 			fmt.Printf("Email: %s\n", displayEmail)
@@ -205,8 +206,8 @@ var logoutCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("auth.logout", profile, output.SchemaVersion, "", map[string]string{"status": "logged out"}, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("auth.logout", profile, output.SchemaVersion, requestID, map[string]string{"status": "logged out"}, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Println("Successfully logged out.")
 		}
@@ -258,6 +259,7 @@ func handleError(r *output.Renderer, command string, err *errors.Error, start ti
 	}
 
 	env := output.NewErrorEnvelope(command, profile, output.SchemaVersion, err, time.Since(start))
-	r.RenderError(env) //nolint:errcheck // best-effort render
+	env.Meta.RequestID = requestID
+	r.RenderError(env)
 	exitFunc(err.ExitCode())
 }

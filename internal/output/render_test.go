@@ -2,110 +2,103 @@ package output
 
 import (
 	"bytes"
-	stderrors "errors"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	clierrors "github.com/thedavidweng/monarchmoney-cli/internal/errors"
 )
 
 func TestRenderer_RenderSuccess(t *testing.T) {
-	stdout := &bytes.Buffer{}
-	renderer := NewRenderer(stdout, nil, true, false)
+	tests := []struct {
+		name      string
+		jsonMode  bool
+		pretty    bool
+		env       *Envelope
+		want      []string
+		wantExact string
+	}{
+		{
+			name:     "json",
+			jsonMode: true,
+			env:      NewEnvelope("test", "default", SchemaVersion, "req-123", map[string]string{"foo": "bar"}, 10*time.Millisecond),
+			want:     []string{`"ok":true`, `"data":{"foo":"bar"}`, `"request_id":"req-123"`},
+		},
+		{
+			name:     "pretty",
+			jsonMode: true,
+			pretty:   true,
+			env:      NewEnvelope("test", "default", SchemaVersion, "", map[string]string{"foo": "bar"}, time.Second),
+			want:     []string{"\n  \"ok\": true"},
+		},
+		{
+			name:      "non-json is silent",
+			jsonMode:  false,
+			env:       NewEnvelope("test", "default", SchemaVersion, "", "value", 0),
+			wantExact: "",
+		},
+	}
 
-	env := NewEnvelope("test", "default", SchemaVersion, "req-123", map[string]string{"foo": "bar"}, 10*time.Millisecond)
-	err := renderer.RenderSuccess(env)
-
-	assert.NoError(t, err)
-	assert.Contains(t, stdout.String(), `"ok":true`)
-	assert.Contains(t, stdout.String(), `"data":{"foo":"bar"}`)
-	assert.Contains(t, stdout.String(), `"request_id":"req-123"`)
-}
-
-func TestRenderer_RenderSuccessPretty(t *testing.T) {
-	stdout := &bytes.Buffer{}
-	renderer := NewRenderer(stdout, nil, true, true)
-	env := NewEnvelope("test", "default", SchemaVersion, "", map[string]string{"foo": "bar"}, time.Second)
-
-	assert.NoError(t, renderer.RenderSuccess(env))
-	assert.Contains(t, stdout.String(), "\n  \"ok\": true")
-}
-
-func TestRenderer_RenderSuccessNonJSON(t *testing.T) {
-	stdout := &bytes.Buffer{}
-	renderer := NewRenderer(stdout, nil, false, false)
-
-	assert.NoError(t, renderer.RenderSuccess(NewEnvelope("test", "default", SchemaVersion, "", "value", 0)))
-	assert.Equal(t, "", stdout.String())
-}
-
-type brokenJSON struct{}
-
-func (brokenJSON) MarshalJSON() ([]byte, error) {
-	return nil, stderrors.New("marshal failed")
-}
-
-func TestRenderer_RenderSuccessMarshalError(t *testing.T) {
-	originalMarshal := marshalJSON
-	defer func() { marshalJSON = originalMarshal }()
-	marshalJSON = func(any) ([]byte, error) { return nil, stderrors.New("marshal failed") }
-
-	stdout := &bytes.Buffer{}
-	renderer := NewRenderer(stdout, nil, true, false)
-	env := NewEnvelope("test", "default", SchemaVersion, "", brokenJSON{}, 0)
-
-	if err := renderer.RenderSuccess(env); err == nil {
-		t.Fatal("RenderSuccess() error = nil, want failure")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout := &bytes.Buffer{}
+			NewRenderer(stdout, nil, tt.jsonMode, tt.pretty).RenderSuccess(tt.env)
+			got := stdout.String()
+			if !tt.jsonMode && got != tt.wantExact {
+				t.Fatalf("output = %q, want %q", got, tt.wantExact)
+			}
+			for _, w := range tt.want {
+				if !strings.Contains(got, w) {
+					t.Fatalf("output = %q, want substring %q", got, w)
+				}
+			}
+		})
 	}
 }
 
-func TestRenderer_RenderErrorJSON(t *testing.T) {
-	stdout := &bytes.Buffer{}
-	renderer := NewRenderer(stdout, nil, true, false)
-	env := NewErrorEnvelope("test", "default", SchemaVersion, &clierrors.Error{Message: "boom"}, 10*time.Millisecond)
+func TestRenderer_RenderError(t *testing.T) {
+	tests := []struct {
+		name       string
+		jsonMode   bool
+		pretty     bool
+		wantStdout []string
+		wantStderr []string
+	}{
+		{name: "json", jsonMode: true, wantStdout: []string{`"ok":false`, `"message":"boom"`}},
+		{name: "pretty", jsonMode: true, pretty: true, wantStdout: []string{"\n  \"ok\": false"}},
+		{name: "text", jsonMode: false, wantStderr: []string{"Error: boom"}},
+	}
 
-	assert.NoError(t, renderer.RenderError(env))
-	assert.Contains(t, stdout.String(), `"ok":false`)
-	assert.Contains(t, stdout.String(), `"message":"boom"`)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+			r := NewRenderer(stdout, stderr, tt.jsonMode, tt.pretty)
+			r.RenderError(NewErrorEnvelope("test", "default", SchemaVersion, &clierrors.Error{Message: "boom"}, 0))
+			for _, w := range tt.wantStdout {
+				if !strings.Contains(stdout.String(), w) {
+					t.Fatalf("stdout = %q, want substring %q", stdout.String(), w)
+				}
+			}
+			for _, w := range tt.wantStderr {
+				if !strings.Contains(stderr.String(), w) {
+					t.Fatalf("stderr = %q, want substring %q", stderr.String(), w)
+				}
+			}
+		})
+	}
 }
 
-func TestRenderer_RenderErrorTextAndDiagnostic(t *testing.T) {
+func TestRenderer_PrintDiagnostic(t *testing.T) {
 	stderr := &bytes.Buffer{}
-	renderer := NewRenderer(nil, stderr, false, false)
-	env := NewErrorEnvelope("test", "default", SchemaVersion, &clierrors.Error{Message: "boom"}, 0)
-
-	assert.NoError(t, renderer.RenderError(env))
-	renderer.PrintDiagnostic("hello")
-	assert.Contains(t, stderr.String(), "Error: boom")
-	assert.Contains(t, stderr.String(), "hello")
-}
-
-func TestRenderer_RenderErrorPretty(t *testing.T) {
-	stdout := &bytes.Buffer{}
-	renderer := NewRenderer(stdout, nil, true, true)
-	env := NewErrorEnvelope("test", "default", SchemaVersion, &clierrors.Error{Message: "boom"}, 0)
-
-	assert.NoError(t, renderer.RenderError(env))
-	assert.Contains(t, stdout.String(), "\n  \"ok\": false")
-}
-
-func TestRenderer_RenderErrorMarshalError(t *testing.T) {
-	originalMarshal := marshalJSON
-	defer func() { marshalJSON = originalMarshal }()
-	marshalJSON = func(any) ([]byte, error) { return nil, stderrors.New("marshal failed") }
-
-	stdout := &bytes.Buffer{}
-	renderer := NewRenderer(stdout, nil, true, false)
-	env := NewErrorEnvelope("test", "default", SchemaVersion, &clierrors.Error{Message: "boom"}, 0)
-
-	if err := renderer.RenderError(env); err == nil {
-		t.Fatal("RenderError() error = nil, want failure")
+	NewRenderer(nil, stderr, false, false).PrintDiagnostic("hello")
+	if !strings.Contains(stderr.String(), "hello") {
+		t.Fatalf("stderr = %q, want substring %q", stderr.String(), "hello")
 	}
 }
 
 func TestNewRendererDefaults(t *testing.T) {
-	renderer := NewRenderer(nil, nil, false, false)
-	assert.NotNil(t, renderer.Stdout)
-	assert.NotNil(t, renderer.Stderr)
+	r := NewRenderer(nil, nil, false, false)
+	if r.Stdout == nil || r.Stderr == nil {
+		t.Fatalf("NewRenderer defaults: Stdout=%v Stderr=%v, want non-nil", r.Stdout, r.Stderr)
+	}
 }

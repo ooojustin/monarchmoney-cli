@@ -27,12 +27,6 @@ go.work.sum
 # env file
 .env
 
-# Node
-node_modules/
-
-# pnpm build output
-/dist/
-
 # OS
 .DS_Store
 Thumbs.db
@@ -44,10 +38,6 @@ Thumbs.db
 .idea/
 .cursor/
 .claude/
-.commandcode/
-.sisyphus/
-.omx/
-.gemini/
 MEMORY.md
 
 # Project Specific
@@ -60,6 +50,7 @@ config.yaml
 
 # Local worktrees
 .worktrees/
+.scratch/
 
 # Build output
 dist/
@@ -67,8 +58,4 @@ build/
 out/
 /output/
 coverage/
-test-audio/
-website/_site/
-
-
 

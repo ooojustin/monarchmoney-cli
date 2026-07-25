@@ -33,7 +33,7 @@ func NewStore(path string) *Store {
 // Save saves the session to disk with restricted permissions.
 func (s *Store) Save(sess *Session) error {
 	dir := filepath.Dir(s.Path)
-	if err := os.MkdirAll(dir, 0700); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
 
@@ -42,7 +42,7 @@ func (s *Store) Save(sess *Session) error {
 		return err
 	}
 
-	return writeSessionFile(s.Path, data, 0600)
+	return writeSessionFile(s.Path, data, 0o600)
 }
 
 // Load loads the session from disk.

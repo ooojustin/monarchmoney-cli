@@ -14,8 +14,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 	"github.com/thedavidweng/monarchmoney-cli/internal/testutil"
 )
@@ -70,9 +68,8 @@ func clientRespond(result any, payload string) error {
 	return json.Unmarshal([]byte(payload), result)
 }
 
-func newMockService(token string, handler func(req *graphql.Request, result any) error) (*Service, *mockClient) {
-	client := &mockClient{token: token, handler: handler}
-	return NewService(client), client
+func newMockService(token string) *Service {
+	return NewService(&mockClient{token: token})
 }
 
 func assertReq(t *testing.T, got *graphql.Request, op string) {
@@ -85,7 +82,7 @@ func assertReq(t *testing.T, got *graphql.Request, op string) {
 	}
 }
 
-func expectVars(t *testing.T, got map[string]any, want map[string]any) {
+func expectVars(t *testing.T, got, want map[string]any) {
 	t.Helper()
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("Variables = %#v, want %#v", got, want)
@@ -95,7 +92,7 @@ func expectVars(t *testing.T, got map[string]any, want map[string]any) {
 func runGraphQLCase(t *testing.T, op string, wantVars map[string]any, payload string, call func(*Service) error) {
 	t.Helper()
 
-	var client *mockClient //nolint:staticcheck // self-referential closure
+	var client *mockClient
 	client = &mockClient{
 		token: "token-123",
 		handler: func(req *graphql.Request, result any) error {
@@ -129,7 +126,7 @@ func runGraphQLErrorCase(t *testing.T, op string, wantVars map[string]any, call 
 }
 
 func TestServiceTokenValue(t *testing.T) {
-	svc, _ := newMockService("abc123", nil)
+	svc := newMockService("abc123")
 	if got := svc.Client.TokenValue(); got != "abc123" {
 		t.Fatalf("TokenValue() = %q, want %q", got, "abc123")
 	}
@@ -148,11 +145,11 @@ func testServiceAccountsCoreReadPaths(t *testing.T) {
 	t.Run("list accounts", func(t *testing.T) {
 		runGraphQLCase(t, "GetAccounts", nil, `{"accounts":[{"id":"a1","displayName":"Checking","type":{"name":"bank"},"subtype":{"name":"checking"},"displayBalance":42.5,"updatedAt":"2026-05-08"}]}`, func(s *Service) error {
 			got, err := s.ListAccounts(context.Background())
-			require.NoError(t, err)
-			require.Len(t, got, 1)
-			assert.Equal(t, "a1", got[0].ID)
-			assert.Equal(t, "bank", got[0].AccountType)
-			assert.Equal(t, 42.5, got[0].DisplayBalance)
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
+			eq(t, "a1", got[0].ID)
+			eq(t, "bank", got[0].AccountType)
+			eq(t, 42.5, got[0].DisplayBalance)
 			return nil
 		})
 	})
@@ -160,11 +157,11 @@ func testServiceAccountsCoreReadPaths(t *testing.T) {
 	t.Run("get account", func(t *testing.T) {
 		runGraphQLCase(t, "GetAccount", map[string]any{"id": "acc-1"}, `{"account":{"id":"acc-1","displayName":"Cash","type":{"name":"cash"},"subtype":{"name":"cash"},"displayBalance":9.5,"updatedAt":"2026-05-08"}}`, func(s *Service) error {
 			got, err := s.GetAccount(context.Background(), "acc-1")
-			require.NoError(t, err)
-			require.NotNil(t, got)
-			assert.Equal(t, "acc-1", got.ID)
-			assert.Equal(t, "Cash", got.DisplayName)
-			assert.Equal(t, "cash", got.AccountType)
+			mustNoErr(t, err)
+			mustNotNil(t, got)
+			eq(t, "acc-1", got.ID)
+			eq(t, "Cash", got.DisplayName)
+			eq(t, "cash", got.AccountType)
 			return nil
 		})
 	})
@@ -172,8 +169,8 @@ func testServiceAccountsCoreReadPaths(t *testing.T) {
 	t.Run("account types", func(t *testing.T) {
 		runGraphQLCase(t, "GetAccountTypeOptions", nil, `{"accountTypes":[{"name":"bank"},{"name":"credit"}]}`, func(s *Service) error {
 			got, err := s.GetAccountTypes(context.Background())
-			require.NoError(t, err)
-			assert.Equal(t, []string{"bank", "credit"}, got)
+			mustNoErr(t, err)
+			eq(t, []string{"bank", "credit"}, got)
 			return nil
 		})
 	})
@@ -181,10 +178,10 @@ func testServiceAccountsCoreReadPaths(t *testing.T) {
 	t.Run("refresh status", func(t *testing.T) {
 		runGraphQLCase(t, "GetAccountsRefreshStatus", nil, `{"accounts":[{"id":"acc-1","hasSyncInProgress":false},{"id":"acc-2","hasSyncInProgress":true}]}`, func(s *Service) error {
 			got, err := s.GetAccountsRefreshStatus(context.Background())
-			require.NoError(t, err)
-			assert.Equal(t, false, got["is_complete"])
-			assert.Equal(t, "syncing", got["status"])
-			require.Len(t, got["accounts"], 2)
+			mustNoErr(t, err)
+			eq(t, false, got["is_complete"])
+			eq(t, "syncing", got["status"])
+			mustLen(t, got["accounts"], 2)
 			return nil
 		})
 	})
@@ -196,11 +193,11 @@ func testServiceAccountsCoreMutationPaths(t *testing.T) {
 	t.Run("create manual account", func(t *testing.T) {
 		runGraphQLCase(t, "CreateManualAccount", map[string]any{"name": "Savings", "type": "bank", "balance": 10.0}, `{"createManualAccount":{"account":{"id":"a2","displayName":"Savings","displayBalance":10}}}`, func(s *Service) error {
 			got, err := s.CreateManualAccount(context.Background(), "Savings", "bank", 10)
-			require.NoError(t, err)
-			require.NotNil(t, got)
-			assert.Equal(t, "a2", got.ID)
-			assert.Equal(t, "Savings", got.DisplayName)
-			assert.Equal(t, 10.0, got.DisplayBalance)
+			mustNoErr(t, err)
+			mustNotNil(t, got)
+			eq(t, "a2", got.ID)
+			eq(t, "Savings", got.DisplayName)
+			eq(t, 10.0, got.DisplayBalance)
 			return nil
 		})
 	})
@@ -210,10 +207,10 @@ func testServiceAccountsCoreMutationPaths(t *testing.T) {
 		balance := 11.25
 		runGraphQLCase(t, "UpdateAccount", map[string]any{"id": "acc-1", "displayName": name, "balance": balance}, `{"updateAccount":{"account":{"id":"acc-1","displayName":"New name","displayBalance":11.25}}}`, func(s *Service) error {
 			got, err := s.UpdateAccount(context.Background(), "acc-1", &name, &balance)
-			require.NoError(t, err)
-			require.NotNil(t, got)
-			assert.Equal(t, "New name", got.DisplayName)
-			assert.Equal(t, 11.25, got.DisplayBalance)
+			mustNoErr(t, err)
+			mustNotNil(t, got)
+			eq(t, "New name", got.DisplayName)
+			eq(t, 11.25, got.DisplayBalance)
 			return nil
 		})
 	})
@@ -237,11 +234,11 @@ func testServiceAccountsCoreHistoryPaths(t *testing.T) {
 	t.Run("account holdings", func(t *testing.T) {
 		runGraphQLCase(t, "Web_GetHoldings", nil, `{"portfolio":{"aggregateHoldings":{"edges":[{"node":{"id":"h1","quantity":2,"basis":3,"totalValue":6,"holdings":[{"id":"h1-1","quantity":2,"name":"Alphabet","ticker":"GOOGL","account":{"id":"acc-1"}}]}},{"node":{"id":"h2","quantity":4,"basis":5,"totalValue":20,"holdings":[{"id":"h2-1","quantity":4,"name":"Other","ticker":"OTR","account":{"id":"acc-2"}}]}}]}}}`, func(s *Service) error {
 			got, err := s.GetAccountHoldings(context.Background(), "acc-1")
-			require.NoError(t, err)
-			require.Len(t, got, 1)
-			assert.Equal(t, "h1", got[0].ID)
-			assert.Equal(t, 3.0, got[0].Basis)
-			assert.Equal(t, 6.0, got[0].TotalValue)
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
+			eq(t, "h1", got[0].ID)
+			eq(t, 3.0, got[0].Basis)
+			eq(t, 6.0, got[0].TotalValue)
 			return nil
 		})
 	})
@@ -249,9 +246,9 @@ func testServiceAccountsCoreHistoryPaths(t *testing.T) {
 	t.Run("account history", func(t *testing.T) {
 		runGraphQLCase(t, "GetAccountHistory", map[string]any{"filters": map[string]any{"startDate": "2026-05-01", "endDate": "2026-05-31"}}, `{"aggregateSnapshots":[{"date":"2026-05-01","balance":10}]}`, func(s *Service) error {
 			got, err := s.GetAccountHistory(context.Background(), "acc-1", "2026-05-01", "2026-05-31")
-			require.NoError(t, err)
-			require.Len(t, got, 1)
-			assert.Equal(t, 10.0, got[0].Amount)
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
+			eq(t, 10.0, got[0].Amount)
 			return nil
 		})
 	})
@@ -259,11 +256,11 @@ func testServiceAccountsCoreHistoryPaths(t *testing.T) {
 	t.Run("recent balances", func(t *testing.T) {
 		runGraphQLCase(t, "GetAccountRecentBalances", map[string]any{"startDate": "2026-05-01"}, `{"accounts":[{"id":"acc-1","displayName":"Checking","type":{"group":"asset"},"recentBalances":[1,2,3]}]}`, func(s *Service) error {
 			got, err := s.GetAccountRecentBalances(context.Background(), "2026-05-01")
-			require.NoError(t, err)
-			require.Len(t, got, 1)
-			assert.Equal(t, "Checking", got[0].DisplayName)
-			assert.Equal(t, "asset", got[0].AccountTypeGroup)
-			assert.NotNil(t, got[0].RecentBalances)
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
+			eq(t, "Checking", got[0].DisplayName)
+			eq(t, "asset", got[0].AccountTypeGroup)
+			mustNotNil(t, got[0].RecentBalances)
 			return nil
 		})
 	})
@@ -271,13 +268,13 @@ func testServiceAccountsCoreHistoryPaths(t *testing.T) {
 	t.Run("balance at date", func(t *testing.T) {
 		runGraphQLCase(t, "Common_GetDisplayBalanceAtDate", map[string]any{"date": "2026-05-10"}, `{"accounts":[{"id":"acc-1","displayName":"Checking","displayBalance":42.25,"type":{"name":"cash","group":"asset"}}]}`, func(s *Service) error {
 			got, err := s.GetAccountBalancesAt(context.Background(), "2026-05-10", []string{"acc-1"})
-			require.NoError(t, err)
-			require.Len(t, got, 1)
-			assert.Equal(t, "acc-1", got[0].ID)
-			assert.Equal(t, "Checking", got[0].DisplayName)
-			assert.Equal(t, 42.25, got[0].DisplayBalance)
-			assert.Equal(t, "cash", got[0].AccountType)
-			assert.Equal(t, "asset", got[0].AccountTypeGroup)
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
+			eq(t, "acc-1", got[0].ID)
+			eq(t, "Checking", got[0].DisplayName)
+			eq(t, 42.25, got[0].DisplayBalance)
+			eq(t, "cash", got[0].AccountType)
+			eq(t, "asset", got[0].AccountTypeGroup)
 			return nil
 		})
 	})
@@ -289,9 +286,9 @@ func testServiceAccountsCoreSnapshotPaths(t *testing.T) {
 	t.Run("snapshots by type", func(t *testing.T) {
 		runGraphQLCase(t, "GetSnapshotsByAccountType", map[string]any{"startDate": "2026-05-01", "timeframe": "month"}, `{"snapshotsByAccountType":[{"accountType":"bank","month":"2026-05","balance":1}],"accountTypes":[{"name":"bank","group":"asset"}]}`, func(s *Service) error {
 			got, err := s.GetSnapshotsByAccountType(context.Background(), "2026-05-01", "month")
-			require.NoError(t, err)
+			mustNoErr(t, err)
 			b, _ := json.Marshal(got)
-			assert.Contains(t, string(b), "snapshotsByAccountType")
+			hasSubstr(t, string(b), "snapshotsByAccountType")
 			return nil
 		})
 	})
@@ -299,8 +296,8 @@ func testServiceAccountsCoreSnapshotPaths(t *testing.T) {
 	t.Run("aggregate snapshots", func(t *testing.T) {
 		runGraphQLCase(t, "GetAggregateSnapshots", map[string]any{"filters": map[string]any{"startDate": "2026-05-01", "endDate": "2026-05-31", "accountType": "bank"}}, `{"aggregateSnapshots":[{"date":"2026-05-01","balance":1}]}`, func(s *Service) error {
 			got, err := s.GetAggregateSnapshots(context.Background(), "2026-05-01", "2026-05-31", "bank")
-			require.NoError(t, err)
-			require.Len(t, got, 1)
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
 			return nil
 		})
 	})
@@ -308,8 +305,8 @@ func testServiceAccountsCoreSnapshotPaths(t *testing.T) {
 	t.Run("aggregate snapshots default filters", func(t *testing.T) {
 		runGraphQLCase(t, "GetAggregateSnapshots", map[string]any{"filters": map[string]any{}}, `{"aggregateSnapshots":[{"date":"2026-05-01","balance":1}]}`, func(s *Service) error {
 			got, err := s.GetAggregateSnapshots(context.Background(), "", "", "")
-			require.NoError(t, err)
-			require.Len(t, got, 1)
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
 			return nil
 		})
 	})
@@ -327,12 +324,12 @@ func testServiceBudgetMutationAndReadPaths(t *testing.T) {
 	t.Run("get budget", func(t *testing.T) {
 		runGraphQLCase(t, "GetJointPlanningData", map[string]any{"startDate": "2026-05-01", "endDate": "2026-05-31"}, `{"budgetData":{"monthlyAmountsByCategory":[{"category":{"id":"cat-1","name":"Food"},"monthlyAmounts":[{"month":"2026-05","plannedCashFlowAmount":100,"actualAmount":80}]}]}}`, func(s *Service) error {
 			got, err := s.GetBudget(context.Background(), "cat-1", "2026-05-01", "2026-05-31")
-			require.NoError(t, err)
-			require.NotNil(t, got)
-			assert.Equal(t, "cat-1", got.CategoryID)
-			assert.Equal(t, "Food", got.CategoryName)
-			assert.Equal(t, 100.0, got.Planned)
-			assert.Equal(t, 80.0, got.Actual)
+			mustNoErr(t, err)
+			mustNotNil(t, got)
+			eq(t, "cat-1", got.CategoryID)
+			eq(t, "Food", got.CategoryName)
+			eq(t, 100.0, got.Planned)
+			eq(t, 80.0, got.Actual)
 			return nil
 		})
 	})
@@ -340,9 +337,9 @@ func testServiceBudgetMutationAndReadPaths(t *testing.T) {
 	t.Run("list budgets", func(t *testing.T) {
 		runGraphQLCase(t, "GetJointPlanningData", map[string]any{"startDate": "2026-05-01", "endDate": "2026-05-31"}, `{"budgetData":{"monthlyAmountsByCategory":[{"category":{"id":"cat-1","name":"Food"},"monthlyAmounts":[{"month":"2026-05","plannedCashFlowAmount":100,"actualAmount":80}]}]}}`, func(s *Service) error {
 			got, err := s.ListBudgets(context.Background(), ListBudgetsOptions{StartDate: "2026-05-01", EndDate: "2026-05-31"})
-			require.NoError(t, err)
-			require.Len(t, got, 1)
-			assert.Equal(t, "Food", got[0].CategoryName)
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
+			eq(t, "Food", got[0].CategoryName)
 			return nil
 		})
 	})
@@ -350,10 +347,10 @@ func testServiceBudgetMutationAndReadPaths(t *testing.T) {
 	t.Run("set budget", func(t *testing.T) {
 		runGraphQLCase(t, "SetBudget", map[string]any{"input": map[string]any{"categoryId": "cat-1", "amount": 75.5, "month": "2026-05-01"}}, `{"setBudget":{"budget":{"category":{"name":"Food"},"planned":75.5}}}`, func(s *Service) error {
 			got, err := s.SetBudget(context.Background(), "cat-1", 75.5, "2026-05-01")
-			require.NoError(t, err)
-			require.NotNil(t, got)
-			assert.Equal(t, "Food", got.CategoryName)
-			assert.Equal(t, 75.5, got.Planned)
+			mustNoErr(t, err)
+			mustNotNil(t, got)
+			eq(t, "Food", got.CategoryName)
+			eq(t, 75.5, got.Planned)
 			return nil
 		})
 	})
@@ -382,7 +379,7 @@ func testServiceCashflowAggregationPaths(t *testing.T) {
 
 	t.Run("cashflow", func(t *testing.T) {
 		var calls []map[string]any
-		var client *mockClient //nolint:staticcheck // self-referential closure
+		var client *mockClient
 		client = &mockClient{
 			token: "token-123",
 			handler: func(req *graphql.Request, result any) error {
@@ -396,22 +393,22 @@ func testServiceCashflowAggregationPaths(t *testing.T) {
 			},
 		}
 		got, err := NewService(client).ListCashflow(context.Background(), "2026-01-01", "2026-01-03")
-		require.NoError(t, err)
-		require.Len(t, got, 3)
-		assert.Equal(t, "2026-01-01", got[0].Period)
-		assert.Equal(t, 10.0, got[0].Income)
-		assert.Equal(t, -2.0, got[1].Expense)
-		assert.Equal(t, 0.0, got[1].Income)
-		assert.Equal(t, -4.0, got[2].Expense)
-		assert.Len(t, calls, 2)
+		mustNoErr(t, err)
+		mustLen(t, got, 3)
+		eq(t, "2026-01-01", got[0].Period)
+		eq(t, 10.0, got[0].Income)
+		eq(t, -2.0, got[1].Expense)
+		eq(t, 0.0, got[1].Income)
+		eq(t, -4.0, got[2].Expense)
+		mustLen(t, calls, 2)
 	})
 
 	t.Run("cashflow summary", func(t *testing.T) {
 		runGraphQLCase(t, "GetCashflowSummary", map[string]any{"filters": map[string]any{"startDate": "2026-01-01", "endDate": "2026-01-31", "search": "", "categories": []string{}, "accounts": []string{}, "tags": []string{}}}, `{"aggregates":[{"summary":{"sumIncome":200,"sumExpense":100,"savings":100,"savingsRate":50}}]}`, func(s *Service) error {
 			got, err := s.GetCashflowSummary(context.Background(), "2026-01-01", "2026-01-31")
-			require.NoError(t, err)
-			require.NotNil(t, got)
-			assert.Equal(t, 50.0, got.SavingsRate)
+			mustNoErr(t, err)
+			mustNotNil(t, got)
+			eq(t, 50.0, got.SavingsRate)
 			return nil
 		})
 	})
@@ -419,9 +416,9 @@ func testServiceCashflowAggregationPaths(t *testing.T) {
 	t.Run("cashflow categories", func(t *testing.T) {
 		runGraphQLCase(t, "GetCashflowCategories", map[string]any{"filters": map[string]any{"startDate": "2026-01-01", "endDate": "2026-01-31", "search": "", "categories": []string{}, "accounts": []string{}, "tags": []string{}}}, `{"aggregates":[{"groupBy":{"category":{"name":"Food"}},"summary":{"sum":100}}]}`, func(s *Service) error {
 			got, err := s.GetCashflowCategories(context.Background(), "2026-01-01", "2026-01-31")
-			require.NoError(t, err)
-			require.Len(t, got, 1)
-			assert.Equal(t, "Food", got[0].Name)
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
+			eq(t, "Food", got[0].Name)
 			return nil
 		})
 	})
@@ -429,9 +426,9 @@ func testServiceCashflowAggregationPaths(t *testing.T) {
 	t.Run("cashflow merchants", func(t *testing.T) {
 		runGraphQLCase(t, "GetCashflowMerchants", map[string]any{"filters": map[string]any{"startDate": "2026-01-01", "endDate": "2026-01-31", "search": "", "categories": []string{}, "accounts": []string{}, "tags": []string{}}}, `{"aggregates":[{"groupBy":{"merchant":{"name":"Store"}},"summary":{"sumIncome":0,"sumExpense":100}}]}`, func(s *Service) error {
 			got, err := s.GetCashflowMerchants(context.Background(), "2026-01-01", "2026-01-31")
-			require.NoError(t, err)
-			require.Len(t, got, 1)
-			assert.Equal(t, "Store", got[0].Name)
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
+			eq(t, "Store", got[0].Name)
 			return nil
 		})
 	})
@@ -446,11 +443,11 @@ func testServiceCashflowAggregationPaths(t *testing.T) {
 				CategoryIDs: []string{"cat-1"},
 				AccountIDs:  []string{"acc-1"},
 			})
-			require.NoError(t, err)
-			require.Len(t, got, 1)
-			assert.Equal(t, "grp-1", got[0].GroupID)
-			assert.Equal(t, "2026-01", got[0].Period)
-			assert.Equal(t, -120.0, got[0].Sum)
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
+			eq(t, "grp-1", got[0].GroupID)
+			eq(t, "2026-01", got[0].Period)
+			eq(t, -120.0, got[0].Sum)
 			return nil
 		})
 	})
@@ -462,11 +459,11 @@ func testServiceReferenceRulePaths(t *testing.T) {
 	t.Run("rules list", func(t *testing.T) {
 		runGraphQLCase(t, "GetTransactionRules", nil, `{"transactionRules":[{"id":"r1","order":1,"merchantCriteriaUseOriginalStatement":false,"merchantCriteria":[{"operator":"contains","value":"coffee"}],"merchantNameCriteria":[{"operator":"eq","value":"shop"}],"amountCriteria":{"operator":"gt","isExpense":true,"value":5,"valueRange":null},"categoryIds":["cat-1"],"accountIds":["acc-1"],"setCategoryAction":{"id":"cat-1","name":"Food"},"setMerchantAction":null,"addTagsAction":[{"id":"tag-1","name":"Trip","color":"blue"}],"linkGoalAction":null,"setHideFromReportsAction":false,"reviewStatusAction":"needs_review","recentApplicationCount":2,"lastAppliedAt":"2026-05-01T00:00:00Z"}]}`, func(s *Service) error {
 			got, err := s.ListRules(context.Background())
-			require.NoError(t, err)
-			require.Len(t, got, 1)
-			require.Len(t, got[0].MerchantNameCriteria, 2)
-			assert.Equal(t, "coffee", got[0].MerchantNameCriteria[0].Value)
-			assert.Equal(t, "shop", got[0].MerchantNameCriteria[1].Value)
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
+			mustLen(t, got[0].MerchantNameCriteria, 2)
+			eq(t, "coffee", got[0].MerchantNameCriteria[0].Value)
+			eq(t, "shop", got[0].MerchantNameCriteria[1].Value)
 			return nil
 		})
 	})
@@ -484,9 +481,9 @@ func testServiceTagAndCategoryCRUDPaths(t *testing.T) {
 	t.Run("list tags", func(t *testing.T) {
 		runGraphQLCase(t, "GetTags", nil, `{"householdTransactionTags":[{"id":"tag-1","name":"Trip","color":"blue"}]}`, func(s *Service) error {
 			got, err := s.ListTags(context.Background())
-			require.NoError(t, err)
-			require.Len(t, got, 1)
-			assert.Equal(t, "Trip", got[0].Name)
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
+			eq(t, "Trip", got[0].Name)
 			return nil
 		})
 	})
@@ -494,10 +491,10 @@ func testServiceTagAndCategoryCRUDPaths(t *testing.T) {
 	t.Run("create tag", func(t *testing.T) {
 		runGraphQLCase(t, "CreateTag", map[string]any{"name": "Trip", "color": "blue"}, `{"createHouseholdTransactionTag":{"tag":{"id":"tag-1","name":"Trip","color":"blue"}}}`, func(s *Service) error {
 			got, err := s.CreateTag(context.Background(), "Trip", "blue")
-			require.NoError(t, err)
-			require.NotNil(t, got)
-			assert.Equal(t, "tag-1", got.ID)
-			assert.Equal(t, "Trip", got.Name)
+			mustNoErr(t, err)
+			mustNotNil(t, got)
+			eq(t, "tag-1", got.ID)
+			eq(t, "Trip", got.Name)
 			return nil
 		})
 	})
@@ -505,10 +502,10 @@ func testServiceTagAndCategoryCRUDPaths(t *testing.T) {
 	t.Run("list category groups", func(t *testing.T) {
 		runGraphQLCase(t, "GetCategoryGroups", nil, `{"categoryGroups":[{"id":"g1","name":"Income","type":"income","categories":[{"id":"c1","name":"Salary"}]}]}`, func(s *Service) error {
 			got, err := s.ListCategoryGroups(context.Background())
-			require.NoError(t, err)
-			require.Len(t, got, 1)
-			require.Len(t, got[0].Categories, 1)
-			assert.Equal(t, "Salary", got[0].Categories[0].Name)
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
+			mustLen(t, got[0].Categories, 1)
+			eq(t, "Salary", got[0].Categories[0].Name)
 			return nil
 		})
 	})
@@ -516,13 +513,13 @@ func testServiceTagAndCategoryCRUDPaths(t *testing.T) {
 	t.Run("list categories", func(t *testing.T) {
 		runGraphQLCase(t, "GetCategories", nil, `{"categories":[{"id":"c1","name":"Food","order":2,"icon":"restaurant","group":{"id":"g1","name":"Expenses","type":"expense"}}]}`, func(s *Service) error {
 			got, err := s.ListCategories(context.Background())
-			require.NoError(t, err)
-			require.Len(t, got, 1)
-			assert.Equal(t, "Expenses", got[0].GroupName)
-			assert.Equal(t, "g1", got[0].GroupID)
-			assert.Equal(t, "expense", got[0].GroupType)
-			assert.Equal(t, "restaurant", got[0].Icon)
-			assert.Equal(t, 2, got[0].Order)
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
+			eq(t, "Expenses", got[0].GroupName)
+			eq(t, "g1", got[0].GroupID)
+			eq(t, "expense", got[0].GroupType)
+			eq(t, "restaurant", got[0].Icon)
+			eq(t, 2, got[0].Order)
 			return nil
 		})
 	})
@@ -530,10 +527,10 @@ func testServiceTagAndCategoryCRUDPaths(t *testing.T) {
 	t.Run("create category", func(t *testing.T) {
 		runGraphQLCase(t, "CreateCategory", map[string]any{"name": "Food", "groupId": "g1"}, `{"createCategory":{"category":{"id":"c1","name":"Food"}}}`, func(s *Service) error {
 			got, err := s.CreateCategory(context.Background(), "Food", "g1")
-			require.NoError(t, err)
-			require.NotNil(t, got)
-			assert.Equal(t, "c1", got.ID)
-			assert.Equal(t, "Food", got.Name)
+			mustNoErr(t, err)
+			mustNotNil(t, got)
+			eq(t, "c1", got.ID)
+			eq(t, "Food", got.Name)
 			return nil
 		})
 	})
@@ -557,10 +554,10 @@ func testServiceLookupAndSubscriptionPaths(t *testing.T) {
 	t.Run("credit history", func(t *testing.T) {
 		runGraphQLCase(t, "GetCreditScoreSnapshots", nil, `{"creditScoreSnapshots":[{"reportedDate":"2026-05-01","score":790,"user":{"id":"u-1"}}]}`, func(s *Service) error {
 			got, err := s.GetCreditHistory(context.Background())
-			require.NoError(t, err)
-			require.Len(t, got, 1)
-			assert.Equal(t, 790, got[0].Score)
-			assert.Equal(t, "u-1", got[0].UserID)
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
+			eq(t, 790, got[0].Score)
+			eq(t, "u-1", got[0].UserID)
 			return nil
 		})
 	})
@@ -568,9 +565,9 @@ func testServiceLookupAndSubscriptionPaths(t *testing.T) {
 	t.Run("institutions", func(t *testing.T) {
 		runGraphQLCase(t, "GetInstitutionSettings", nil, `{"credentials":[{"id":"c1","updateRequired":false,"disconnectedFromDataProviderAt":"","dataProvider":"plaid","institution":{"id":"i1","plaidInstitutionId":"https://bank.example","name":"Bank","status":"connected"}}]}`, func(s *Service) error {
 			got, err := s.ListInstitutions(context.Background())
-			require.NoError(t, err)
-			require.Len(t, got, 1)
-			assert.Equal(t, "https://bank.example", got[0].URL)
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
+			eq(t, "https://bank.example", got[0].URL)
 			return nil
 		})
 	})
@@ -578,12 +575,12 @@ func testServiceLookupAndSubscriptionPaths(t *testing.T) {
 	t.Run("subscription", func(t *testing.T) {
 		runGraphQLCase(t, "GetSubscriptionDetails", nil, `{"subscription":{"id":"sub-1","paymentSource":"card","referralCode":"REF","isOnFreeTrial":true,"hasPremiumEntitlement":true}}`, func(s *Service) error {
 			got, err := s.GetSubscriptionDetails(context.Background())
-			require.NoError(t, err)
-			require.NotNil(t, got)
-			assert.Equal(t, "card", got.PaymentSource)
-			assert.Equal(t, "REF", got.ReferralCode)
-			assert.True(t, got.IsOnFreeTrial)
-			assert.True(t, got.HasPremiumEntitlement)
+			mustNoErr(t, err)
+			mustNotNil(t, got)
+			eq(t, "card", got.PaymentSource)
+			eq(t, "REF", got.ReferralCode)
+			isTrue(t, got.IsOnFreeTrial)
+			isTrue(t, got.HasPremiumEntitlement)
 			return nil
 		})
 	})
@@ -595,9 +592,9 @@ func testServiceRecurringAndGoalsPaths(t *testing.T) {
 	t.Run("recurring list", func(t *testing.T) {
 		runGraphQLCase(t, "Web_GetUpcomingRecurringTransactionItems", map[string]any{"startDate": "2026-05-01", "endDate": "2026-06-01", "filters": map[string]any{}}, `{"recurringTransactionItems":[{"stream":{"id":"r1","frequency":"monthly","amount":20,"isApproximate":false,"merchant":{"name":"Gym"}},"date":"2026-06-01","isPast":false,"transactionId":"tx-1","amount":20,"amountDiff":0,"category":{"id":"c1","name":"Food"},"account":{"id":"acc-1","displayName":"Checking"}}]}`, func(s *Service) error {
 			got, err := s.ListRecurring(context.Background(), "2026-05-01", "2026-06-01")
-			require.NoError(t, err)
-			require.Len(t, got, 1)
-			assert.Equal(t, "Gym", got[0].Merchant)
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
+			eq(t, "Gym", got[0].Merchant)
 			return nil
 		})
 	})
@@ -605,15 +602,15 @@ func testServiceRecurringAndGoalsPaths(t *testing.T) {
 	t.Run("recurring item details preserve stream and item fields", func(t *testing.T) {
 		runGraphQLCase(t, "Web_GetUpcomingRecurringTransactionItems", map[string]any{"startDate": "2025-05-01", "endDate": "2026-05-31", "filters": map[string]any{}}, `{"recurringTransactionItems":[{"stream":{"id":"r1","frequency":"yearly","amount":120,"isApproximate":true,"merchant":{"name":"Cloud Box"}},"date":"2026-02-01","isPast":true,"transactionId":"tx-1","amount":120,"amountDiff":5,"category":{"id":"c1","name":"Software"},"account":{"id":"acc-1","displayName":"Checking"}}]}`, func(s *Service) error {
 			got, err := s.ListRecurringItems(context.Background(), "2025-05-01", "2026-05-31")
-			require.NoError(t, err)
-			require.Len(t, got, 1)
-			assert.Equal(t, "r1", got[0].Stream.ID)
-			assert.Equal(t, "yearly", got[0].Stream.Frequency)
-			assert.Equal(t, true, got[0].Stream.IsApproximate)
-			assert.Equal(t, "Cloud Box", got[0].Stream.MerchantName)
-			assert.Equal(t, "Software", got[0].CategoryName)
-			assert.Equal(t, "acc-1", got[0].AccountID)
-			assert.Equal(t, "Checking", got[0].AccountName)
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
+			eq(t, "r1", got[0].Stream.ID)
+			eq(t, "yearly", got[0].Stream.Frequency)
+			eq(t, true, got[0].Stream.IsApproximate)
+			eq(t, "Cloud Box", got[0].Stream.MerchantName)
+			eq(t, "Software", got[0].CategoryName)
+			eq(t, "acc-1", got[0].AccountID)
+			eq(t, "Checking", got[0].AccountName)
 			return nil
 		})
 	})
@@ -621,10 +618,10 @@ func testServiceRecurringAndGoalsPaths(t *testing.T) {
 	t.Run("recurring update", func(t *testing.T) {
 		runGraphQLCase(t, "UpdateRecurringTransaction", map[string]any{"id": "r1", "amount": 21.5}, `{"updateRecurringTransaction":{"recurringTransaction":{"id":"r1","amount":21.5}}}`, func(s *Service) error {
 			got, err := s.UpdateRecurring(context.Background(), "r1", 21.5)
-			require.NoError(t, err)
-			require.NotNil(t, got)
-			assert.Equal(t, "r1", got.ID)
-			assert.Equal(t, 21.5, got.Amount)
+			mustNoErr(t, err)
+			mustNotNil(t, got)
+			eq(t, "r1", got.ID)
+			eq(t, 21.5, got.Amount)
 			return nil
 		})
 	})
@@ -632,10 +629,10 @@ func testServiceRecurringAndGoalsPaths(t *testing.T) {
 	t.Run("goals list", func(t *testing.T) {
 		runGraphQLCase(t, "Web_GoalsV2", nil, `{"goalsV2":[{"id":"goal-1","name":"Vacation"}]}`, func(s *Service) error {
 			got, err := s.ListGoals(context.Background())
-			require.NoError(t, err)
-			require.Len(t, got, 1)
-			assert.Equal(t, "goal-1", got[0].ID)
-			assert.Equal(t, "Vacation", got[0].Name)
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
+			eq(t, "goal-1", got[0].ID)
+			eq(t, "Vacation", got[0].Name)
 			return nil
 		})
 	})
@@ -653,12 +650,12 @@ func testServiceTransactionReadPaths(t *testing.T) {
 	t.Run("get transaction", func(t *testing.T) {
 		runGraphQLCase(t, "GetTransaction", map[string]any{"id": "tx-1"}, `{"getTransaction":{"id":"tx-1","date":"2026-05-08","amount":-20,"merchant":{"name":"Store"},"category":{"name":"Food"},"notes":"lunch","account":{"id":"acc-1","displayName":"Checking"},"tags":[{"id":"tag-1","name":"Trip","color":"blue"}]}}`, func(s *Service) error {
 			got, err := s.GetTransaction(context.Background(), "tx-1")
-			require.NoError(t, err)
-			require.NotNil(t, got)
-			require.Len(t, got.Tags, 1)
-			assert.Equal(t, "Store", got.Merchant)
-			assert.Equal(t, "Trip", got.Tags[0].Name)
-			assert.Equal(t, "acc-1", got.AccountID)
+			mustNoErr(t, err)
+			mustNotNil(t, got)
+			mustLen(t, got.Tags, 1)
+			eq(t, "Store", got.Merchant)
+			eq(t, "Trip", got.Tags[0].Name)
+			eq(t, "acc-1", got.AccountID)
 			return nil
 		})
 	})
@@ -666,11 +663,11 @@ func testServiceTransactionReadPaths(t *testing.T) {
 	t.Run("transactions summary", func(t *testing.T) {
 		runGraphQLCase(t, "GetTransactionsPage", map[string]any{"filters": map[string]any{"search": "", "categories": []string{}, "accounts": []string{}, "tags": []string{}, "startDate": "2026-05-01", "endDate": "2026-05-31"}}, `{"aggregates":[{"summary":{"avg":20,"count":1,"max":20,"maxExpense":20,"sum":20,"sumIncome":0,"sumExpense":20,"first":"2026-05-01","last":"2026-05-31"}}]}`, func(s *Service) error {
 			got, err := s.GetTransactionsSummary(context.Background(), "2026-05-01", "2026-05-31")
-			require.NoError(t, err)
-			require.NotNil(t, got)
-			assert.Equal(t, 1, got.Count)
-			assert.Equal(t, 20.0, got.Sum)
-			assert.Equal(t, "2026-05-01", got.First)
+			mustNoErr(t, err)
+			mustNotNil(t, got)
+			eq(t, 1, got.Count)
+			eq(t, 20.0, got.Sum)
+			eq(t, "2026-05-01", got.First)
 			return nil
 		})
 	})
@@ -688,18 +685,18 @@ func testServiceTransactionReadPaths(t *testing.T) {
 			},
 		}
 		got, err := NewService(client).GetDuplicateTransactions(context.Background(), "2026-05-01", "2026-05-31")
-		require.NoError(t, err)
-		assert.Equal(t, 1, callCount)
-		require.Len(t, got, 3)
+		mustNoErr(t, err)
+		eq(t, 1, callCount)
+		mustLen(t, got, 3)
 	})
 
 	t.Run("get transaction splits", func(t *testing.T) {
 		runGraphQLCase(t, "TransactionSplitQuery", map[string]any{"id": "tx-1"}, `{"getTransaction":{"id":"tx-1","amount":-100,"splitTransactions":[{"id":"s1","amount":-60,"notes":"groceries","merchant":{"name":"Store"},"category":{"name":"Food"}},{"id":"s2","amount":-40,"notes":"household","merchant":{"name":"Store"},"category":{"name":"Home"}}]}}`, func(s *Service) error {
 			got, err := s.GetTransactionSplits(context.Background(), "tx-1")
-			require.NoError(t, err)
-			require.Len(t, got, 2)
-			assert.Equal(t, -60.0, got[0].Amount)
-			assert.Equal(t, "Home", got[1].Category)
+			mustNoErr(t, err)
+			mustLen(t, got, 2)
+			eq(t, -60.0, got[0].Amount)
+			eq(t, "Home", got[1].Category)
 			return nil
 		})
 	})
@@ -713,10 +710,10 @@ func testServiceTransactionMutationPaths(t *testing.T) {
 		categoryID := "cat-1"
 		runGraphQLCase(t, "Web_TransactionDrawerUpdateTransaction", map[string]any{"input": map[string]any{"id": "tx-1", "notes": notes, "category": categoryID}}, `{"updateTransaction":{"transaction":{"id":"tx-1","amount":0,"date":"","notes":"updated","hideFromReports":false,"needsReview":false,"category":{"name":"Food"},"merchant":{"name":""}}}}`, func(s *Service) error {
 			got, err := s.UpdateTransaction(context.Background(), "tx-1", &notes, &categoryID, nil, nil, nil, nil, nil)
-			require.NoError(t, err)
-			require.NotNil(t, got)
-			assert.Equal(t, "updated", got.Notes)
-			assert.Equal(t, "Food", got.Category)
+			mustNoErr(t, err)
+			mustNotNil(t, got)
+			eq(t, "updated", got.Notes)
+			eq(t, "Food", got.Category)
 			return nil
 		})
 	})
@@ -736,10 +733,10 @@ func testServiceTransactionMutationPaths(t *testing.T) {
 	t.Run("create transaction", func(t *testing.T) {
 		runGraphQLCase(t, "Common_CreateTransactionMutation", map[string]any{"input": map[string]any{"date": "2026-05-08", "accountId": "acc-1", "amount": -20.0, "merchantName": "Store", "categoryId": "cat-1", "notes": "lunch", "shouldUpdateBalance": false}}, `{"createTransaction":{"transaction":{"id":"tx-1","amount":-20,"date":"2026-05-08","merchant":{"name":"Store"}}}}`, func(s *Service) error {
 			got, err := s.CreateTransaction(context.Background(), -20, "Store", "2026-05-08", "cat-1", "acc-1", "lunch")
-			require.NoError(t, err)
-			require.NotNil(t, got)
-			assert.Equal(t, "tx-1", got.ID)
-			assert.Equal(t, "Store", got.Merchant)
+			mustNoErr(t, err)
+			mustNotNil(t, got)
+			eq(t, "tx-1", got.ID)
+			eq(t, "Store", got.Merchant)
 			return nil
 		})
 	})
@@ -759,17 +756,17 @@ func testServiceTransactionListingPaths(t *testing.T) {
 		hideFromReports := true
 		runGraphQLCase(t, "GetTransactionsList", map[string]any{"limit": 50, "offset": 5, "filters": map[string]any{"search": "lunch", "categories": []string{}, "accounts": []string{}, "tags": []string{}, "goals": []string{"goal-1"}, "startDate": "2026-05-01", "endDate": "2026-05-31", "isPending": false, "hideFromReports": true}}, `{"allTransactions":{"results":[{"id":"tx-1","date":"2026-05-08","amount":-20,"pending":false,"hideFromReports":true,"dataProviderDescription":"STORE 123","plaidName":"plaid","merchant":{"name":"Store"},"category":{"name":"Food","group":{"id":"grp-1","name":"Dining","type":"expense"}},"account":{"id":"acc-1","displayName":"Checking","order":4,"type":{"group":"asset"}},"ownedByUser":{"displayName":"Alex"},"goal":{"id":"goal-1","name":"Vacation"},"notes":"lunch"}],"totalCount":1}}`, func(s *Service) error {
 			got, total, err := s.ListTransactions(context.Background(), ListTransactionsOptions{Limit: 50, Offset: 5, Search: "lunch", StartDate: "2026-05-01", EndDate: "2026-05-31", Pending: &pending, HideFromReports: &hideFromReports, GoalIDs: []string{"goal-1"}})
-			require.NoError(t, err)
-			assert.Equal(t, 1, total)
-			require.Len(t, got, 1)
-			assert.Equal(t, "Food", got[0].Category)
-			assert.Equal(t, "acc-1", got[0].AccountID)
-			assert.Equal(t, "goal-1", got[0].Goal.ID)
-			assert.Equal(t, "Alex", got[0].OwnerDisplayName)
-			assert.Equal(t, 4, got[0].AccountOrder)
-			assert.Equal(t, "asset", got[0].AccountTypeGroup)
-			assert.Equal(t, "grp-1", got[0].CategoryGroup.ID)
-			assert.Equal(t, "STORE 123", got[0].DataProviderDescription)
+			mustNoErr(t, err)
+			eq(t, 1, total)
+			mustLen(t, got, 1)
+			eq(t, "Food", got[0].Category)
+			eq(t, "acc-1", got[0].AccountID)
+			eq(t, "goal-1", got[0].Goal.ID)
+			eq(t, "Alex", got[0].OwnerDisplayName)
+			eq(t, 4, got[0].AccountOrder)
+			eq(t, "asset", got[0].AccountTypeGroup)
+			eq(t, "grp-1", got[0].CategoryGroup.ID)
+			eq(t, "STORE 123", got[0].DataProviderDescription)
 			return nil
 		})
 	})
@@ -780,9 +777,9 @@ func testServiceTransactionListingPaths(t *testing.T) {
 			token: "token-123",
 			handler: func(req *graphql.Request, result any) error {
 				assertReq(t, req, "GetTransactionsList")
-				offset := req.Variables["offset"].(int)
+				offset, _ := req.Variables["offset"].(int)
 				calls = append(calls, offset)
-				filters := req.Variables["filters"].(map[string]any)
+				filters, _ := req.Variables["filters"].(map[string]any)
 				if filters["startDate"] != "2026-05-01" || filters["endDate"] != "2026-05-31" {
 					t.Fatalf("filters = %#v", filters)
 				}
@@ -798,9 +795,9 @@ func testServiceTransactionListingPaths(t *testing.T) {
 			},
 		}
 		got, err := NewService(client).ListAllTransactions(context.Background(), ListTransactionsOptions{Limit: 1, StartDate: "2026-05-01", EndDate: "2026-05-31"})
-		require.NoError(t, err)
-		require.Len(t, got, 2)
-		assert.Equal(t, []int{0, 1}, calls)
+		mustNoErr(t, err)
+		mustLen(t, got, 2)
+		eq(t, []int{0, 1}, calls)
 	})
 }
 
@@ -808,13 +805,13 @@ func TestServiceInvestments(t *testing.T) {
 	t.Run("portfolio", func(t *testing.T) {
 		runGraphQLCase(t, "Web_GetPortfolio", map[string]any{"portfolioInput": map[string]any{"startDate": "2026-01-01", "endDate": "2026-05-10", "accounts": []string{"acc-1"}}}, `{"portfolio":{"performance":{"totalValue":1000,"totalChangePercent":0.12,"totalChangeDollars":120},"aggregateHoldings":{"edges":[{"node":{"id":"node-1","quantity":2,"basis":400,"totalValue":1000,"security":{"id":"sec-1","ticker":"ABC","name":"ABC Fund","currentPrice":500},"holdings":[{"id":"hold-1","type":"equity","typeDisplay":"Equity","name":"ABC Fund","ticker":"ABC","quantity":2,"value":1000,"account":{"id":"acc-1","displayName":"Brokerage","type":{"name":"investment","display":"Investment"},"subtype":{"name":"brokerage","display":"Brokerage"}}}]}}]}}}`, func(s *Service) error {
 			got, err := s.GetInvestmentPortfolio(context.Background(), InvestmentPortfolioOptions{StartDate: "2026-01-01", EndDate: "2026-05-10", AccountIDs: []string{"acc-1"}})
-			require.NoError(t, err)
-			assert.Equal(t, 1000.0, got.Performance.TotalValue)
-			require.Len(t, got.Holdings, 1)
-			assert.Equal(t, "node-1", got.Holdings[0].ID)
-			assert.Equal(t, "sec-1", got.Holdings[0].Security.ID)
-			require.Len(t, got.Holdings[0].Holdings, 1)
-			assert.Equal(t, "Brokerage", got.Holdings[0].Holdings[0].Account.DisplayName)
+			mustNoErr(t, err)
+			eq(t, 1000.0, got.Performance.TotalValue)
+			mustLen(t, got.Holdings, 1)
+			eq(t, "node-1", got.Holdings[0].ID)
+			eq(t, "sec-1", got.Holdings[0].Security.ID)
+			mustLen(t, got.Holdings[0].Holdings, 1)
+			eq(t, "Brokerage", got.Holdings[0].Holdings[0].Account.DisplayName)
 			return nil
 		})
 	})
@@ -822,12 +819,12 @@ func TestServiceInvestments(t *testing.T) {
 	t.Run("security performance", func(t *testing.T) {
 		runGraphQLCase(t, "Web_GetInvestmentsHoldingDrawerHistoricalPerformance", map[string]any{"input": map[string]any{"securityIds": []string{"sec-1"}, "startDate": "2026-01-01", "endDate": "2026-05-10"}}, `{"securityHistoricalPerformance":[{"security":{"id":"sec-1","ticker":"ABC","name":"ABC Fund"},"historicalChart":[{"date":"2026-01-01","returnPercent":0.1,"value":100}]}]}`, func(s *Service) error {
 			got, err := s.GetSecurityPerformance(context.Background(), SecurityPerformanceOptions{SecurityIDs: []string{"sec-1"}, StartDate: "2026-01-01", EndDate: "2026-05-10", IncludeValues: true})
-			require.NoError(t, err)
-			require.Len(t, got, 1)
-			assert.Equal(t, "ABC", got[0].Security.Ticker)
-			require.Len(t, got[0].HistoricalChart, 1)
-			require.NotNil(t, got[0].HistoricalChart[0].Value)
-			assert.Equal(t, 100.0, *got[0].HistoricalChart[0].Value)
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
+			eq(t, "ABC", got[0].Security.Ticker)
+			mustLen(t, got[0].HistoricalChart, 1)
+			mustNotNil(t, got[0].HistoricalChart[0].Value)
+			eq(t, 100.0, *got[0].HistoricalChart[0].Value)
 			return nil
 		})
 	})
@@ -1020,20 +1017,20 @@ func testServiceHTTPDownloadAttachmentPaths(t *testing.T) {
 		orig := http.DefaultTransport
 		defer func() { http.DefaultTransport = orig }()
 		http.DefaultTransport = testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
-			require.Equal(t, "GET", req.Method)
-			require.Equal(t, "https://files.example/attachment.csv", req.URL.String())
+			mustEq(t, "GET", req.Method)
+			mustEq(t, "https://files.example/attachment.csv", req.URL.String())
 			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("hello"))}, nil
 		})
 
 		var buf bytes.Buffer
-		svc, _ := newMockService("token-123", nil)
-		require.NoError(t, svc.DownloadAttachment(context.Background(), "https://files.example/attachment.csv", &buf))
-		assert.Equal(t, "hello", buf.String())
+		svc := newMockService("token-123")
+		mustNoErr(t, svc.DownloadAttachment(context.Background(), "https://files.example/attachment.csv", &buf))
+		eq(t, "hello", buf.String())
 	})
 
 	t.Run("download attachment error", func(t *testing.T) {
-		svc, _ := newMockService("token-123", nil)
-		assert.Error(t, svc.DownloadAttachment(context.Background(), "://", io.Discard))
+		svc := newMockService("token-123")
+		hasErr(t, svc.DownloadAttachment(context.Background(), "://", io.Discard))
 	})
 
 	t.Run("download attachment transport error", func(t *testing.T) {
@@ -1044,8 +1041,8 @@ func testServiceHTTPDownloadAttachmentPaths(t *testing.T) {
 		})
 
 		var buf bytes.Buffer
-		svc, _ := newMockService("token-123", nil)
-		assert.Error(t, svc.DownloadAttachment(context.Background(), "https://files.example/attachment.csv", &buf))
+		svc := newMockService("token-123")
+		hasErr(t, svc.DownloadAttachment(context.Background(), "https://files.example/attachment.csv", &buf))
 	})
 
 	t.Run("download attachment non-200", func(t *testing.T) {
@@ -1056,8 +1053,8 @@ func testServiceHTTPDownloadAttachmentPaths(t *testing.T) {
 		})
 
 		var buf bytes.Buffer
-		svc, _ := newMockService("token-123", nil)
-		assert.Error(t, svc.DownloadAttachment(context.Background(), "https://files.example/attachment.csv", &buf))
+		svc := newMockService("token-123")
+		hasErr(t, svc.DownloadAttachment(context.Background(), "https://files.example/attachment.csv", &buf))
 	})
 }
 
@@ -1068,23 +1065,23 @@ func testServiceHTTPUploadBalanceHistoryPaths(t *testing.T) {
 		origTransport := http.DefaultTransport
 		defer func() { http.DefaultTransport = origTransport }()
 		http.DefaultTransport = testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
-			require.Equal(t, "POST", req.Method)
-			require.Equal(t, "web", req.Header.Get("Client-Platform"))
-			require.Equal(t, "Token tok", req.Header.Get("Authorization"))
+			mustEq(t, "POST", req.Method)
+			mustEq(t, "web", req.Header.Get("Client-Platform"))
+			mustEq(t, "Token tok", req.Header.Get("Authorization"))
 			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(""))}, nil
 		})
 
 		tmp := filepath.Join(t.TempDir(), "sample.csv")
-		if err := os.WriteFile(tmp, []byte("a,b\n1,2\n"), 0600); err != nil {
+		if err := os.WriteFile(tmp, []byte("a,b\n1,2\n"), 0o600); err != nil {
 			t.Fatalf("WriteFile() error = %v", err)
 		}
 
 		file, err := os.Open(tmp)
-		require.NoError(t, err)
-		defer file.Close() //nolint:errcheck // test cleanup
+		mustNoErr(t, err)
+		defer file.Close()
 
 		svc := NewService(&mockClient{token: "tok"})
-		require.NoError(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", file))
+		mustNoErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", file))
 	})
 
 	t.Run("upload account balance history non-200", func(t *testing.T) {
@@ -1095,13 +1092,13 @@ func testServiceHTTPUploadBalanceHistoryPaths(t *testing.T) {
 		})
 
 		tmp := filepath.Join(t.TempDir(), "sample.csv")
-		require.NoError(t, os.WriteFile(tmp, []byte("date,amount\n"), 0600))
+		mustNoErr(t, os.WriteFile(tmp, []byte("date,amount\n"), 0o600))
 		file, err := os.Open(tmp)
-		require.NoError(t, err)
-		defer file.Close() //nolint:errcheck // test cleanup
+		mustNoErr(t, err)
+		defer file.Close()
 
 		svc := NewService(&mockClient{token: "tok"})
-		assert.Error(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", file))
+		hasErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", file))
 	})
 
 	t.Run("upload account balance history network error", func(t *testing.T) {
@@ -1112,13 +1109,13 @@ func testServiceHTTPUploadBalanceHistoryPaths(t *testing.T) {
 		})
 
 		tmp := filepath.Join(t.TempDir(), "sample.csv")
-		require.NoError(t, os.WriteFile(tmp, []byte("date,amount\n"), 0600))
+		mustNoErr(t, os.WriteFile(tmp, []byte("date,amount\n"), 0o600))
 		file, err := os.Open(tmp)
-		require.NoError(t, err)
-		defer file.Close() //nolint:errcheck // test cleanup
+		mustNoErr(t, err)
+		defer file.Close()
 
 		svc := NewService(&mockClient{token: "tok"})
-		assert.Error(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", file))
+		hasErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", file))
 	})
 
 	t.Run("upload account balance history request error", func(t *testing.T) {
@@ -1129,12 +1126,12 @@ func testServiceHTTPUploadBalanceHistoryPaths(t *testing.T) {
 		defer func() { newBalanceHistoryRequest = original }()
 
 		svc := NewService(&mockClient{token: "tok"})
-		assert.Error(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", strings.NewReader("date,amount\n")))
+		hasErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", strings.NewReader("date,amount\n")))
 	})
 
 	t.Run("upload account balance history read error", func(t *testing.T) {
 		svc := NewService(&mockClient{token: "tok"})
-		assert.Error(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", testutil.FailingReader{}))
+		hasErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", testutil.FailingReader{}))
 	})
 
 	t.Run("upload account balance history form file error", func(t *testing.T) {
@@ -1145,7 +1142,7 @@ func testServiceHTTPUploadBalanceHistoryPaths(t *testing.T) {
 		defer func() { createBalanceHistoryFormFile = original }()
 
 		svc := NewService(&mockClient{token: "tok"})
-		assert.Error(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", strings.NewReader("date,amount\n")))
+		hasErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", strings.NewReader("date,amount\n")))
 	})
 }
 
@@ -1154,14 +1151,96 @@ func testServiceHTTPAttachmentAvailabilityPaths(t *testing.T) {
 
 	t.Run("list transaction attachments", func(t *testing.T) {
 		got, err := NewService(&mockClient{token: "tok"}).ListTransactionAttachments(context.Background(), "tx-1")
-		require.NoError(t, err)
-		assert.Empty(t, got)
+		mustNoErr(t, err)
+		isEmpty(t, got)
 	})
 
 	t.Run("upload attachment unavailable", func(t *testing.T) {
 		tmp := filepath.Join(t.TempDir(), "receipt.pdf")
-		require.NoError(t, os.WriteFile(tmp, []byte("pdf"), 0600))
+		mustNoErr(t, os.WriteFile(tmp, []byte("pdf"), 0o600))
 		err := NewService(&mockClient{token: "tok"}).UploadAttachment(context.Background(), "tx-1", tmp)
-		assert.ErrorContains(t, err, "FEATURE_UNAVAILABLE")
+		errContains(t, err, "FEATURE_UNAVAILABLE")
 	})
+}
+
+func mustNoErr(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func hasErr(t *testing.T, err error) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+}
+
+func errContains(t *testing.T, err error, sub string) {
+	t.Helper()
+	if err == nil || !strings.Contains(err.Error(), sub) {
+		t.Fatalf("error = %v, want containing %q", err, sub)
+	}
+}
+
+func eq(t *testing.T, want, got any) {
+	t.Helper()
+	if !reflect.DeepEqual(want, got) {
+		t.Errorf("got %#v, want %#v", got, want)
+	}
+}
+
+func mustEq(t *testing.T, want, got any) {
+	t.Helper()
+	if !reflect.DeepEqual(want, got) {
+		t.Fatalf("got %#v, want %#v", got, want)
+	}
+}
+
+func mustLen(t *testing.T, v any, n int) {
+	t.Helper()
+	if l := reflect.ValueOf(v).Len(); l != n {
+		t.Fatalf("len = %d, want %d", l, n)
+	}
+}
+
+func mustNotNil(t *testing.T, v any) {
+	t.Helper()
+	if isNilValue(v) {
+		t.Fatal("got nil, want non-nil")
+	}
+}
+
+func isTrue(t *testing.T, cond bool) {
+	t.Helper()
+	if !cond {
+		t.Error("got false, want true")
+	}
+}
+
+func hasSubstr(t *testing.T, s, sub string) {
+	t.Helper()
+	if !strings.Contains(s, sub) {
+		t.Errorf("%q does not contain %q", s, sub)
+	}
+}
+
+func isEmpty(t *testing.T, v any) {
+	t.Helper()
+	if l := reflect.ValueOf(v).Len(); l != 0 {
+		t.Errorf("len = %d, want 0", l)
+	}
+}
+
+func isNilValue(v any) bool {
+	if v == nil {
+		return true
+	}
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func, reflect.Interface:
+		return rv.IsNil()
+	}
+	return false
 }

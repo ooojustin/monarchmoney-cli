@@ -25,7 +25,7 @@ type ListBudgetsOptions struct {
 	EndDate   string
 }
 
-func (s *Service) GetBudget(ctx context.Context, categoryID string, startDate, endDate string) (*Budget, error) {
+func (s *Service) GetBudget(ctx context.Context, categoryID, startDate, endDate string) (*Budget, error) {
 	var resp struct {
 		BudgetData struct {
 			MonthlyAmountsByCategory []struct {

@@ -1,4 +1,4 @@
-# Capabilities
+# Commands
 
 `monarchmoney-cli` is designed to cover the full capability surface of the Monarch Money API, matching and exceeding the feature set of the [monarch-mcp-server](https://github.com/robcerda/monarch-mcp-server) project.
 

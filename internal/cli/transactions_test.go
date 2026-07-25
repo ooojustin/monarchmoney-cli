@@ -576,7 +576,7 @@ func testTransactionsAttachmentsUpload(t *testing.T) {
 	saveTestSession(t, sessionPath)
 
 	tmpFile := filepath.Join(dir, "receipt.pdf")
-	_ = os.WriteFile(tmpFile, []byte("pdf"), 0600)
+	_ = os.WriteFile(tmpFile, []byte("pdf"), 0o600)
 
 	out := captureStdout(t, func() {
 		transactionsAttachmentsUploadCmd.Run(transactionsAttachmentsUploadCmd, []string{"tx-1", tmpFile})
@@ -607,7 +607,7 @@ func testTransactionsSearch(t *testing.T) {
 		if gqlReq.OperationName != "GetTransactionsList" {
 			t.Fatalf("operation = %q, want GetTransactionsList", gqlReq.OperationName)
 		}
-		filters := gqlReq.Variables["filters"].(map[string]any)
+		filters, _ := gqlReq.Variables["filters"].(map[string]any)
 		if filters["search"] != "Amazon" {
 			t.Fatalf("search = %v, want Amazon", filters["search"])
 		}

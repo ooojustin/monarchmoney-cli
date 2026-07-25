@@ -76,7 +76,7 @@ type DateRange struct {
 	EndDate   string
 }
 
-func AnomalyWindow(month string, historyMonths int) (currentStart string, currentEnd string, historyStart string, err error) {
+func AnomalyWindow(month string, historyMonths int) (currentStart, currentEnd, historyStart string, err error) {
 	start, err := time.Parse("2006-01", month)
 	if err != nil {
 		return "", "", "", err
@@ -88,7 +88,7 @@ func AnomalyWindow(month string, historyMonths int) (currentStart string, curren
 	return start.Format("2006-01-02"), end.Format("2006-01-02"), start.AddDate(0, -historyMonths, 0).Format("2006-01-02"), nil
 }
 
-func PreviousMonthComparisonWindow(month string) (DateRange, DateRange, error) {
+func PreviousMonthComparisonWindow(month string) (current, previous DateRange, err error) {
 	currentStart, err := time.Parse("2006-01", month)
 	if err != nil {
 		return DateRange{}, DateRange{}, err
@@ -127,10 +127,10 @@ func normalizeAnomalyOptions(opts AnomalyOptions) AnomalyOptions {
 	return opts
 }
 
-func aggregateAnomalyData(txs []monarch.Transaction, currentStart time.Time, currentKey string, historyMonths int) (map[string]float64, map[string]map[string]float64, map[string]map[string]float64, error) {
-	history := make(map[string]map[string]float64)
-	current := make(map[string]float64)
-	merchantTotals := make(map[string]map[string]float64)
+func aggregateAnomalyData(txs []monarch.Transaction, currentStart time.Time, currentKey string, historyMonths int) (currentByCategory map[string]float64, historyByCategory, merchantTotals map[string]map[string]float64, err error) {
+	historyByCategory = make(map[string]map[string]float64)
+	currentByCategory = make(map[string]float64)
+	merchantTotals = make(map[string]map[string]float64)
 	historyStart := currentStart.AddDate(0, -historyMonths, 0)
 
 	for _, tx := range txs {
@@ -138,25 +138,25 @@ func aggregateAnomalyData(txs []monarch.Transaction, currentStart time.Time, cur
 			continue
 		}
 
-		day, err := time.Parse("2006-01-02", tx.Date)
-		if err != nil {
-			return nil, nil, nil, err
+		day, perr := time.Parse("2006-01-02", tx.Date)
+		if perr != nil {
+			return nil, nil, nil, perr
 		}
 		monthKey := day.Format("2006-01")
 		amount := round2(math.Abs(tx.Amount))
 
 		if monthKey == currentKey {
-			current[tx.Category] += amount
+			currentByCategory[tx.Category] += amount
 			addMerchantTotal(merchantTotals, tx.Category, tx.Merchant, amount)
 			continue
 		}
 		if !day.Before(currentStart) || day.Before(historyStart) {
 			continue
 		}
-		addHistoryTotal(history, tx.Category, monthKey, amount)
+		addHistoryTotal(historyByCategory, tx.Category, monthKey, amount)
 	}
 
-	return current, history, merchantTotals, nil
+	return currentByCategory, historyByCategory, merchantTotals, nil
 }
 
 func addMerchantTotal(merchantTotals map[string]map[string]float64, category, merchant string, amount float64) {
@@ -173,7 +173,7 @@ func addHistoryTotal(history map[string]map[string]float64, category, monthKey s
 	history[category][monthKey] += amount
 }
 
-func buildAnomalyList(current map[string]float64, history map[string]map[string]float64, merchantTotals map[string]map[string]float64, opts AnomalyOptions) []Anomaly {
+func buildAnomalyList(current map[string]float64, history, merchantTotals map[string]map[string]float64, opts AnomalyOptions) []Anomaly {
 	out := make([]Anomaly, 0)
 	for category, total := range current {
 		if total < opts.MinAmount {
@@ -334,16 +334,14 @@ func averageHistory(months map[string]float64, historyMonths int) float64 {
 	return total / float64(historyMonths)
 }
 
-func largestMerchant(merchants map[string]float64) (string, float64) {
-	var name string
-	var amount float64
+func largestMerchant(merchants map[string]float64) (top string, sum float64) {
 	for merchant, total := range merchants {
-		if total > amount || (total == amount && merchant < name) {
-			name = merchant
-			amount = total
+		if total > sum || (total == sum && merchant < top) {
+			top = merchant
+			sum = total
 		}
 	}
-	return name, amount
+	return top, sum
 }
 
 func anomalySeverity(ratio float64) string {
@@ -385,7 +383,7 @@ func merchantComparison(merchant string, current, previous float64) MerchantComp
 	return out
 }
 
-func subscriptionAmounts(frequency string, amount float64) (float64, float64) {
+func subscriptionAmounts(frequency string, amount float64) (perMonth, perYear float64) {
 	switch strings.ToLower(frequency) {
 	case "yearly", "annual", "annually":
 		return round2(amount / 12), round2(amount)

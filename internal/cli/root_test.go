@@ -15,7 +15,7 @@ import (
 // saveTestSession writes a valid session file for test commands that require auth.
 func saveTestSession(t *testing.T, sessionPath string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(sessionPath), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(sessionPath), 0o700); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
 	s := auth.Session{
@@ -29,7 +29,7 @@ func saveTestSession(t *testing.T, sessionPath string) {
 	if err != nil {
 		t.Fatalf("MarshalIndent() error = %v", err)
 	}
-	if err := os.WriteFile(sessionPath, data, 0600); err != nil {
+	if err := os.WriteFile(sessionPath, data, 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 }

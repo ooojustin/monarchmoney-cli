@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
 	"github.com/thedavidweng/monarchmoney-cli/internal/audit"
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
@@ -37,8 +38,8 @@ var auditCleanupCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("audit.cleanup", profile, output.SchemaVersion, "", map[string]any{"removed": removed, "older_than_days": auditCleanupDays}, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("audit.cleanup", profile, output.SchemaVersion, requestID, map[string]any{"removed": removed, "older_than_days": auditCleanupDays}, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Removed %d audit log file(s) older than %d days.\n", removed, auditCleanupDays)
 		}

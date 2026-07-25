@@ -1,12 +1,12 @@
 package cli
 
 import (
+	"context"
 	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
-	"github.com/thedavidweng/monarchmoney-cli/internal/output"
+
+	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
 )
 
 var creditCmd = &cobra.Command{
@@ -20,36 +20,16 @@ var creditHistoryCmd = &cobra.Command{
 	Use:   "history",
 	Short: "Get credit score history",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "credit.history", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		history, err := svc.GetCreditHistory(cmd.Context())
-		if err != nil {
-			var cliErr *errors.Error
-			if e, ok := err.(*errors.Error); ok {
-				cliErr = e
-			} else {
-				cliErr = errors.New(errors.APIError, "failed to get credit history", errors.CatAPI, false, err)
-			}
-			handleError(renderer, "credit.history", cliErr, start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("credit.history", profile, output.SchemaVersion, "", history, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
-		} else {
-			fmt.Printf("%-12s %s\n", "DATE", "SCORE")
-			for _, r := range history {
-				fmt.Printf("%-12s %d\n", r.Date, r.Score)
-			}
-		}
+		run(cmd.Context(), "credit.history", "failed to get credit history",
+			func(ctx context.Context, svc *monarch.Service) ([]monarch.CreditRecord, error) {
+				return svc.GetCreditHistory(ctx)
+			},
+			func(history []monarch.CreditRecord) {
+				fmt.Printf("%-12s %s\n", "DATE", "SCORE")
+				for _, r := range history {
+					fmt.Printf("%-12s %d\n", r.Date, r.Score)
+				}
+			})
 	},
 }
 

@@ -205,7 +205,7 @@ func TestMutateJSONOutput(t *testing.T) {
 }
 
 func trimNewline(s string) string {
-	for len(s) > 0 && (s[len(s)-1] == '\n' || s[len(s)-1] == '\r') {
+	for s != "" && (s[len(s)-1] == '\n' || s[len(s)-1] == '\r') {
 		s = s[:len(s)-1]
 	}
 	return s

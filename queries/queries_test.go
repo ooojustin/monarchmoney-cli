@@ -16,8 +16,11 @@ func TestGetReturnsEmbeddedRuleQuery(t *testing.T) {
 	}
 }
 
-func TestGetReturnsEmptyStringForMissingFile(t *testing.T) {
-	if got := Get("does-not-exist.graphql"); got != "" {
-		t.Fatalf("Get() = %q, want empty string", got)
-	}
+func TestGetPanicsForMissingFile(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("Get() did not panic for a missing embedded query")
+		}
+	}()
+	Get("does-not-exist.graphql")
 }

@@ -290,7 +290,7 @@ func (s *Service) GetTransactionSplits(ctx context.Context, txID string) ([]Tran
 	return splits, nil
 }
 
-func (s *Service) UpdateTransaction(ctx context.Context, id string, notes *string, categoryID *string, amount *float64, date *string, merchantName *string, hideFromReports *bool, needsReview *bool) (*Transaction, error) {
+func (s *Service) UpdateTransaction(ctx context.Context, id string, notes, categoryID *string, amount *float64, date, merchantName *string, hideFromReports, needsReview *bool) (*Transaction, error) {
 	var resp struct {
 		UpdateTransaction struct {
 			Transaction struct {
@@ -310,12 +310,7 @@ func (s *Service) UpdateTransaction(ctx context.Context, id string, notes *strin
 		} `json:"updateTransaction"`
 	}
 
-	variables := map[string]any{
-		"input": map[string]any{
-			"id": id,
-		},
-	}
-	input := variables["input"].(map[string]any)
+	input := map[string]any{"id": id}
 	if notes != nil {
 		input["notes"] = *notes
 	}
@@ -341,7 +336,7 @@ func (s *Service) UpdateTransaction(ctx context.Context, id string, notes *strin
 	err := s.Client.Do(ctx, &graphql.Request{
 		OperationName: "Web_TransactionDrawerUpdateTransaction",
 		Query:         UpdateTransactionMutation,
-		Variables:     variables,
+		Variables:     map[string]any{"input": input},
 	}, &resp)
 
 	if err != nil {

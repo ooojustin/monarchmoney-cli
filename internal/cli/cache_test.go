@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+
 	"github.com/thedavidweng/monarchmoney-cli/internal/cache"
 	"github.com/thedavidweng/monarchmoney-cli/internal/testutil"
 )
@@ -117,7 +118,7 @@ func TestCacheSyncPassesFromDateAndPersistsAccountID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
-	defer store.Close() //nolint:errcheck // test cleanup
+	defer store.Close()
 	txs, err := store.SearchTransactions("Cafe")
 	if err != nil {
 		t.Fatalf("SearchTransactions() error = %v", err)
@@ -227,7 +228,7 @@ func TestCacheCleanupUsesConfiguredCachePathAndValidatesDate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStore(configured) error = %v", err)
 	}
-	defer store.Close() //nolint:errcheck // test cleanup
+	defer store.Close()
 	if err := store.SaveTransactions([]cache.Transaction{{
 		ID:       "tx_old",
 		Date:     time.Date(2025, 12, 31, 0, 0, 0, 0, time.UTC),
@@ -238,7 +239,7 @@ func TestCacheCleanupUsesConfiguredCachePathAndValidatesDate(t *testing.T) {
 
 	viper.Set("cache_path", configuredPath)
 	t.Setenv("HOME", filepath.Join(dir, "home"))
-	_ = os.MkdirAll(filepath.Dir(defaultPath), 0700)
+	_ = os.MkdirAll(filepath.Dir(defaultPath), 0o700)
 
 	cleanupBefore = "2026-01-01"
 	_ = cacheCleanupCmd.Flags().Set("before", cleanupBefore)
@@ -253,7 +254,7 @@ func TestCacheCleanupUsesConfiguredCachePathAndValidatesDate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetStats() error = %v", err)
 	}
-	if got := stats["transactions"]; got.(int64) != 0 {
+	if got, _ := stats["transactions"].(int64); got != 0 {
 		t.Fatalf("configured cache transactions = %v, want 0", got)
 	}
 

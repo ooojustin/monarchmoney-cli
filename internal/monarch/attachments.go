@@ -67,7 +67,7 @@ func (s *Service) DownloadAttachment(ctx context.Context, url string, w io.Write
 	if err != nil {
 		return errors.New(errors.NetworkUnreachable, "failed to reach attachment URL", errors.CatNetwork, true, err)
 	}
-	defer resp.Body.Close() //nolint:errcheck // response body close
+	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		return errors.New(errors.APIError, "failed to download attachment", errors.CatAPI, false, nil)
@@ -78,6 +78,5 @@ func (s *Service) DownloadAttachment(ctx context.Context, url string, w io.Write
 }
 
 func (s *Service) UploadAttachment(ctx context.Context, txID, path string) error {
-	// Monarch does not currently expose attachment uploads through the public API.
-	return featureUnavailable("transaction attachment upload is unavailable in the current Monarch API")
+	return errors.New(errors.FEATURE_UNAVAILABLE, "transaction attachment upload is unavailable in the current Monarch API", errors.CatAPI, false, nil)
 }

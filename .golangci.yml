@@ -3,15 +3,48 @@ version: "2"
 linters:
   default: none
   enable:
-    - staticcheck
+    - errcheck
     - govet
     - ineffassign
+    - staticcheck
     - unused
     - gocritic
     - misspell
-    - errcheck
+    - unconvert
+    - prealloc
+    - unparam
+    - godox
+    - whitespace
+    - nolintlint
+  settings:
+    errcheck:
+      check-type-assertions: true
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+        - style
+      disabled-checks:
+        - hugeParam
+        - rangeValCopy
+        - filepathJoin
+    misspell:
+      locale: US
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+  exclusions:
+    presets:
+      - std-error-handling
 
 formatters:
   enable:
     - gofmt
     - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/thedavidweng/monarchmoney-cli
+
+run:
+  timeout: 5m

@@ -4,13 +4,18 @@ import (
 	"testing"
 
 	"github.com/spf13/viper"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestLoadDefaults(t *testing.T) {
 	viper.Reset()
 	cfg, err := Load()
-	assert.NoError(t, err)
-	assert.Equal(t, "default", cfg.Profile)
-	assert.Equal(t, "https://api.monarch.com/graphql", cfg.APIEndpoint)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.Profile != "default" {
+		t.Errorf("Profile = %q, want %q", cfg.Profile, "default")
+	}
+	if want := "https://api.monarch.com/graphql"; cfg.APIEndpoint != want {
+		t.Errorf("APIEndpoint = %q, want %q", cfg.APIEndpoint, want)
+	}
 }

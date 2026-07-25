@@ -1,12 +1,12 @@
 package cli
 
 import (
+	"context"
 	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
-	"github.com/thedavidweng/monarchmoney-cli/internal/output"
+
+	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
 )
 
 var institutionsCmd = &cobra.Command{
@@ -20,36 +20,16 @@ var institutionsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all institutions",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "institutions.list", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		insts, err := svc.ListInstitutions(cmd.Context())
-		if err != nil {
-			var cliErr *errors.Error
-			if e, ok := err.(*errors.Error); ok {
-				cliErr = e
-			} else {
-				cliErr = errors.New(errors.APIError, "failed to list institutions", errors.CatAPI, false, err)
-			}
-			handleError(renderer, "institutions.list", cliErr, start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("institutions.list", profile, output.SchemaVersion, "", insts, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
-		} else {
-			fmt.Printf("%-20s %-30s %s\n", "ID", "NAME", "URL")
-			for _, inst := range insts {
-				fmt.Printf("%-20s %-30s %s\n", inst.ID, inst.Name, inst.URL)
-			}
-		}
+		run(cmd.Context(), "institutions.list", "failed to list institutions",
+			func(ctx context.Context, svc *monarch.Service) ([]monarch.Institution, error) {
+				return svc.ListInstitutions(ctx)
+			},
+			func(insts []monarch.Institution) {
+				fmt.Printf("%-20s %-30s %s\n", "ID", "NAME", "URL")
+				for _, inst := range insts {
+					fmt.Printf("%-20s %-30s %s\n", inst.ID, inst.Name, inst.URL)
+				}
+			})
 	},
 }
 

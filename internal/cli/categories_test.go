@@ -145,7 +145,7 @@ func testCategoriesDeleteManyJSON(t *testing.T) {
 	saveTestSession(t, sessionPath)
 
 	idsFile := filepath.Join(dir, "ids.txt")
-	if err := os.WriteFile(idsFile, []byte("cat-1\ncat-2\ncat-3\n"), 0600); err != nil {
+	if err := os.WriteFile(idsFile, []byte("cat-1\ncat-2\ncat-3\n"), 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
@@ -160,7 +160,7 @@ func testCategoriesDeleteManyJSON(t *testing.T) {
 		if gqlReq.OperationName != "DeleteCategories" {
 			t.Fatalf("operation = %q, want DeleteCategories", gqlReq.OperationName)
 		}
-		ids := gqlReq.Variables["ids"].([]any)
+		ids, _ := gqlReq.Variables["ids"].([]any)
 		if len(ids) != 3 {
 			t.Fatalf("variables ids count = %d, want 3", len(ids))
 		}

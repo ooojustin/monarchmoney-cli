@@ -1,26 +1,23 @@
 package config
 
 import (
-	"os"
 	"testing"
 
 	"github.com/spf13/viper"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestConfigPrecedence(t *testing.T) {
 	viper.Reset()
-	os.Setenv("MONARCH_PROFILE", "env-profile") //nolint:errcheck // test env setup
-	defer os.Unsetenv("MONARCH_PROFILE")        //nolint:errcheck // test env cleanup
+	t.Setenv("MONARCH_PROFILE", "env-profile")
 
-	// Precedence: CLI flags (passed via viper.Set) > Env vars > Config file > Defaults
-
-	// Default
 	cfg, _ := Load()
-	assert.Equal(t, "env-profile", cfg.Profile) // Env takes precedence over default "default"
+	if cfg.Profile != "env-profile" {
+		t.Fatalf("Profile = %q, want %q (env over default)", cfg.Profile, "env-profile")
+	}
 
-	// Flag override
 	viper.Set("profile", "flag-profile")
 	cfg, _ = Load()
-	assert.Equal(t, "flag-profile", cfg.Profile)
+	if cfg.Profile != "flag-profile" {
+		t.Fatalf("Profile = %q, want %q (flag over env)", cfg.Profile, "flag-profile")
+	}
 }

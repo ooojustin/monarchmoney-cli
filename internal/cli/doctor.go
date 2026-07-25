@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
 	"github.com/thedavidweng/monarchmoney-cli/internal/doctor"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 )
@@ -23,8 +24,8 @@ var doctorCmd = &cobra.Command{
 		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 
 		if jsonMode {
-			env := output.NewEnvelope("doctor", profile, output.SchemaVersion, "", res, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("doctor", profile, output.SchemaVersion, requestID, res, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Println("Monarch Money CLI Doctor")
 			fmt.Printf("Version: %s\n", res.Version)

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"time"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/audit"
@@ -42,6 +43,33 @@ func newDeps(renderer *output.Renderer, command string, start time.Time) (Comman
 		Renderer: renderer,
 		Service:  monarch.NewService(client),
 	}, true
+}
+
+// run executes a read-only command: it builds the session-backed service, calls
+// fn, and either emits the standard JSON envelope or hands the typed result to
+// human for text rendering. Errors are rendered and the process exits via
+// handleError. Handlers with safety gates, dry-run plans, or envelope warnings
+// keep their own flow.
+func run[T any](ctx context.Context, command, failMsg string, fn func(context.Context, *monarch.Service) (T, error), human func(T)) {
+	start := time.Now()
+	renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
+
+	deps, ok := newDeps(renderer, command, start)
+	if !ok {
+		return
+	}
+
+	data, err := fn(ctx, deps.Service)
+	if err != nil {
+		handleError(renderer, command, wrapError(err, failMsg), start)
+		return
+	}
+
+	if jsonMode {
+		renderer.RenderSuccess(output.NewEnvelope(command, profile, output.SchemaVersion, requestID, data, time.Since(start)))
+		return
+	}
+	human(data)
 }
 
 // wrapError converts a generic error into a structured *errors.Error.

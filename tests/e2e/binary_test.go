@@ -76,11 +76,11 @@ func findProjectRoot() (string, error) {
 func TestFindProjectRoot_FromSubdir(t *testing.T) {
 	// Create a fake project root with go.mod.
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module test\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module test\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	sub := filepath.Join(root, "a", "b", "c")
-	if err := os.MkdirAll(sub, 0755); err != nil {
+	if err := os.MkdirAll(sub, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -129,7 +129,7 @@ func TestFindProjectRoot_NoGoMod(t *testing.T) {
 	// In a directory tree without go.mod, findProjectRoot should not error.
 	root := t.TempDir()
 	sub := filepath.Join(root, "x")
-	if err := os.MkdirAll(sub, 0755); err != nil {
+	if err := os.MkdirAll(sub, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -180,7 +180,7 @@ func run(t *testing.T, bin string, args ...string) (stdout string, exitCode int)
 	return stdout, exitCode
 }
 
-func assertValidEnvelope(t *testing.T, stdout string, wantCommand string) map[string]any {
+func assertValidEnvelope(t *testing.T, stdout, wantCommand string) {
 	t.Helper()
 	var envelope map[string]any
 	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
@@ -192,17 +192,16 @@ func assertValidEnvelope(t *testing.T, stdout string, wantCommand string) map[st
 	if _, ok := envelope["data"]; !ok {
 		t.Fatalf("envelope missing 'data': %+v", envelope)
 	}
-	if meta, ok := envelope["meta"].(map[string]any); ok {
-		if got, ok := meta["command"].(string); ok && wantCommand != "" && got != wantCommand {
-			t.Fatalf("command = %q, want %q", got, wantCommand)
-		}
-		if _, ok := meta["schema_version"]; !ok {
-			t.Fatalf("meta missing 'schema_version': %+v", meta)
-		}
-	} else {
+	meta, ok := envelope["meta"].(map[string]any)
+	if !ok {
 		t.Fatalf("envelope.meta is not an object: %+v", envelope)
 	}
-	return envelope
+	if got, ok := meta["command"].(string); ok && wantCommand != "" && got != wantCommand {
+		t.Fatalf("command = %q, want %q", got, wantCommand)
+	}
+	if _, ok := meta["schema_version"]; !ok {
+		t.Fatalf("meta missing 'schema_version': %+v", meta)
+	}
 }
 
 func requireZero(t *testing.T, code int, stdout string) {
@@ -217,7 +216,7 @@ func requireZero(t *testing.T, code int, stdout string) {
 // Cobra help output lists commands under "Available Commands:" with 2-space indent.
 // Example: "  accounts     Manage accounts"
 // We only want to capture lines before "Flags:" section to avoid matching prose.
-var helpCmdPattern = regexp.MustCompile(`^  ([a-z][a-z0-9-]*) +\S`)
+var helpCmdPattern = regexp.MustCompile(`^ {2}([a-z][a-z0-9-]*) +\S`)
 
 func discoverCommands(t *testing.T, bin string) []string {
 	t.Helper()

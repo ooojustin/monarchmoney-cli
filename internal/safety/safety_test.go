@@ -1,9 +1,8 @@
 package safety
 
 import (
+	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestCheck(t *testing.T) {
@@ -64,10 +63,16 @@ func TestCheck(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := Check(tt.tier, tt.readOnly, tt.dryRun, tt.confirmed)
 			if tt.wantErr == "" {
-				assert.NoError(t, err)
-			} else {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
+				if err != nil {
+					t.Fatalf("Check() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("Check() error = nil, want containing %q", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Check() error = %q, want containing %q", err.Error(), tt.wantErr)
 			}
 		})
 	}

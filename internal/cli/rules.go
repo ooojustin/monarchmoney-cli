@@ -1,11 +1,12 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
+
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 	"github.com/thedavidweng/monarchmoney-cli/internal/safety"
@@ -34,43 +35,29 @@ var rulesListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all transaction rules",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "rules.list", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		rules, err := svc.ListRules(cmd.Context())
-		if err != nil {
-			handleError(renderer, "rules.list", wrapError(err, "failed to list rules"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("rules.list", profile, output.SchemaVersion, "", rules, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
-		} else {
-			fmt.Printf("%-36s %-12s %-20s %s\n", "ID", "OPERATOR", "MATCH", "ACTION")
-			for _, r := range rules {
-				match := ""
-				if len(r.MerchantNameCriteria) > 0 {
-					match = r.MerchantNameCriteria[0].Value
+		run(cmd.Context(), "rules.list", "failed to list rules",
+			func(ctx context.Context, svc *monarch.Service) ([]monarch.Rule, error) {
+				return svc.ListRules(ctx)
+			},
+			func(rules []monarch.Rule) {
+				fmt.Printf("%-36s %-12s %-20s %s\n", "ID", "OPERATOR", "MATCH", "ACTION")
+				for _, r := range rules {
+					match := ""
+					if len(r.MerchantNameCriteria) > 0 {
+						match = r.MerchantNameCriteria[0].Value
+					}
+					action := ""
+					if r.SetCategoryAction != nil {
+						action = "→ " + r.SetCategoryAction.Name
+					}
+					operator := ""
+					if len(r.MerchantNameCriteria) > 0 {
+						operator = r.MerchantNameCriteria[0].Operator
+					}
+					fmt.Printf("%-36s %-12s %-20s %s\n", r.ID, operator, match, action)
 				}
-				action := ""
-				if r.SetCategoryAction != nil {
-					action = "→ " + r.SetCategoryAction.Name
-				}
-				operator := ""
-				if len(r.MerchantNameCriteria) > 0 {
-					operator = r.MerchantNameCriteria[0].Operator
-				}
-				fmt.Printf("%-36s %-12s %-20s %s\n", r.ID, operator, match, action)
-			}
-			fmt.Printf("\nTotal rules: %d\n", len(rules))
-		}
+				fmt.Printf("\nTotal rules: %d\n", len(rules))
+			})
 	},
 }
 
@@ -82,7 +69,7 @@ var rulesCreateCmd = &cobra.Command{
 		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 
 		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "rules.create", err.(*errors.Error), start)
+			handleError(renderer, "rules.create", err, start)
 			return
 		}
 
@@ -103,8 +90,8 @@ var rulesCreateCmd = &cobra.Command{
 		if dryRun {
 			plan := safety.NewPlan()
 			plan.Add("rules.create", "", nil, map[string]any{"input": input})
-			env := output.NewEnvelope("rules.create", profile, output.SchemaVersion, "", plan, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("rules.create", profile, output.SchemaVersion, requestID, plan, time.Since(start))
+			renderer.RenderSuccess(env)
 			return
 		}
 
@@ -120,8 +107,8 @@ var rulesCreateCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("rules.create", profile, output.SchemaVersion, "", map[string]string{"status": "created"}, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("rules.create", profile, output.SchemaVersion, requestID, map[string]string{"status": "created"}, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Println("Successfully created rule.")
 		}
@@ -138,7 +125,7 @@ var rulesUpdateCmd = &cobra.Command{
 		id := args[0]
 
 		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "rules.update", err.(*errors.Error), start)
+			handleError(renderer, "rules.update", err, start)
 			return
 		}
 
@@ -160,8 +147,8 @@ var rulesUpdateCmd = &cobra.Command{
 		if dryRun {
 			plan := safety.NewPlan()
 			plan.Add("rules.update", id, nil, map[string]any{"input": input})
-			env := output.NewEnvelope("rules.update", profile, output.SchemaVersion, "", plan, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("rules.update", profile, output.SchemaVersion, requestID, plan, time.Since(start))
+			renderer.RenderSuccess(env)
 			return
 		}
 
@@ -177,8 +164,8 @@ var rulesUpdateCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("rules.update", profile, output.SchemaVersion, "", map[string]string{"status": "updated"}, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("rules.update", profile, output.SchemaVersion, requestID, map[string]string{"status": "updated"}, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Successfully updated rule %s.\n", id)
 		}
@@ -195,15 +182,15 @@ var rulesDeleteCmd = &cobra.Command{
 		id := args[0]
 
 		if err := safety.Check(safety.TierDestructive, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "rules.delete", err.(*errors.Error), start)
+			handleError(renderer, "rules.delete", err, start)
 			return
 		}
 
 		if dryRun {
 			plan := safety.NewPlan()
 			plan.Add("rules.delete", id, nil, nil)
-			env := output.NewEnvelope("rules.delete", profile, output.SchemaVersion, "", plan, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("rules.delete", profile, output.SchemaVersion, requestID, plan, time.Since(start))
+			renderer.RenderSuccess(env)
 			return
 		}
 
@@ -219,8 +206,8 @@ var rulesDeleteCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("rules.delete", profile, output.SchemaVersion, "", map[string]string{"status": "deleted"}, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("rules.delete", profile, output.SchemaVersion, requestID, map[string]string{"status": "deleted"}, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Successfully deleted rule %s.\n", id)
 		}

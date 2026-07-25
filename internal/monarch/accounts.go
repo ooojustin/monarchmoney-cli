@@ -153,7 +153,7 @@ func (s *Service) GetAccountHoldings(ctx context.Context, accountID string) ([]H
 	return holdings, nil
 }
 
-func (s *Service) GetAccountHistory(ctx context.Context, accountID string, startDate, endDate string) ([]HistoryRecord, error) {
+func (s *Service) GetAccountHistory(ctx context.Context, accountID, startDate, endDate string) ([]HistoryRecord, error) {
 	var resp struct {
 		AggregateSnapshots []struct {
 			Date    string  `json:"date"`
@@ -161,15 +161,14 @@ func (s *Service) GetAccountHistory(ctx context.Context, accountID string, start
 		} `json:"aggregateSnapshots"`
 	}
 
-	variables := map[string]any{
-		"filters": map[string]any{},
-	}
+	filters := map[string]any{}
 	if startDate != "" {
-		variables["filters"].(map[string]any)["startDate"] = startDate
+		filters["startDate"] = startDate
 	}
 	if endDate != "" {
-		variables["filters"].(map[string]any)["endDate"] = endDate
+		filters["endDate"] = endDate
 	}
+	variables := map[string]any{"filters": filters}
 
 	err := s.Client.Do(ctx, &graphql.Request{
 		OperationName: "GetAccountHistory",
@@ -691,7 +690,7 @@ func (s *Service) UploadAccountBalanceHistory(ctx context.Context, id string, r 
 		return err
 	}
 	writer.WriteField("account_id", id) //nolint:errcheck // best-effort write
-	writer.Close()                      //nolint:errcheck // best-effort close
+	writer.Close()
 
 	req, err := newBalanceHistoryRequest(ctx, "POST", url, body)
 	if err != nil {
@@ -708,7 +707,7 @@ func (s *Service) UploadAccountBalanceHistory(ctx context.Context, id string, r 
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close() //nolint:errcheck // response body close
+	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		return errors.New(errors.APIError, fmt.Sprintf("upload failed with status %d", resp.StatusCode), errors.CatAPI, false, nil)

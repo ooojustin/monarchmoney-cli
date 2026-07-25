@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
 	"github.com/thedavidweng/monarchmoney-cli/internal/cache"
 	"github.com/thedavidweng/monarchmoney-cli/internal/config"
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
@@ -52,7 +53,7 @@ var cacheSyncCmd = &cobra.Command{
 			handleError(renderer, "cache.sync", errors.New(errors.InternalError, "failed to open cache", errors.CatInternal, false, err), start)
 			return
 		}
-		defer cacheStore.Close() //nolint:errcheck // best-effort close
+		defer cacheStore.Close()
 
 		// Sync accounts
 		renderer.PrintDiagnostic("Syncing accounts...")
@@ -122,8 +123,8 @@ var cacheSyncCmd = &cobra.Command{
 		cacheStore.RecordSync(len(cacheAccs), len(cacheTxs)) //nolint:errcheck // best-effort sync record
 
 		if jsonMode {
-			env := output.NewEnvelope("cache.sync", profile, output.SchemaVersion, "", map[string]any{"status": "sync complete", "accounts": len(cacheAccs), "transactions": len(cacheTxs)}, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("cache.sync", profile, output.SchemaVersion, requestID, map[string]any{"status": "sync complete", "accounts": len(cacheAccs), "transactions": len(cacheTxs)}, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Sync complete. %d accounts, %d transactions.\n", len(cacheAccs), len(cacheTxs))
 		}
@@ -144,7 +145,7 @@ var cacheSearchCmd = &cobra.Command{
 			handleError(renderer, "cache.search", errors.New(errors.InternalError, "failed to open cache", errors.CatInternal, false, err), start)
 			return
 		}
-		defer cacheStore.Close() //nolint:errcheck // best-effort close
+		defer cacheStore.Close()
 
 		txs, err := cacheStore.SearchTransactions(args[0])
 		if err != nil {
@@ -153,8 +154,8 @@ var cacheSearchCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("cache.search", profile, output.SchemaVersion, "", txs, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("cache.search", profile, output.SchemaVersion, requestID, txs, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES")
 			for _, t := range txs {
@@ -178,13 +179,13 @@ var cacheStatsCmd = &cobra.Command{
 			handleError(renderer, "cache.stats", errors.New(errors.InternalError, "failed to open cache", errors.CatInternal, false, err), start)
 			return
 		}
-		defer cacheStore.Close() //nolint:errcheck // best-effort close
+		defer cacheStore.Close()
 
 		stats, _ := cacheStore.GetStats()
 
 		if jsonMode {
-			env := output.NewEnvelope("cache.stats", profile, output.SchemaVersion, "", stats, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("cache.stats", profile, output.SchemaVersion, requestID, stats, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Println("Cache Statistics")
 			for k, v := range stats {
@@ -228,7 +229,7 @@ var cacheCleanupCmd = &cobra.Command{
 			handleError(renderer, "cache.cleanup", errors.New(errors.InternalError, "failed to open cache", errors.CatInternal, false, err), start)
 			return
 		}
-		defer store.Close() //nolint:errcheck // best-effort close
+		defer store.Close()
 
 		affected, err := store.Cleanup(cleanupBefore)
 		if err != nil {
@@ -237,8 +238,8 @@ var cacheCleanupCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("cache.cleanup", profile, output.SchemaVersion, "", map[string]int64{"deleted": affected}, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("cache.cleanup", profile, output.SchemaVersion, requestID, map[string]int64{"deleted": affected}, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Deleted %d transactions from cache.\n", affected)
 		}

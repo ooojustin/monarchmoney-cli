@@ -45,7 +45,7 @@ func TestCompletionBash(t *testing.T) {
 		t.Fatalf("completion bash error = %v", err)
 	}
 	got := buf.String()
-	if len(got) == 0 {
+	if got == "" {
 		t.Fatal("completion bash produced no output")
 	}
 	if !strings.Contains(got, "bash") || (!strings.Contains(got, "complete") && !strings.Contains(got, "compgen")) {
@@ -63,7 +63,7 @@ func TestCompletionZsh(t *testing.T) {
 		t.Fatalf("completion zsh error = %v", err)
 	}
 	got := buf.String()
-	if len(got) == 0 {
+	if got == "" {
 		t.Fatal("completion zsh produced no output")
 	}
 }
@@ -78,7 +78,7 @@ func TestCompletionFish(t *testing.T) {
 		t.Fatalf("completion fish error = %v", err)
 	}
 	got := buf.String()
-	if len(got) == 0 {
+	if got == "" {
 		t.Fatal("completion fish produced no output")
 	}
 }
@@ -93,21 +93,13 @@ func TestCompletionPowershell(t *testing.T) {
 		t.Fatalf("completion powershell error = %v", err)
 	}
 	got := buf.String()
-	if len(got) == 0 {
+	if got == "" {
 		t.Fatal("completion powershell produced no output")
 	}
 }
 
-func TestCompletionInvalidShell(t *testing.T) {
-	var buf bytes.Buffer
-	RootCmd.SetOut(&buf)
-	defer RootCmd.SetOut(nil)
-
-	err := completionCmd.RunE(completionCmd, []string{"tcsh"})
-	if err == nil {
-		t.Fatal("completion tcsh should return an error")
-	}
-	if !strings.Contains(err.Error(), "unsupported shell") {
-		t.Fatalf("error = %q, want 'unsupported shell'", err.Error())
+func TestCompletionInvalidShellRejectedByArgs(t *testing.T) {
+	if err := completionCmd.Args(completionCmd, []string{"tcsh"}); err == nil {
+		t.Fatal("completion tcsh should be rejected by argument validation")
 	}
 }

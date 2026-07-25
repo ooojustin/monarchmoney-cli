@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+
 	"github.com/thedavidweng/monarchmoney-cli/internal/testutil"
 )
 
@@ -320,7 +321,7 @@ func TestTransactionsCreateJSON(t *testing.T) {
 		if gqlReq.OperationName != "Common_CreateTransactionMutation" {
 			t.Fatalf("operation = %q, want Common_CreateTransactionMutation", gqlReq.OperationName)
 		}
-		input := gqlReq.Variables["input"].(map[string]any)
+		input, _ := gqlReq.Variables["input"].(map[string]any)
 		if input["amount"] != float64(-25.50) {
 			t.Fatalf("input amount = %v, want -25.50", input["amount"])
 		}
@@ -376,7 +377,7 @@ func TestTransactionsUpdateJSON(t *testing.T) {
 		if gqlReq.OperationName != "Web_TransactionDrawerUpdateTransaction" {
 			t.Fatalf("operation = %q, want Web_TransactionDrawerUpdateTransaction", gqlReq.OperationName)
 		}
-		input := gqlReq.Variables["input"].(map[string]any)
+		input, _ := gqlReq.Variables["input"].(map[string]any)
 		if input["id"] != "tx-100" {
 			t.Fatalf("input id = %v, want tx-100", input["id"])
 		}
@@ -472,7 +473,7 @@ func TestBudgetsSetJSON(t *testing.T) {
 		if gqlReq.OperationName != "SetBudget" {
 			t.Fatalf("operation = %q, want SetBudget", gqlReq.OperationName)
 		}
-		input := gqlReq.Variables["input"].(map[string]any)
+		input, _ := gqlReq.Variables["input"].(map[string]any)
 		if input["categoryId"] != "cat-dining" {
 			t.Fatalf("input categoryId = %v, want cat-dining", input["categoryId"])
 		}
@@ -519,12 +520,12 @@ func TestRulesCreateJSON(t *testing.T) {
 		if gqlReq.OperationName != "Common_CreateTransactionRuleMutationV2" {
 			t.Fatalf("operation = %q, want Common_CreateTransactionRuleMutationV2", gqlReq.OperationName)
 		}
-		input := gqlReq.Variables["input"].(map[string]any)
-		criteria := input["merchantNameCriteria"].([]interface{})
+		input, _ := gqlReq.Variables["input"].(map[string]any)
+		criteria, _ := input["merchantNameCriteria"].([]interface{})
 		if len(criteria) == 0 {
 			t.Fatalf("input merchantNameCriteria is empty")
 		}
-		first := criteria[0].(map[string]interface{})
+		first, _ := criteria[0].(map[string]interface{})
 		if first["value"] != "Uber" {
 			t.Fatalf("input merchantNameCriteria value = %v, want Uber", first["value"])
 		}
@@ -569,7 +570,7 @@ func TestTransactionsListPassesExtendedFilters(t *testing.T) {
 		if gqlReq.OperationName != "GetTransactionsList" {
 			t.Fatalf("operation = %q, want transactions", gqlReq.OperationName)
 		}
-		filters := gqlReq.Variables["filters"].(map[string]any)
+		filters, _ := gqlReq.Variables["filters"].(map[string]any)
 		if filters["isPending"] != true || filters["hideFromReports"] != false {
 			t.Fatalf("filters = %#v, want pending/hide-from-reports", filters)
 		}

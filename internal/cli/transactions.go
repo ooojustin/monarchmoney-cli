@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
 	"github.com/thedavidweng/monarchmoney-cli/internal/audit"
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
@@ -118,7 +119,7 @@ var transactionsListCmd = &cobra.Command{
 				"total":        total,
 			}
 			env := envelopeWithWarnings("transactions.list", data, start, "uses legacy Monarch GraphQL root field: allTransactions")
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES")
 			for _, t := range txs {
@@ -161,7 +162,7 @@ var transactionsSearchCmd = &cobra.Command{
 				"total":        total,
 			}
 			env := envelopeWithWarnings("transactions.search", data, start, "uses legacy Monarch GraphQL root field: allTransactions")
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES")
 			for _, t := range txs {
@@ -198,7 +199,7 @@ var transactionsDuplicatesCmd = &cobra.Command{
 
 		if jsonMode {
 			env := envelopeWithWarnings("transactions.duplicates", txs, start, "uses legacy Monarch GraphQL root field: allTransactions")
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("%-12s %-20s %10s %s\n", "DATE", "MERCHANT", "AMOUNT", "ID")
 			for _, t := range txs {
@@ -229,8 +230,8 @@ var transactionsSplitsCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("transactions.splits", profile, output.SchemaVersion, "", splits, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.splits", profile, output.SchemaVersion, requestID, splits, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("%-20s %10s %s\n", "CATEGORY", "AMOUNT", "NOTES")
 			for _, s := range splits {
@@ -250,7 +251,7 @@ var transactionsUpdateCmd = &cobra.Command{
 		id := args[0]
 
 		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "transactions.update", err.(*errors.Error), start)
+			handleError(renderer, "transactions.update", err, start)
 			return
 		}
 
@@ -290,8 +291,8 @@ var transactionsUpdateCmd = &cobra.Command{
 		if dryRun {
 			plan := safety.NewPlan()
 			plan.Add("transactions.update", id, nil, map[string]any{"notes": notes, "categoryId": categoryID, "amount": amount, "date": date, "merchant": merchantName, "hideFromReports": hideFromReports, "needsReview": needsReview})
-			env := output.NewEnvelope("transactions.update", profile, output.SchemaVersion, "", plan, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.update", profile, output.SchemaVersion, requestID, plan, time.Since(start))
+			renderer.RenderSuccess(env)
 			return
 		}
 
@@ -306,11 +307,11 @@ var transactionsUpdateCmd = &cobra.Command{
 		if err != nil {
 			return
 		}
-		tx := result.(*monarch.Transaction)
+		tx, _ := result.(*monarch.Transaction)
 
 		if jsonMode {
-			env := output.NewEnvelope("transactions.update", profile, output.SchemaVersion, "", tx, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.update", profile, output.SchemaVersion, requestID, tx, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Successfully updated transaction %s.\n", tx.ID)
 		}
@@ -327,15 +328,15 @@ var transactionsDeleteCmd = &cobra.Command{
 		id := args[0]
 
 		if err := safety.Check(safety.TierDestructive, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "transactions.delete", err.(*errors.Error), start)
+			handleError(renderer, "transactions.delete", err, start)
 			return
 		}
 
 		if dryRun {
 			plan := safety.NewPlan()
 			plan.Add("transactions.delete", id, nil, nil)
-			env := output.NewEnvelope("transactions.delete", profile, output.SchemaVersion, "", plan, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.delete", profile, output.SchemaVersion, requestID, plan, time.Since(start))
+			renderer.RenderSuccess(env)
 			return
 		}
 
@@ -351,8 +352,8 @@ var transactionsDeleteCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("transactions.delete", profile, output.SchemaVersion, "", map[string]string{"status": "deleted"}, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.delete", profile, output.SchemaVersion, requestID, map[string]string{"status": "deleted"}, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Successfully deleted transaction %s.\n", id)
 		}
@@ -367,7 +368,7 @@ var transactionsCreateCmd = &cobra.Command{
 		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 
 		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "transactions.create", err.(*errors.Error), start)
+			handleError(renderer, "transactions.create", err, start)
 			return
 		}
 
@@ -378,8 +379,8 @@ var transactionsCreateCmd = &cobra.Command{
 		if dryRun {
 			plan := safety.NewPlan()
 			plan.Add("transactions.create", "", nil, map[string]any{"amount": txAmount, "merchant": txMerchant, "date": txDate, "categoryId": txCategoryID})
-			env := output.NewEnvelope("transactions.create", profile, output.SchemaVersion, "", plan, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.create", profile, output.SchemaVersion, requestID, plan, time.Since(start))
+			renderer.RenderSuccess(env)
 			return
 		}
 
@@ -394,11 +395,11 @@ var transactionsCreateCmd = &cobra.Command{
 		if err != nil {
 			return
 		}
-		tx := result.(*monarch.Transaction)
+		tx, _ := result.(*monarch.Transaction)
 
 		if jsonMode {
-			env := output.NewEnvelope("transactions.create", profile, output.SchemaVersion, "", tx, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.create", profile, output.SchemaVersion, requestID, tx, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Successfully created transaction %s.\n", tx.ID)
 		}
@@ -415,7 +416,7 @@ var transactionsSplitCmd = &cobra.Command{
 		id := args[0]
 
 		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "transactions.split", err.(*errors.Error), start)
+			handleError(renderer, "transactions.split", err, start)
 			return
 		}
 
@@ -434,8 +435,8 @@ var transactionsSplitCmd = &cobra.Command{
 		if dryRun {
 			plan := safety.NewPlan()
 			plan.Add("transactions.split", id, nil, map[string]any{"splits": splits})
-			env := output.NewEnvelope("transactions.split", profile, output.SchemaVersion, "", plan, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.split", profile, output.SchemaVersion, requestID, plan, time.Since(start))
+			renderer.RenderSuccess(env)
 			return
 		}
 
@@ -451,8 +452,8 @@ var transactionsSplitCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("transactions.split", profile, output.SchemaVersion, "", map[string]string{"status": "split updated"}, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.split", profile, output.SchemaVersion, requestID, map[string]string{"status": "split updated"}, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Successfully split transaction %s.\n", id)
 		}
@@ -514,8 +515,8 @@ var transactionsExportCmd = &cobra.Command{
 			}
 		} else {
 			// Default to JSON
-			env := output.NewEnvelope("transactions.export", profile, output.SchemaVersion, "", txs, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.export", profile, output.SchemaVersion, requestID, txs, time.Since(start))
+			renderer.RenderSuccess(env)
 		}
 	},
 }
@@ -535,15 +536,15 @@ var transactionsTagsSetCmd = &cobra.Command{
 		id := args[0]
 
 		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "transactions.tags.set", err.(*errors.Error), start)
+			handleError(renderer, "transactions.tags.set", err, start)
 			return
 		}
 
 		if dryRun {
 			plan := safety.NewPlan()
 			plan.Add("transactions.tags.set", id, nil, map[string]any{"tag_ids": tagIDs})
-			env := output.NewEnvelope("transactions.tags.set", profile, output.SchemaVersion, "", plan, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.tags.set", profile, output.SchemaVersion, requestID, plan, time.Since(start))
+			renderer.RenderSuccess(env)
 			return
 		}
 
@@ -559,8 +560,8 @@ var transactionsTagsSetCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("transactions.tags.set", profile, output.SchemaVersion, "", map[string]string{"status": "tags set"}, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.tags.set", profile, output.SchemaVersion, requestID, map[string]string{"status": "tags set"}, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Successfully set tags for transaction %s.\n", id)
 		}
@@ -593,8 +594,8 @@ var transactionsAttachmentsListCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("transactions.attachments.list", profile, output.SchemaVersion, "", attachments, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.attachments.list", profile, output.SchemaVersion, requestID, attachments, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			if len(attachments) == 0 {
 				fmt.Println("No attachments found.")
@@ -669,8 +670,8 @@ var transactionsAttachmentsDownloadCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("transactions.attachments.download", profile, output.SchemaVersion, "", map[string]string{"status": "downloaded", "path": outPath}, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.attachments.download", profile, output.SchemaVersion, requestID, map[string]string{"status": "downloaded", "path": outPath}, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Downloaded attachment to %s\n", outPath)
 		}
@@ -698,8 +699,8 @@ var transactionsShowCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("transactions.show", profile, output.SchemaVersion, "", tx, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.show", profile, output.SchemaVersion, requestID, tx, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("ID:       %s\n", tx.ID)
 			fmt.Printf("Date:     %s\n", tx.Date)
@@ -731,8 +732,8 @@ var transactionsSummaryCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("transactions.summary", profile, output.SchemaVersion, "", summary, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.summary", profile, output.SchemaVersion, requestID, summary, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Println("Transaction Summary")
 		}
@@ -749,15 +750,15 @@ var transactionsTagsClearCmd = &cobra.Command{
 		id := args[0]
 
 		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "transactions.tags.clear", err.(*errors.Error), start)
+			handleError(renderer, "transactions.tags.clear", err, start)
 			return
 		}
 
 		if dryRun {
 			plan := safety.NewPlan()
 			plan.Add("transactions.tags.clear", id, nil, nil)
-			env := output.NewEnvelope("transactions.tags.clear", profile, output.SchemaVersion, "", plan, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.tags.clear", profile, output.SchemaVersion, requestID, plan, time.Since(start))
+			renderer.RenderSuccess(env)
 			return
 		}
 
@@ -773,8 +774,8 @@ var transactionsTagsClearCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("transactions.tags.clear", profile, output.SchemaVersion, "", map[string]string{"status": "tags cleared"}, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.tags.clear", profile, output.SchemaVersion, requestID, map[string]string{"status": "tags cleared"}, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Successfully cleared tags for transaction %s.\n", id)
 		}
@@ -792,7 +793,7 @@ var transactionsTagsAddCmd = &cobra.Command{
 		id := args[0]
 
 		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "transactions.tags.add", err.(*errors.Error), start)
+			handleError(renderer, "transactions.tags.add", err, start)
 			return
 		}
 
@@ -831,8 +832,8 @@ var transactionsTagsAddCmd = &cobra.Command{
 		if dryRun {
 			plan := safety.NewPlan()
 			plan.Add("transactions.tags.add", id, nil, map[string]any{"tag_ids": newTagIDs})
-			env := output.NewEnvelope("transactions.tags.add", profile, output.SchemaVersion, "", plan, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.tags.add", profile, output.SchemaVersion, requestID, plan, time.Since(start))
+			renderer.RenderSuccess(env)
 			return
 		}
 
@@ -862,8 +863,8 @@ var transactionsTagsAddCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("transactions.tags.add", profile, output.SchemaVersion, "", map[string]string{"status": "tags added"}, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.tags.add", profile, output.SchemaVersion, requestID, map[string]string{"status": "tags added"}, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Successfully added tags to transaction %s.\n", id)
 		}
@@ -888,7 +889,7 @@ var transactionsBulkCategorizeCmd = &cobra.Command{
 		}
 
 		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "transactions.bulk-categorize", err.(*errors.Error), start)
+			handleError(renderer, "transactions.bulk-categorize", err, start)
 			return
 		}
 
@@ -897,8 +898,8 @@ var transactionsBulkCategorizeCmd = &cobra.Command{
 			for _, id := range bulkTxIDs {
 				plan.Add("transactions.update", id, nil, map[string]any{"categoryId": bulkCategoryID, "markReviewed": bulkMarkReviewed})
 			}
-			env := output.NewEnvelope("transactions.bulk-categorize", profile, output.SchemaVersion, "", plan, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.bulk-categorize", profile, output.SchemaVersion, requestID, plan, time.Since(start))
+			renderer.RenderSuccess(env)
 			return
 		}
 
@@ -935,8 +936,8 @@ var transactionsBulkCategorizeCmd = &cobra.Command{
 
 		if jsonMode {
 			data := map[string]any{"total": len(bulkTxIDs), "successful": successes, "failed": len(failures), "errors": failures}
-			env := output.NewEnvelope("transactions.bulk-categorize", profile, output.SchemaVersion, "", data, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("transactions.bulk-categorize", profile, output.SchemaVersion, requestID, data, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Bulk categorize: %d/%d successful.\n", successes, len(bulkTxIDs))
 			for _, f := range failures {

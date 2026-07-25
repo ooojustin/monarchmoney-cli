@@ -2,12 +2,14 @@ package cli
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
+
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
@@ -31,30 +33,16 @@ var categoriesListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all categories",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "categories.list", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		cats, err := svc.ListCategories(cmd.Context())
-		if err != nil {
-			handleError(renderer, "categories.list", wrapError(err, "failed to list categories"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("categories.list", profile, output.SchemaVersion, "", cats, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
-		} else {
-			fmt.Printf("%-20s %-30s %s\n", "ID", "NAME", "GROUP")
-			for _, c := range cats {
-				fmt.Printf("%-20s %-30s %s\n", c.ID, c.Name, c.GroupName)
-			}
-		}
+		run(cmd.Context(), "categories.list", "failed to list categories",
+			func(ctx context.Context, svc *monarch.Service) ([]monarch.Category, error) {
+				return svc.ListCategories(ctx)
+			},
+			func(cats []monarch.Category) {
+				fmt.Printf("%-20s %-30s %s\n", "ID", "NAME", "GROUP")
+				for _, c := range cats {
+					fmt.Printf("%-20s %-30s %s\n", c.ID, c.Name, c.GroupName)
+				}
+			})
 	},
 }
 
@@ -66,15 +54,15 @@ var categoriesCreateCmd = &cobra.Command{
 		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 
 		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "categories.create", err.(*errors.Error), start)
+			handleError(renderer, "categories.create", err, start)
 			return
 		}
 
 		if dryRun {
 			plan := safety.NewPlan()
 			plan.Add("categories.create", "", nil, map[string]string{"name": categoryName, "groupId": categoryGroupID})
-			env := output.NewEnvelope("categories.create", profile, output.SchemaVersion, "", plan, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("categories.create", profile, output.SchemaVersion, requestID, plan, time.Since(start))
+			renderer.RenderSuccess(env)
 			return
 		}
 
@@ -89,11 +77,11 @@ var categoriesCreateCmd = &cobra.Command{
 		if err != nil {
 			return
 		}
-		cat := result.(*monarch.Category)
+		cat, _ := result.(*monarch.Category)
 
 		if jsonMode {
-			env := output.NewEnvelope("categories.create", profile, output.SchemaVersion, "", cat, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("categories.create", profile, output.SchemaVersion, requestID, cat, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Successfully created category %s (%s).\n", cat.Name, cat.ID)
 		}
@@ -110,15 +98,15 @@ var categoriesDeleteCmd = &cobra.Command{
 		id := args[0]
 
 		if err := safety.Check(safety.TierDestructive, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "categories.delete", err.(*errors.Error), start)
+			handleError(renderer, "categories.delete", err, start)
 			return
 		}
 
 		if dryRun {
 			plan := safety.NewPlan()
 			plan.Add("categories.delete", id, nil, nil)
-			env := output.NewEnvelope("categories.delete", profile, output.SchemaVersion, "", plan, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("categories.delete", profile, output.SchemaVersion, requestID, plan, time.Since(start))
+			renderer.RenderSuccess(env)
 			return
 		}
 
@@ -134,8 +122,8 @@ var categoriesDeleteCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("categories.delete", profile, output.SchemaVersion, "", map[string]string{"status": "deleted"}, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("categories.delete", profile, output.SchemaVersion, requestID, map[string]string{"status": "deleted"}, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Successfully deleted category %s.\n", id)
 		}
@@ -150,7 +138,7 @@ var categoriesDeleteManyCmd = &cobra.Command{
 		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 
 		if err := safety.Check(safety.TierDestructive, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "categories.delete-many", err.(*errors.Error), start)
+			handleError(renderer, "categories.delete-many", err, start)
 			return
 		}
 
@@ -182,8 +170,8 @@ var categoriesDeleteManyCmd = &cobra.Command{
 		if dryRun {
 			plan := safety.NewPlan()
 			plan.Add("categories.delete-many", "", nil, map[string]any{"ids": ids})
-			env := output.NewEnvelope("categories.delete-many", profile, output.SchemaVersion, "", plan, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("categories.delete-many", profile, output.SchemaVersion, requestID, plan, time.Since(start))
+			renderer.RenderSuccess(env)
 			return
 		}
 
@@ -199,8 +187,8 @@ var categoriesDeleteManyCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("categories.delete-many", profile, output.SchemaVersion, "", map[string]string{"status": "categories deleted"}, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("categories.delete-many", profile, output.SchemaVersion, requestID, map[string]string{"status": "categories deleted"}, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Successfully deleted %d categories.\n", len(ids))
 		}
@@ -227,8 +215,8 @@ var categoriesGroupsCmd = &cobra.Command{
 		}
 
 		if jsonMode {
-			env := output.NewEnvelope("categories.groups", profile, output.SchemaVersion, "", groups, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			env := output.NewEnvelope("categories.groups", profile, output.SchemaVersion, requestID, groups, time.Since(start))
+			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("%-20s %-30s %s\n", "ID", "NAME", "TYPE")
 			for _, g := range groups {

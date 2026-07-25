@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 )
 
@@ -57,8 +55,6 @@ PowerShell:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		out := cmd.OutOrStdout()
 		switch args[0] {
-		case "bash":
-			return cmd.Root().GenBashCompletionV2(out, true)
 		case "zsh":
 			return cmd.Root().GenZshCompletion(out)
 		case "fish":
@@ -66,7 +62,7 @@ PowerShell:
 		case "powershell":
 			return cmd.Root().GenPowerShellCompletionWithDesc(out)
 		default:
-			return fmt.Errorf("unsupported shell: %q", args[0]) //nolint:gocritic // unreachable but defensive
+			return cmd.Root().GenBashCompletionV2(out, true)
 		}
 	},
 }

@@ -10,7 +10,7 @@ func TestStorePersistsAndQueriesData(t *testing.T) {
 	dir := t.TempDir()
 	store, err := NewStore(filepath.Join(dir, "cache", "monarch.sqlite"))
 	mustNoError(t, err, "NewStore()")
-	defer store.Close() //nolint:errcheck // test cleanup
+	defer store.Close()
 
 	accounts := []Account{{
 		ID:             "acc_1",
@@ -77,7 +77,7 @@ func TestSyncMetaTracksLastSync(t *testing.T) {
 	dir := t.TempDir()
 	store, err := NewStore(filepath.Join(dir, "cache", "monarch.sqlite"))
 	mustNoError(t, err, "NewStore()")
-	defer store.Close() //nolint:errcheck // test cleanup
+	defer store.Close()
 
 	// No sync yet.
 	ls, err := store.LastSync()
@@ -129,7 +129,8 @@ func assertStat(t *testing.T, stats map[string]any, key string, want int64) {
 	if !ok {
 		t.Fatalf("%s missing from stats", key)
 	}
-	if got.(int64) != want {
+	gotInt, ok := got.(int64)
+	if !ok || gotInt != want {
 		t.Fatalf("%s = %v, want %d", key, got, want)
 	}
 }

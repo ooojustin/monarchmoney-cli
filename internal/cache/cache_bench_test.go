@@ -12,7 +12,7 @@ func BenchmarkSearchTransactions(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer store.Close() //nolint:errcheck // bench cleanup
+	defer store.Close()
 
 	// Seed data
 	txs := make([]Transaction, 1000)
@@ -44,7 +44,7 @@ func BenchmarkGetStats(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer store.Close() //nolint:errcheck // bench cleanup
+	defer store.Close()
 
 	txs := make([]Transaction, 100)
 	for i := range txs {

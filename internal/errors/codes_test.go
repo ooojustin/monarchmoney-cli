@@ -2,8 +2,6 @@ package errors
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestCodeConstants(t *testing.T) {
@@ -30,7 +28,9 @@ func TestCodeConstants(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, string(tt.code))
+			if got := string(tt.code); got != tt.expected {
+				t.Errorf("code = %q, want %q", got, tt.expected)
+			}
 		})
 	}
 }
@@ -50,7 +50,9 @@ func TestCategoryConstants(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, string(tt.cat))
+			if got := string(tt.cat); got != tt.expected {
+				t.Errorf("category = %q, want %q", got, tt.expected)
+			}
 		})
 	}
 }

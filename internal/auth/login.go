@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pquerna/otp/totp"
+
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 )
@@ -63,7 +64,7 @@ func Authenticate(email, password, mfaCode, mfaSecret string) (*Session, error) 
 	if err != nil {
 		return nil, errors.New(errors.NetworkUnreachable, "failed to reach Monarch API", errors.CatNetwork, true, err)
 	}
-	defer resp.Body.Close() //nolint:errcheck // response body close
+	defer resp.Body.Close()
 
 	if resp.StatusCode == 403 || resp.StatusCode == 401 {
 		if mfaCode == "" && mfaSecret == "" {

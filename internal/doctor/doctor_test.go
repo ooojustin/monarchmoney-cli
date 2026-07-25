@@ -32,10 +32,10 @@ func TestCheckWithSessionAndConnectivity(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	if err := os.MkdirAll(config.DefaultDir(), 0700); err != nil {
+	if err := os.MkdirAll(config.DefaultDir(), 0o700); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
-	if err := os.WriteFile(config.DefaultConfigPath(), []byte("profile: default\n"), 0600); err != nil {
+	if err := os.WriteFile(config.DefaultConfigPath(), []byte("profile: default\n"), 0o600); err != nil {
 		t.Fatalf("WriteFile() config error = %v", err)
 	}
 
@@ -43,7 +43,7 @@ func TestCheckWithSessionAndConnectivity(t *testing.T) {
 	if err := auth.NewStore(config.DefaultSessionPath()).Save(sess); err != nil {
 		t.Fatalf("Save() session error = %v", err)
 	}
-	if err := os.Chmod(config.DefaultSessionPath(), 0644); err != nil {
+	if err := os.Chmod(config.DefaultSessionPath(), 0o644); err != nil {
 		t.Fatalf("Chmod() error = %v", err)
 	}
 
