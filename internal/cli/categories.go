@@ -6,13 +6,11 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
-	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 	"github.com/thedavidweng/monarchmoney-cli/internal/safety"
 )
 
@@ -50,41 +48,21 @@ var categoriesCreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create a category",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "categories.create", err, start)
-			return
-		}
-
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("categories.create", "", nil, map[string]string{"name": categoryName, "groupId": categoryGroupID})
-			env := output.NewEnvelope("categories.create", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "categories.create", start)
-		if !ok {
-			return
-		}
-
-		result, err := deps.Mutate("categories.create", "", func() (any, error) {
-			return deps.Service.CreateCategory(cmd.Context(), categoryName, categoryGroupID)
-		}, "failed to create category")
-		if err != nil {
-			return
-		}
-		cat, _ := result.(*monarch.Category)
-
-		if jsonMode {
-			env := output.NewEnvelope("categories.create", profile, output.SchemaVersion, requestID, cat, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Successfully created category %s (%s).\n", cat.Name, cat.ID)
-		}
+		runMutation(cmd, "categories.create", "failed to create category", safety.TierMutation, func() (mutation, *errors.Error) {
+			var cat *monarch.Category
+			return mutation{
+				planAfter: map[string]string{"name": categoryName, "groupId": categoryGroupID},
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					c, err := svc.CreateCategory(ctx, categoryName, categoryGroupID)
+					if err != nil {
+						return nil, err
+					}
+					cat = c
+					return c, nil
+				},
+				human: func() { fmt.Printf("Successfully created category %s (%s).\n", cat.Name, cat.ID) },
+			}, nil
+		})
 	},
 }
 
@@ -93,40 +71,19 @@ var categoriesDeleteCmd = &cobra.Command{
 	Short: "Delete a category",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 		id := args[0]
-
-		if err := safety.Check(safety.TierDestructive, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "categories.delete", err, start)
-			return
-		}
-
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("categories.delete", id, nil, nil)
-			env := output.NewEnvelope("categories.delete", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "categories.delete", start)
-		if !ok {
-			return
-		}
-
-		if _, err := deps.Mutate("categories.delete", id, func() (any, error) {
-			return nil, deps.Service.DeleteCategory(cmd.Context(), id)
-		}, "failed to delete category"); err != nil {
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("categories.delete", profile, output.SchemaVersion, requestID, map[string]string{"status": "deleted"}, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Successfully deleted category %s.\n", id)
-		}
+		runMutation(cmd, "categories.delete", "failed to delete category", safety.TierDestructive, func() (mutation, *errors.Error) {
+			return mutation{
+				resourceID: id,
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					if err := svc.DeleteCategory(ctx, id); err != nil {
+						return nil, err
+					}
+					return map[string]string{"status": "deleted"}, nil
+				},
+				human: func() { fmt.Printf("Successfully deleted category %s.\n", id) },
+			}, nil
+		})
 	},
 }
 
@@ -134,64 +91,39 @@ var categoriesDeleteManyCmd = &cobra.Command{
 	Use:   "delete-many",
 	Short: "Delete multiple categories from a file",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		if err := safety.Check(safety.TierDestructive, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "categories.delete-many", err, start)
-			return
-		}
-
-		if categoryFile == "" {
-			handleError(renderer, "categories.delete-many", errors.New(errors.InvalidArguments, "--file is required", errors.CatValidation, false, nil), start)
-			return
-		}
-
-		f, err := os.Open(categoryFile)
-		if err != nil {
-			handleError(renderer, "categories.delete-many", errors.New(errors.InternalError, "failed to open file", errors.CatInternal, false, err), start)
-			return
-		}
-		defer func() {
-			if cerr := f.Close(); cerr != nil {
-				fmt.Fprintf(os.Stderr, "warning: failed to close file: %v\n", cerr)
+		runMutation(cmd, "categories.delete-many", "failed to delete categories", safety.TierDestructive, func() (mutation, *errors.Error) {
+			if categoryFile == "" {
+				return mutation{}, errors.New(errors.InvalidArguments, "--file is required", errors.CatValidation, false, nil)
 			}
-		}()
-
-		var ids []string
-		scanner := bufio.NewScanner(f)
-		for scanner.Scan() {
-			id := strings.TrimSpace(scanner.Text())
-			if id != "" {
-				ids = append(ids, id)
+			f, err := os.Open(categoryFile)
+			if err != nil {
+				return mutation{}, errors.New(errors.InternalError, "failed to open file", errors.CatInternal, false, err)
 			}
-		}
+			defer func() {
+				if cerr := f.Close(); cerr != nil {
+					fmt.Fprintf(os.Stderr, "warning: failed to close file: %v\n", cerr)
+				}
+			}()
 
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("categories.delete-many", "", nil, map[string]any{"ids": ids})
-			env := output.NewEnvelope("categories.delete-many", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "categories.delete-many", start)
-		if !ok {
-			return
-		}
-
-		if _, err := deps.Mutate("categories.delete-many", "", func() (any, error) {
-			return nil, deps.Service.DeleteCategories(cmd.Context(), ids)
-		}, "failed to delete categories"); err != nil {
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("categories.delete-many", profile, output.SchemaVersion, requestID, map[string]string{"status": "categories deleted"}, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Successfully deleted %d categories.\n", len(ids))
-		}
+			var ids []string
+			scanner := bufio.NewScanner(f)
+			for scanner.Scan() {
+				id := strings.TrimSpace(scanner.Text())
+				if id != "" {
+					ids = append(ids, id)
+				}
+			}
+			return mutation{
+				planAfter: map[string]any{"ids": ids},
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					if err := svc.DeleteCategories(ctx, ids); err != nil {
+						return nil, err
+					}
+					return map[string]string{"status": "categories deleted"}, nil
+				},
+				human: func() { fmt.Printf("Successfully deleted %d categories.\n", len(ids)) },
+			}, nil
+		})
 	},
 }
 
@@ -199,30 +131,16 @@ var categoriesGroupsCmd = &cobra.Command{
 	Use:   "groups",
 	Short: "List all category groups",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "categories.groups", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		groups, err := svc.ListCategoryGroups(cmd.Context())
-		if err != nil {
-			handleError(renderer, "categories.groups", wrapError(err, "failed to list category groups"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("categories.groups", profile, output.SchemaVersion, requestID, groups, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("%-20s %-30s %s\n", "ID", "NAME", "TYPE")
-			for _, g := range groups {
-				fmt.Printf("%-20s %-30s %s\n", g.ID, g.Name, g.Type)
-			}
-		}
+		run(cmd.Context(), "categories.groups", "failed to list category groups",
+			func(ctx context.Context, svc *monarch.Service) ([]monarch.CategoryGroup, error) {
+				return svc.ListCategoryGroups(ctx)
+			},
+			func(groups []monarch.CategoryGroup) {
+				fmt.Printf("%-20s %-30s %s\n", "ID", "NAME", "TYPE")
+				for _, g := range groups {
+					fmt.Printf("%-20s %-30s %s\n", g.ID, g.Name, g.Type)
+				}
+			})
 	},
 }
 

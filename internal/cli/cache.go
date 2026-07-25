@@ -47,7 +47,7 @@ var cacheSyncCmd = &cobra.Command{
 		}
 		svc := deps.Service
 
-		cfg, _ := config.Load()
+		cfg, _ := config.Load(cfgFile)
 		cacheStore, err := cache.NewStore(cfg.CachePath)
 		if err != nil {
 			handleError(renderer, "cache.sync", errors.New(errors.InternalError, "failed to open cache", errors.CatInternal, false, err), start)
@@ -90,9 +90,9 @@ var cacheSyncCmd = &cobra.Command{
 		}
 		var txs []monarch.Transaction
 		if syncAll {
-			txs, err = svc.ListAllTransactions(cmd.Context(), monarch.ListTransactionsOptions{Limit: limit, StartDate: syncFrom})
+			txs, err = svc.ListAllTransactions(cmd.Context(), &monarch.ListTransactionsOptions{Limit: limit, StartDate: syncFrom})
 		} else {
-			txs, _, err = svc.ListTransactions(cmd.Context(), monarch.ListTransactionsOptions{Limit: limit, StartDate: syncFrom})
+			txs, _, err = svc.ListTransactions(cmd.Context(), &monarch.ListTransactionsOptions{Limit: limit, StartDate: syncFrom})
 		}
 		if err != nil {
 			handleError(renderer, "cache.sync", errors.New(errors.APIError, fmt.Sprintf("failed to sync transactions: %v", err), errors.CatAPI, false, err), start)
@@ -139,7 +139,7 @@ var cacheSearchCmd = &cobra.Command{
 		start := time.Now()
 		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 
-		cfg, _ := config.Load()
+		cfg, _ := config.Load(cfgFile)
 		cacheStore, err := cache.NewStore(cfg.CachePath)
 		if err != nil {
 			handleError(renderer, "cache.search", errors.New(errors.InternalError, "failed to open cache", errors.CatInternal, false, err), start)
@@ -173,7 +173,7 @@ var cacheStatsCmd = &cobra.Command{
 		start := time.Now()
 		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 
-		cfg, _ := config.Load()
+		cfg, _ := config.Load(cfgFile)
 		cacheStore, err := cache.NewStore(cfg.CachePath)
 		if err != nil {
 			handleError(renderer, "cache.stats", errors.New(errors.InternalError, "failed to open cache", errors.CatInternal, false, err), start)
@@ -223,7 +223,7 @@ var cacheCleanupCmd = &cobra.Command{
 			return
 		}
 
-		cfg, _ := config.Load()
+		cfg, _ := config.Load(cfgFile)
 		store, err := cache.NewStore(cfg.CachePath)
 		if err != nil {
 			handleError(renderer, "cache.cleanup", errors.New(errors.InternalError, "failed to open cache", errors.CatInternal, false, err), start)

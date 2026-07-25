@@ -173,7 +173,8 @@ func (s *Service) GetInvestmentPortfolio(ctx context.Context, opts InvestmentPor
 			},
 			Holdings: make([]InvestmentHolding, 0, len(node.Holdings)),
 		}
-		for _, holding := range node.Holdings {
+		for j := range node.Holdings {
+			holding := &node.Holdings[j]
 			holdingNode.Holdings = append(holdingNode.Holdings, InvestmentHolding{
 				ID:          holding.ID,
 				Type:        holding.Type,

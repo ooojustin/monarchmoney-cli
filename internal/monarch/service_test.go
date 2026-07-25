@@ -435,7 +435,7 @@ func testServiceCashflowAggregationPaths(t *testing.T) {
 
 	t.Run("cashflow trends by category group", func(t *testing.T) {
 		runGraphQLCase(t, "GetAggregatesGraphCategoryGroup", map[string]any{"filters": map[string]any{"startDate": "2026-01-01", "endDate": "2026-03-31", "categories": []string{"cat-1"}, "accounts": []string{"acc-1"}}}, `{"aggregates":[{"groupBy":{"categoryGroup":{"id":"grp-1"},"month":"2026-01"},"summary":{"sum":-120}}]}`, func(s *Service) error {
-			got, err := s.GetCashflowTrends(context.Background(), CashflowTrendOptions{
+			got, err := s.GetCashflowTrends(context.Background(), &CashflowTrendOptions{
 				StartDate:   "2026-01-01",
 				EndDate:     "2026-03-31",
 				GroupBy:     "category-group",
@@ -755,7 +755,7 @@ func testServiceTransactionListingPaths(t *testing.T) {
 		pending := false
 		hideFromReports := true
 		runGraphQLCase(t, "GetTransactionsList", map[string]any{"limit": 50, "offset": 5, "filters": map[string]any{"search": "lunch", "categories": []string{}, "accounts": []string{}, "tags": []string{}, "goals": []string{"goal-1"}, "startDate": "2026-05-01", "endDate": "2026-05-31", "isPending": false, "hideFromReports": true}}, `{"allTransactions":{"results":[{"id":"tx-1","date":"2026-05-08","amount":-20,"pending":false,"hideFromReports":true,"dataProviderDescription":"STORE 123","plaidName":"plaid","merchant":{"name":"Store"},"category":{"name":"Food","group":{"id":"grp-1","name":"Dining","type":"expense"}},"account":{"id":"acc-1","displayName":"Checking","order":4,"type":{"group":"asset"}},"ownedByUser":{"displayName":"Alex"},"goal":{"id":"goal-1","name":"Vacation"},"notes":"lunch"}],"totalCount":1}}`, func(s *Service) error {
-			got, total, err := s.ListTransactions(context.Background(), ListTransactionsOptions{Limit: 50, Offset: 5, Search: "lunch", StartDate: "2026-05-01", EndDate: "2026-05-31", Pending: &pending, HideFromReports: &hideFromReports, GoalIDs: []string{"goal-1"}})
+			got, total, err := s.ListTransactions(context.Background(), &ListTransactionsOptions{Limit: 50, Offset: 5, Search: "lunch", StartDate: "2026-05-01", EndDate: "2026-05-31", Pending: &pending, HideFromReports: &hideFromReports, GoalIDs: []string{"goal-1"}})
 			mustNoErr(t, err)
 			eq(t, 1, total)
 			mustLen(t, got, 1)
@@ -794,7 +794,7 @@ func testServiceTransactionListingPaths(t *testing.T) {
 				return nil
 			},
 		}
-		got, err := NewService(client).ListAllTransactions(context.Background(), ListTransactionsOptions{Limit: 1, StartDate: "2026-05-01", EndDate: "2026-05-31"})
+		got, err := NewService(client).ListAllTransactions(context.Background(), &ListTransactionsOptions{Limit: 1, StartDate: "2026-05-01", EndDate: "2026-05-31"})
 		mustNoErr(t, err)
 		mustLen(t, got, 2)
 		eq(t, []int{0, 1}, calls)
@@ -940,7 +940,7 @@ func TestServiceErrorBranches(t *testing.T) {
 			return err
 		})
 		runGraphQLErrorCase(t, "GetAggregatesGraph", map[string]any{"filters": map[string]any{"startDate": "2026-01-01", "endDate": "2026-03-31"}}, func(s *Service) error {
-			_, err := s.GetCashflowTrends(context.Background(), CashflowTrendOptions{StartDate: "2026-01-01", EndDate: "2026-03-31", GroupBy: "category", Period: "month"})
+			_, err := s.GetCashflowTrends(context.Background(), &CashflowTrendOptions{StartDate: "2026-01-01", EndDate: "2026-03-31", GroupBy: "category", Period: "month"})
 			return err
 		})
 		runGraphQLErrorCase(t, "GetTransactionRules", nil, func(s *Service) error { _, err := s.ListRules(context.Background()); return err })
@@ -981,7 +981,7 @@ func TestServiceErrorBranches(t *testing.T) {
 		})
 		runGraphQLErrorCase(t, "Web_SetTransactionTags", map[string]any{"input": map[string]any{"transactionId": "tx-1", "tagIds": []string{"tag-1"}}}, func(s *Service) error { return s.SetTransactionTags(context.Background(), "tx-1", []string{"tag-1"}) })
 		runGraphQLErrorCase(t, "GetTransactionsList", map[string]any{"limit": 10, "offset": 0, "filters": map[string]any{"search": "", "categories": []string{}, "accounts": []string{}, "tags": []string{}}}, func(s *Service) error {
-			_, _, err := s.ListTransactions(context.Background(), ListTransactionsOptions{Limit: 10})
+			_, _, err := s.ListTransactions(context.Background(), &ListTransactionsOptions{Limit: 10})
 			return err
 		})
 	})

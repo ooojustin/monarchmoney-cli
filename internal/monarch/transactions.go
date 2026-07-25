@@ -219,7 +219,7 @@ func (s *Service) GetDuplicateTransactions(ctx context.Context, startDate, endDa
 	const pageSize = 1000
 	all := make([]Transaction, 0, pageSize)
 	for offset := 0; ; offset += pageSize {
-		page, total, err := s.ListTransactions(ctx, ListTransactionsOptions{
+		page, total, err := s.ListTransactions(ctx, &ListTransactionsOptions{
 			Limit:     pageSize,
 			Offset:    offset,
 			StartDate: startDate,
@@ -235,14 +235,14 @@ func (s *Service) GetDuplicateTransactions(ctx context.Context, startDate, endDa
 	}
 
 	counts := make(map[string]int, len(all))
-	for _, tx := range all {
-		counts[duplicateTransactionKey(tx)]++
+	for i := range all {
+		counts[duplicateTransactionKey(&all[i])]++
 	}
 
 	duplicates := make([]Transaction, 0)
-	for _, tx := range all {
-		if counts[duplicateTransactionKey(tx)] > 1 {
-			duplicates = append(duplicates, tx)
+	for i := range all {
+		if counts[duplicateTransactionKey(&all[i])] > 1 {
+			duplicates = append(duplicates, all[i])
 		}
 	}
 
@@ -505,17 +505,16 @@ type ListTransactionsOptions struct {
 	HideFromReports *bool
 }
 
-func normalizeListTransactionsOptions(opts ListTransactionsOptions) ListTransactionsOptions {
+func normalizeListTransactionsOptions(opts *ListTransactionsOptions) {
 	if opts.Limit <= 0 {
 		opts.Limit = 100
 	}
 	if opts.Offset < 0 {
 		opts.Offset = 0
 	}
-	return opts
 }
 
-func buildListTransactionsFilters(opts ListTransactionsOptions) map[string]any {
+func buildListTransactionsFilters(opts *ListTransactionsOptions) map[string]any {
 	filters := map[string]any{
 		"search":     opts.Search,
 		"categories": nonNilStrings(opts.CategoryIDs),
@@ -557,7 +556,7 @@ func addOptionalBoolFilter(filters map[string]any, key string, value *bool) {
 	}
 }
 
-func (s *Service) ListTransactions(ctx context.Context, opts ListTransactionsOptions) ([]Transaction, int, error) {
+func (s *Service) ListTransactions(ctx context.Context, opts *ListTransactionsOptions) ([]Transaction, int, error) {
 	var resp struct {
 		AllTransactions struct {
 			Results []struct {
@@ -614,12 +613,13 @@ func (s *Service) ListTransactions(ctx context.Context, opts ListTransactionsOpt
 		} `json:"allTransactions"`
 	}
 
-	opts = normalizeListTransactionsOptions(opts)
-	filters := buildListTransactionsFilters(opts)
+	local := *opts
+	normalizeListTransactionsOptions(&local)
+	filters := buildListTransactionsFilters(&local)
 
 	variables := map[string]any{
-		"offset":  opts.Offset,
-		"limit":   opts.Limit,
+		"offset":  local.Offset,
+		"limit":   local.Limit,
 		"filters": filters,
 	}
 
@@ -634,7 +634,8 @@ func (s *Service) ListTransactions(ctx context.Context, opts ListTransactionsOpt
 	}
 
 	txs := make([]Transaction, len(resp.AllTransactions.Results))
-	for i, r := range resp.AllTransactions.Results {
+	for i := range resp.AllTransactions.Results {
+		r := &resp.AllTransactions.Results[i]
 		tags := make([]Tag, len(r.Tags))
 		for j, t := range r.Tags {
 			tags[j] = Tag{ID: t.ID, Name: t.Name, Color: t.Color}
@@ -676,29 +677,30 @@ func (s *Service) ListTransactions(ctx context.Context, opts ListTransactionsOpt
 	return txs, resp.AllTransactions.TotalCount, nil
 }
 
-func (s *Service) ListAllTransactions(ctx context.Context, opts ListTransactionsOptions) ([]Transaction, error) {
-	if opts.Limit <= 0 {
-		opts.Limit = 1000
+func (s *Service) ListAllTransactions(ctx context.Context, opts *ListTransactionsOptions) ([]Transaction, error) {
+	local := *opts
+	if local.Limit <= 0 {
+		local.Limit = 1000
 	}
-	if opts.Offset < 0 {
-		opts.Offset = 0
+	if local.Offset < 0 {
+		local.Offset = 0
 	}
 
-	all := make([]Transaction, 0, opts.Limit)
+	all := make([]Transaction, 0, local.Limit)
 	for {
-		page, total, err := s.ListTransactions(ctx, opts)
+		page, total, err := s.ListTransactions(ctx, &local)
 		if err != nil {
 			return nil, err
 		}
 		all = append(all, page...)
-		if len(page) == 0 || opts.Offset+len(page) >= total {
+		if len(page) == 0 || local.Offset+len(page) >= total {
 			break
 		}
-		opts.Offset += len(page)
+		local.Offset += len(page)
 	}
 	return all, nil
 }
 
-func duplicateTransactionKey(tx Transaction) string {
+func duplicateTransactionKey(tx *Transaction) string {
 	return tx.Date + "|" + strconv.FormatFloat(tx.Amount, 'f', 2, 64) + "|" + tx.PlaidName + "|" + tx.AccountID
 }

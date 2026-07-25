@@ -46,7 +46,8 @@ func (s *Service) ListRecurring(ctx context.Context, startDate, endDate string) 
 	}
 
 	recurring := make([]RecurringTransaction, len(items))
-	for i, r := range items {
+	for i := range items {
+		r := &items[i]
 		recurring[i] = RecurringTransaction{
 			ID:        r.Stream.ID,
 			Merchant:  r.Stream.MerchantName,
@@ -107,7 +108,8 @@ func (s *Service) ListRecurringItems(ctx context.Context, startDate, endDate str
 	}
 
 	recurring := make([]RecurringItem, len(resp.RecurringTransactionItems))
-	for i, r := range resp.RecurringTransactionItems {
+	for i := range resp.RecurringTransactionItems {
+		r := &resp.RecurringTransactionItems[i]
 		recurring[i] = RecurringItem{
 			Stream: RecurringStream{
 				ID:            r.Stream.ID,

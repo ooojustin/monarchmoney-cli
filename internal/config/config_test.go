@@ -1,14 +1,12 @@
 package config
 
 import (
+	"path/filepath"
 	"testing"
-
-	"github.com/spf13/viper"
 )
 
 func TestLoadDefaults(t *testing.T) {
-	viper.Reset()
-	cfg, err := Load()
+	cfg, err := Load(filepath.Join(t.TempDir(), "config.yaml"))
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}

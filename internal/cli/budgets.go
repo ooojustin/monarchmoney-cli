@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
-	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 	"github.com/thedavidweng/monarchmoney-cli/internal/safety"
 )
 
@@ -30,52 +30,33 @@ var budgetsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List budgets",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "budgets.list", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		opts := monarch.ListBudgetsOptions{}
-		if monthStr != "" {
-			parts := strings.Split(monthStr, "-")
-			if len(parts) != 2 {
-				handleError(renderer, "budgets.list", errors.New(errors.InvalidArguments, "invalid month format, use YYYY-MM", errors.CatValidation, false, nil), start)
-				return
-			}
-			y, _ := strconv.Atoi(parts[0])
-			m, _ := strconv.Atoi(parts[1])
-			// Convert YYYY-MM to startDate/endDate format
-			opts.StartDate = fmt.Sprintf("%04d-%02d-01", y, m)
-			// Last day of month
-			lastDay := time.Date(y, time.Month(m+1), 0, 0, 0, 0, 0, time.UTC).Day()
-			opts.EndDate = fmt.Sprintf("%04d-%02d-%02d", y, m, lastDay)
-		} else {
-			// Default to current month
-			now := time.Now()
-			opts.StartDate = fmt.Sprintf("%04d-%02d-01", now.Year(), now.Month())
-			lastDay := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
-			opts.EndDate = fmt.Sprintf("%04d-%02d-%02d", now.Year(), now.Month(), lastDay)
-		}
-
-		budgets, err := svc.ListBudgets(cmd.Context(), opts)
-		if err != nil {
-			handleError(renderer, "budgets.list", wrapError(err, "failed to list budgets"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("budgets.list", profile, output.SchemaVersion, requestID, budgets, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("%-30s %10s %10s %10s\n", "CATEGORY", "PLANNED", "ACTUAL", "REMAINING")
-			for _, b := range budgets {
-				fmt.Printf("%-30s %10.2f %10.2f %10.2f\n", b.CategoryName, b.Planned, b.Actual, b.Planned-b.Actual)
-			}
-		}
+		run(cmd.Context(), "budgets.list", "failed to list budgets",
+			func(ctx context.Context, svc *monarch.Service) ([]monarch.Budget, error) {
+				opts := monarch.ListBudgetsOptions{}
+				if monthStr != "" {
+					parts := strings.Split(monthStr, "-")
+					if len(parts) != 2 {
+						return nil, errors.New(errors.InvalidArguments, "invalid month format, use YYYY-MM", errors.CatValidation, false, nil)
+					}
+					y, _ := strconv.Atoi(parts[0])
+					m, _ := strconv.Atoi(parts[1])
+					opts.StartDate = fmt.Sprintf("%04d-%02d-01", y, m)
+					lastDay := time.Date(y, time.Month(m+1), 0, 0, 0, 0, 0, time.UTC).Day()
+					opts.EndDate = fmt.Sprintf("%04d-%02d-%02d", y, m, lastDay)
+				} else {
+					now := time.Now()
+					opts.StartDate = fmt.Sprintf("%04d-%02d-01", now.Year(), now.Month())
+					lastDay := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
+					opts.EndDate = fmt.Sprintf("%04d-%02d-%02d", now.Year(), now.Month(), lastDay)
+				}
+				return svc.ListBudgets(ctx, opts)
+			},
+			func(budgets []monarch.Budget) {
+				fmt.Printf("%-30s %10s %10s %10s\n", "CATEGORY", "PLANNED", "ACTUAL", "REMAINING")
+				for _, b := range budgets {
+					fmt.Printf("%-30s %10.2f %10.2f %10.2f\n", b.CategoryName, b.Planned, b.Actual, b.Planned-b.Actual)
+				}
+			})
 	},
 }
 
@@ -84,57 +65,38 @@ var budgetsSetCmd = &cobra.Command{
 	Short: "Set budget for a category",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 		categoryID := args[0]
-
-		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "budgets.set", err, start)
-			return
-		}
-
-		var y, m int
-		if monthStr != "" {
-			parts := strings.Split(monthStr, "-")
-			if len(parts) != 2 {
-				handleError(renderer, "budgets.set", errors.New(errors.InvalidArguments, "invalid month format, use YYYY-MM", errors.CatValidation, false, nil), start)
-				return
+		runMutation(cmd, "budgets.set", "failed to set budget", safety.TierMutation, func() (mutation, *errors.Error) {
+			var y, m int
+			if monthStr != "" {
+				parts := strings.Split(monthStr, "-")
+				if len(parts) != 2 {
+					return mutation{}, errors.New(errors.InvalidArguments, "invalid month format, use YYYY-MM", errors.CatValidation, false, nil)
+				}
+				y, _ = strconv.Atoi(parts[0])
+				m, _ = strconv.Atoi(parts[1])
+			} else {
+				now := time.Now()
+				y = now.Year()
+				m = int(now.Month())
 			}
-			y, _ = strconv.Atoi(parts[0])
-			m, _ = strconv.Atoi(parts[1])
-		} else {
-			now := time.Now()
-			y = now.Year()
-			m = int(now.Month())
-		}
-
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("budgets.set", categoryID, nil, map[string]any{"amount": budgetAmount, "month": m, "year": y})
-			env := output.NewEnvelope("budgets.set", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "budgets.set", start)
-		if !ok {
-			return
-		}
-
-		result, err := deps.Mutate("budgets.set", categoryID, func() (any, error) {
-			return deps.Service.SetBudget(cmd.Context(), categoryID, budgetAmount, fmt.Sprintf("%04d-%02d-01", y, m))
-		}, "failed to set budget")
-		if err != nil {
-			return
-		}
-		budget, _ := result.(*monarch.Budget)
-
-		if jsonMode {
-			env := output.NewEnvelope("budgets.set", profile, output.SchemaVersion, requestID, budget, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Successfully set budget for %s to %.2f.\n", budget.CategoryName, budget.Planned)
-		}
+			var budget *monarch.Budget
+			return mutation{
+				resourceID: categoryID,
+				planAfter:  map[string]any{"amount": budgetAmount, "month": m, "year": y},
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					b, err := svc.SetBudget(ctx, categoryID, budgetAmount, fmt.Sprintf("%04d-%02d-01", y, m))
+					if err != nil {
+						return nil, err
+					}
+					budget = b
+					return b, nil
+				},
+				human: func() {
+					fmt.Printf("Successfully set budget for %s to %.2f.\n", budget.CategoryName, budget.Planned)
+				},
+			}, nil
+		})
 	},
 }
 
@@ -142,52 +104,27 @@ var budgetsResetCmd = &cobra.Command{
 	Use:   "reset",
 	Short: "Reset budget for a month",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		if err := safety.Check(safety.TierDestructive, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "budgets.reset", err, start)
-			return
-		}
-
-		var y, m int
-		if monthStr == "" {
-			handleError(renderer, "budgets.reset", errors.New(errors.InvalidArguments, "--month is required", errors.CatValidation, false, nil), start)
-			return
-		}
-		parts := strings.Split(monthStr, "-")
-		if len(parts) != 2 {
-			handleError(renderer, "budgets.reset", errors.New(errors.InvalidArguments, "invalid month format, use YYYY-MM", errors.CatValidation, false, nil), start)
-			return
-		}
-		y, _ = strconv.Atoi(parts[0])
-		m, _ = strconv.Atoi(parts[1])
-
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("budgets.reset", "", nil, map[string]int{"month": m, "year": y})
-			env := output.NewEnvelope("budgets.reset", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "budgets.reset", start)
-		if !ok {
-			return
-		}
-
-		if _, err := deps.Mutate("budgets.reset", "", func() (any, error) {
-			return nil, deps.Service.ResetBudget(cmd.Context(), m, y)
-		}, "failed to reset budget"); err != nil {
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("budgets.reset", profile, output.SchemaVersion, requestID, map[string]string{"status": "budget reset"}, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Successfully reset budget for %d-%02d.\n", y, m)
-		}
+		runMutation(cmd, "budgets.reset", "failed to reset budget", safety.TierDestructive, func() (mutation, *errors.Error) {
+			if monthStr == "" {
+				return mutation{}, errors.New(errors.InvalidArguments, "--month is required", errors.CatValidation, false, nil)
+			}
+			parts := strings.Split(monthStr, "-")
+			if len(parts) != 2 {
+				return mutation{}, errors.New(errors.InvalidArguments, "invalid month format, use YYYY-MM", errors.CatValidation, false, nil)
+			}
+			y, _ := strconv.Atoi(parts[0])
+			m, _ := strconv.Atoi(parts[1])
+			return mutation{
+				planAfter: map[string]int{"month": m, "year": y},
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					if err := svc.ResetBudget(ctx, m, y); err != nil {
+						return nil, err
+					}
+					return map[string]string{"status": "budget reset"}, nil
+				},
+				human: func() { fmt.Printf("Successfully reset budget for %d-%02d.\n", y, m) },
+			}, nil
+		})
 	},
 }
 
@@ -196,48 +133,32 @@ var budgetsShowCmd = &cobra.Command{
 	Short: "Show budget for a specific category",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 		categoryID := args[0]
-
-		var y, m int
-		if monthStr != "" {
-			parts := strings.Split(monthStr, "-")
-			if len(parts) != 2 {
-				handleError(renderer, "budgets.show", errors.New(errors.InvalidArguments, "invalid month format, use YYYY-MM", errors.CatValidation, false, nil), start)
-				return
-			}
-			y, _ = strconv.Atoi(parts[0])
-			m, _ = strconv.Atoi(parts[1])
-		} else {
-			now := time.Now()
-			y = now.Year()
-			m = int(now.Month())
-		}
-
-		deps, ok := newDeps(renderer, "budgets.show", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		startDate := fmt.Sprintf("%04d-%02d-01", y, m)
-		endDate := time.Date(y, time.Month(m+1), 0, 0, 0, 0, 0, time.UTC).Format("2006-01-02")
-		budget, err := svc.GetBudget(cmd.Context(), categoryID, startDate, endDate)
-		if err != nil {
-			handleError(renderer, "budgets.show", wrapError(err, "failed to get budget"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("budgets.show", profile, output.SchemaVersion, requestID, budget, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Category:  %s\n", budget.CategoryName)
-			fmt.Printf("Planned:   %.2f\n", budget.Planned)
-			fmt.Printf("Actual:    %.2f\n", budget.Actual)
-			fmt.Printf("Remaining: %.2f\n", budget.Planned-budget.Actual)
-		}
+		run(cmd.Context(), "budgets.show", "failed to get budget",
+			func(ctx context.Context, svc *monarch.Service) (*monarch.Budget, error) {
+				var y, m int
+				if monthStr != "" {
+					parts := strings.Split(monthStr, "-")
+					if len(parts) != 2 {
+						return nil, errors.New(errors.InvalidArguments, "invalid month format, use YYYY-MM", errors.CatValidation, false, nil)
+					}
+					y, _ = strconv.Atoi(parts[0])
+					m, _ = strconv.Atoi(parts[1])
+				} else {
+					now := time.Now()
+					y = now.Year()
+					m = int(now.Month())
+				}
+				startDate := fmt.Sprintf("%04d-%02d-01", y, m)
+				endDate := time.Date(y, time.Month(m+1), 0, 0, 0, 0, 0, time.UTC).Format("2006-01-02")
+				return svc.GetBudget(ctx, categoryID, startDate, endDate)
+			},
+			func(budget *monarch.Budget) {
+				fmt.Printf("Category:  %s\n", budget.CategoryName)
+				fmt.Printf("Planned:   %.2f\n", budget.Planned)
+				fmt.Printf("Actual:    %.2f\n", budget.Actual)
+				fmt.Printf("Remaining: %.2f\n", budget.Planned-budget.Actual)
+			})
 	},
 }
 
@@ -245,42 +166,28 @@ var budgetsExportCmd = &cobra.Command{
 	Use:   "export",
 	Short: "Export budgets",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "budgets.export", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		opts := monarch.ListBudgetsOptions{}
-		if monthStr != "" {
-			parts := strings.Split(monthStr, "-")
-			if len(parts) != 2 {
-				handleError(renderer, "budgets.export", errors.New(errors.InvalidArguments, "invalid month format, use YYYY-MM", errors.CatValidation, false, nil), start)
-				return
-			}
-			y, _ := strconv.Atoi(parts[0])
-			m, _ := strconv.Atoi(parts[1])
-			opts.StartDate = fmt.Sprintf("%04d-%02d-01", y, m)
-			lastDay := time.Date(y, time.Month(m+1), 0, 0, 0, 0, 0, time.UTC).Day()
-			opts.EndDate = fmt.Sprintf("%04d-%02d-%02d", y, m, lastDay)
-		} else {
-			now := time.Now()
-			opts.StartDate = fmt.Sprintf("%04d-%02d-01", now.Year(), now.Month())
-			lastDay := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
-			opts.EndDate = fmt.Sprintf("%04d-%02d-%02d", now.Year(), now.Month(), lastDay)
-		}
-
-		budgets, err := svc.ListBudgets(cmd.Context(), opts)
-		if err != nil {
-			handleError(renderer, "budgets.export", wrapError(err, "failed to list budgets"), start)
-			return
-		}
-
-		env := output.NewEnvelope("budgets.export", profile, output.SchemaVersion, requestID, budgets, time.Since(start))
-		renderer.RenderSuccess(env)
+		run(cmd.Context(), "budgets.export", "failed to list budgets",
+			func(ctx context.Context, svc *monarch.Service) ([]monarch.Budget, error) {
+				opts := monarch.ListBudgetsOptions{}
+				if monthStr != "" {
+					parts := strings.Split(monthStr, "-")
+					if len(parts) != 2 {
+						return nil, errors.New(errors.InvalidArguments, "invalid month format, use YYYY-MM", errors.CatValidation, false, nil)
+					}
+					y, _ := strconv.Atoi(parts[0])
+					m, _ := strconv.Atoi(parts[1])
+					opts.StartDate = fmt.Sprintf("%04d-%02d-01", y, m)
+					lastDay := time.Date(y, time.Month(m+1), 0, 0, 0, 0, 0, time.UTC).Day()
+					opts.EndDate = fmt.Sprintf("%04d-%02d-%02d", y, m, lastDay)
+				} else {
+					now := time.Now()
+					opts.StartDate = fmt.Sprintf("%04d-%02d-01", now.Year(), now.Month())
+					lastDay := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
+					opts.EndDate = fmt.Sprintf("%04d-%02d-%02d", now.Year(), now.Month(), lastDay)
+				}
+				return svc.ListBudgets(ctx, opts)
+			},
+			func(_ []monarch.Budget) {})
 	},
 }
 
@@ -293,54 +200,34 @@ var budgetsFlexibleSetCmd = &cobra.Command{
 	Use:   "set",
 	Short: "Set flexible budget amount for a month",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "budgets.flexible.set", err, start)
-			return
-		}
-
-		var y, m int
-		if monthStr != "" {
-			parts := strings.Split(monthStr, "-")
-			if len(parts) != 2 {
-				handleError(renderer, "budgets.flexible.set", errors.New(errors.InvalidArguments, "invalid month format, use YYYY-MM", errors.CatValidation, false, nil), start)
-				return
+		runMutation(cmd, "budgets.flexible.set", "failed to set flexible budget", safety.TierMutation, func() (mutation, *errors.Error) {
+			var y, m int
+			if monthStr != "" {
+				parts := strings.Split(monthStr, "-")
+				if len(parts) != 2 {
+					return mutation{}, errors.New(errors.InvalidArguments, "invalid month format, use YYYY-MM", errors.CatValidation, false, nil)
+				}
+				y, _ = strconv.Atoi(parts[0])
+				m, _ = strconv.Atoi(parts[1])
+			} else {
+				now := time.Now()
+				y = now.Year()
+				m = int(now.Month())
 			}
-			y, _ = strconv.Atoi(parts[0])
-			m, _ = strconv.Atoi(parts[1])
-		} else {
-			now := time.Now()
-			y = now.Year()
-			m = int(now.Month())
-		}
-
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("budgets.flexible.set", fmt.Sprintf("%d-%02d", y, m), nil, map[string]any{"amount": budgetAmount})
-			env := output.NewEnvelope("budgets.flexible.set", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "budgets.flexible.set", start)
-		if !ok {
-			return
-		}
-
-		if _, err := deps.Mutate("budgets.flexible.set", fmt.Sprintf("%d-%02d", y, m), func() (any, error) {
-			return nil, deps.Service.UpdateFlexibleBudget(cmd.Context(), m, y, budgetAmount)
-		}, "failed to set flexible budget"); err != nil {
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("budgets.flexible.set", profile, output.SchemaVersion, requestID, map[string]string{"status": "budget set"}, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Successfully set flexible budget for %d-%02d to %.2f.\n", y, m, budgetAmount)
-		}
+			return mutation{
+				resourceID: fmt.Sprintf("%d-%02d", y, m),
+				planAfter:  map[string]any{"amount": budgetAmount},
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					if err := svc.UpdateFlexibleBudget(ctx, m, y, budgetAmount); err != nil {
+						return nil, err
+					}
+					return map[string]string{"status": "budget set"}, nil
+				},
+				human: func() {
+					fmt.Printf("Successfully set flexible budget for %d-%02d to %.2f.\n", y, m, budgetAmount)
+				},
+			}, nil
+		})
 	},
 }
 
@@ -353,39 +240,21 @@ var budgetsFlexRolloverSetCmd = &cobra.Command{
 	Use:   "set",
 	Short: "Set flexible budget rollover settings",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "budgets.flex-rollover.set", err, start)
-			return
-		}
-
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("budgets.flex-rollover.set", monthStr, nil, map[string]any{"balance": budgetAmount})
-			env := output.NewEnvelope("budgets.flex-rollover.set", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "budgets.flex-rollover.set", start)
-		if !ok {
-			return
-		}
-
-		if _, err := deps.Mutate("budgets.flex-rollover.set", monthStr, func() (any, error) {
-			return nil, deps.Service.UpdateFlexRolloverSettings(cmd.Context(), monthStr, budgetAmount, true)
-		}, "failed to set flex rollover"); err != nil {
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("budgets.flex-rollover.set", profile, output.SchemaVersion, requestID, map[string]string{"status": "rollover set"}, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Successfully set flex rollover starting %s with balance %.2f.\n", monthStr, budgetAmount)
-		}
+		runMutation(cmd, "budgets.flex-rollover.set", "failed to set flex rollover", safety.TierMutation, func() (mutation, *errors.Error) {
+			return mutation{
+				resourceID: monthStr,
+				planAfter:  map[string]any{"balance": budgetAmount},
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					if err := svc.UpdateFlexRolloverSettings(ctx, monthStr, budgetAmount, true); err != nil {
+						return nil, err
+					}
+					return map[string]string{"status": "rollover set"}, nil
+				},
+				human: func() {
+					fmt.Printf("Successfully set flex rollover starting %s with balance %.2f.\n", monthStr, budgetAmount)
+				},
+			}, nil
+		})
 	},
 }
 

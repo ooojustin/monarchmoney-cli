@@ -4,12 +4,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/config"
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
@@ -46,15 +44,35 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 	SilenceErrors: true,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		requestID = uuid.NewString()
-		jsonMode = viper.GetBool("json")
-		pretty = viper.GetBool("pretty")
-		events = viper.GetBool("events")
-		readOnly = viper.GetBool("read-only")
-		dryRun = viper.GetBool("dry-run")
-		confirm = viper.GetBool("confirm")
-		timeout = viper.GetDuration("timeout")
-		profile = viper.GetString("profile")
-		verbose = viper.GetBool("verbose")
+
+		// Resolve the config file path: --config flag, then MONARCH_CONFIG.
+		if cfgFile == "" {
+			cfgFile = os.Getenv("MONARCH_CONFIG")
+		}
+
+		// Baseline for the settings that are both persistent flags and config
+		// keys (profile, timeout). config.Load returns defaults + file + env
+		// with a usable value even when the file is malformed, so a broken file
+		// is tolerated here; read/mutation commands surface it in newDeps.
+		cfg, _ := config.Load(cfgFile)
+
+		// Runtime flags: flag > env > default.
+		jsonMode = jsonMode || envBool("MONARCH_JSON")
+		pretty = pretty || envBool("MONARCH_PRETTY")
+		events = events || envBool("MONARCH_EVENTS")
+		readOnly = readOnly || envBool("MONARCH_READONLY") || envBool("MONARCH_READ_ONLY")
+		dryRun = dryRun || envBool("MONARCH_DRY_RUN")
+		confirm = confirm || envBool("MONARCH_CONFIRM")
+		verbose = verbose || envBool("MONARCH_VERBOSE")
+
+		// profile and timeout are also config keys: flag > env > file > default.
+		// cfg already resolved env > file > default; the flag wins when set.
+		if !persistentFlagChanged(cmd, "profile") {
+			profile = cfg.Profile
+		}
+		if !persistentFlagChanged(cmd, "timeout") {
+			timeout = cfg.Timeout
+		}
 	},
 }
 
@@ -62,6 +80,18 @@ func must(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+// envBool reports whether the named environment variable holds a truthy value.
+func envBool(key string) bool {
+	return config.ParseBool(os.Getenv(key))
+}
+
+// persistentFlagChanged reports whether the user explicitly set a root
+// persistent flag on the command line.
+func persistentFlagChanged(cmd *cobra.Command, name string) bool {
+	f := cmd.Root().PersistentFlags().Lookup(name)
+	return f != nil && f.Changed
 }
 
 func Execute() {
@@ -76,8 +106,6 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
-
 	RootCmd.AddGroup(&cobra.Group{ID: "core", Title: "Core Commands"})
 	RootCmd.AddGroup(&cobra.Group{ID: "analysis", Title: "Analysis & Insights"})
 	RootCmd.AddGroup(&cobra.Group{ID: "utility", Title: "Utilities"})
@@ -93,42 +121,7 @@ func init() {
 	RootCmd.PersistentFlags().StringVar(&profile, "profile", "default", "use a named profile")
 	RootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "print more diagnostics to stderr")
 
-	must(viper.BindPFlag("json", RootCmd.PersistentFlags().Lookup("json")))
-	must(viper.BindPFlag("pretty", RootCmd.PersistentFlags().Lookup("pretty")))
-	must(viper.BindPFlag("events", RootCmd.PersistentFlags().Lookup("events")))
-	must(viper.BindPFlag("read-only", RootCmd.PersistentFlags().Lookup("read-only")))
-	must(viper.BindPFlag("dry-run", RootCmd.PersistentFlags().Lookup("dry-run")))
-	must(viper.BindPFlag("confirm", RootCmd.PersistentFlags().Lookup("confirm")))
-	must(viper.BindPFlag("timeout", RootCmd.PersistentFlags().Lookup("timeout")))
-	must(viper.BindPFlag("profile", RootCmd.PersistentFlags().Lookup("profile")))
-	must(viper.BindPFlag("verbose", RootCmd.PersistentFlags().Lookup("verbose")))
-
 	RootCmd.AddCommand(versionCmd)
-}
-
-func initConfig() {
-	if cfgFile != "" {
-		viper.SetConfigFile(cfgFile)
-	} else {
-		viper.AddConfigPath(config.DefaultDir())
-		viper.SetConfigType("yaml")
-		viper.SetConfigName("config")
-	}
-
-	viper.SetEnvPrefix("MONARCH")
-	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-	viper.AutomaticEnv()
-
-	must(viper.BindEnv("read-only", "MONARCH_READONLY"))
-	must(viper.BindEnv("profile", "MONARCH_PROFILE"))
-	must(viper.BindEnv("timeout", "MONARCH_TIMEOUT"))
-	must(viper.BindEnv("config", "MONARCH_CONFIG"))
-
-	if err := viper.ReadInConfig(); err == nil {
-		if verbose {
-			fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
-		}
-	}
 }
 
 var versionCmd = &cobra.Command{

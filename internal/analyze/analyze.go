@@ -133,7 +133,8 @@ func aggregateAnomalyData(txs []monarch.Transaction, currentStart time.Time, cur
 	merchantTotals = make(map[string]map[string]float64)
 	historyStart := currentStart.AddDate(0, -historyMonths, 0)
 
-	for _, tx := range txs {
+	for i := range txs {
+		tx := &txs[i]
 		if tx.Amount >= 0 || tx.Category == "" {
 			continue
 		}
@@ -244,7 +245,8 @@ func BuildMerchantComparison(current, previous []monarch.CashflowRecord, limit i
 
 func BuildSubscriptions(items []monarch.RecurringItem) SubscriptionSummary {
 	byStream := make(map[string]*Subscription)
-	for _, item := range items {
+	for i := range items {
+		item := &items[i]
 		id := item.Stream.ID
 		if id == "" {
 			id = item.Stream.MerchantName + "|" + item.Stream.Frequency

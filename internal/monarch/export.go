@@ -24,7 +24,8 @@ func ExportTransactionsCSV(txs []Transaction, w io.Writer) error {
 		return err
 	}
 
-	for _, t := range txs {
+	for i := range txs {
+		t := &txs[i]
 		row := []string{
 			t.Date,
 			t.Merchant,

@@ -12,8 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/viper"
-
 	"github.com/thedavidweng/monarchmoney-cli/internal/cache"
 	"github.com/thedavidweng/monarchmoney-cli/internal/testutil"
 )
@@ -26,6 +24,7 @@ func withCacheCommandTestDefaults(t *testing.T, sessionPath, cachePath string) *
 	oldJSONMode := jsonMode
 	oldPretty := pretty
 	oldProfile := profile
+	oldCfgFile := cfgFile
 	oldTransport := http.DefaultTransport
 	oldSyncFrom := syncFrom
 	oldSyncLimit := syncLimit
@@ -47,8 +46,11 @@ func withCacheCommandTestDefaults(t *testing.T, sessionPath, cachePath string) *
 	cacheSyncCmd.SetContext(context.Background())
 	cacheCleanupCmd.SetContext(context.Background())
 
-	viper.Reset()
-	viper.Set("cache_path", cachePath)
+	// Isolate config resolution: point at a config file that does not exist and
+	// drive the cache path through the MONARCH_CACHE_PATH env override (env
+	// takes precedence over file and defaults).
+	cfgFile = filepath.Join(filepath.Dir(cachePath), "test-config-absent.yaml")
+	t.Setenv("MONARCH_CACHE_PATH", cachePath)
 
 	t.Cleanup(func() {
 		exitFunc = oldExitFunc
@@ -56,12 +58,12 @@ func withCacheCommandTestDefaults(t *testing.T, sessionPath, cachePath string) *
 		jsonMode = oldJSONMode
 		pretty = oldPretty
 		profile = oldProfile
+		cfgFile = oldCfgFile
 		http.DefaultTransport = oldTransport
 		syncFrom = oldSyncFrom
 		syncLimit = oldSyncLimit
 		syncAll = oldSyncAll
 		cleanupBefore = oldCleanupBefore
-		viper.Reset()
 	})
 
 	return &exitCode
@@ -237,7 +239,6 @@ func TestCacheCleanupUsesConfiguredCachePathAndValidatesDate(t *testing.T) {
 		t.Fatalf("SaveTransactions() error = %v", err)
 	}
 
-	viper.Set("cache_path", configuredPath)
 	t.Setenv("HOME", filepath.Join(dir, "home"))
 	_ = os.MkdirAll(filepath.Dir(defaultPath), 0o700)
 

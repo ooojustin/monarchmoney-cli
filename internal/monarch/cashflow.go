@@ -79,7 +79,7 @@ func (s *Service) ListCashflow(ctx context.Context, startDate, endDate string) (
 
 	const pageSize = 1000
 	for offset := 0; ; offset += pageSize {
-		page, total, err := s.ListTransactions(ctx, ListTransactionsOptions{
+		page, total, err := s.ListTransactions(ctx, &ListTransactionsOptions{
 			Limit:     pageSize,
 			Offset:    offset,
 			StartDate: startDate,
@@ -89,7 +89,8 @@ func (s *Service) ListCashflow(ctx context.Context, startDate, endDate string) (
 			return nil, err
 		}
 
-		for _, tx := range page {
+		for i := range page {
+			tx := &page[i]
 			period, ok := periods[tx.Date]
 			if !ok {
 				continue
@@ -265,7 +266,7 @@ func (s *Service) GetCashflowMerchants(ctx context.Context, startDate, endDate s
 	return records, nil
 }
 
-func (s *Service) GetCashflowTrends(ctx context.Context, opts CashflowTrendOptions) ([]CashflowTrendRow, error) {
+func (s *Service) GetCashflowTrends(ctx context.Context, opts *CashflowTrendOptions) ([]CashflowTrendRow, error) {
 	groupBy, err := monarchAggregateGroupBy(opts.GroupBy)
 	if err != nil {
 		return nil, err

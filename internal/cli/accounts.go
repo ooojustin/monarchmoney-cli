@@ -76,35 +76,19 @@ var accountsBalanceAtCmd = &cobra.Command{
 	Example: `  monarch accounts balance-at --date 2026-05-10
   monarch accounts balance-at --date 2026-05-10 --account-id acc_123 --account-id acc_456 --json --pretty`,
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		if _, err := time.Parse("2006-01-02", balanceAtDate); err != nil {
-			handleError(renderer, "accounts.balance-at", errors.New(errors.InvalidArguments, "date must use YYYY-MM-DD", errors.CatValidation, false, err), start)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "accounts.balance-at", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		balances, err := svc.GetAccountBalancesAt(cmd.Context(), balanceAtDate, accountIDs)
-		if err != nil {
-			handleError(renderer, "accounts.balance-at", wrapError(err, "failed to get account balances"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("accounts.balance-at", profile, output.SchemaVersion, requestID, balances, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("%-20s %-30s %-15s %12s\n", "ID", "NAME", "TYPE", "BALANCE")
-			for _, balance := range balances {
-				fmt.Printf("%-20s %-30s %-15s %12.2f\n", balance.ID, balance.DisplayName, balance.AccountType, balance.DisplayBalance)
-			}
-		}
+		run(cmd.Context(), "accounts.balance-at", "failed to get account balances",
+			func(ctx context.Context, svc *monarch.Service) ([]monarch.AccountBalanceAt, error) {
+				if _, err := time.Parse("2006-01-02", balanceAtDate); err != nil {
+					return nil, errors.New(errors.InvalidArguments, "date must use YYYY-MM-DD", errors.CatValidation, false, err)
+				}
+				return svc.GetAccountBalancesAt(ctx, balanceAtDate, accountIDs)
+			},
+			func(balances []monarch.AccountBalanceAt) {
+				fmt.Printf("%-20s %-30s %-15s %12s\n", "ID", "NAME", "TYPE", "BALANCE")
+				for _, balance := range balances {
+					fmt.Printf("%-20s %-30s %-15s %12.2f\n", balance.ID, balance.DisplayName, balance.AccountType, balance.DisplayBalance)
+				}
+			})
 	},
 }
 
@@ -113,30 +97,17 @@ var accountsHistoryCmd = &cobra.Command{
 	Short: "Get balance history for an account",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "accounts.history", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		history, err := svc.GetAccountHistory(cmd.Context(), args[0], historyFrom, historyTo)
-		if err != nil {
-			handleError(renderer, "accounts.history", wrapError(err, "failed to get history"), start)
-			return
-		}
-
-		if jsonMode {
-			env := envelopeWithWarnings("accounts.history", history, start, "uses aggregateSnapshots for account history; per-account snapshots are not currently available")
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("%-12s %10s\n", "DATE", "AMOUNT")
-			for _, r := range history {
-				fmt.Printf("%-12s %10.2f\n", r.Date, r.Amount)
-			}
-		}
+		runWarn(cmd.Context(), "accounts.history", "failed to get history",
+			[]string{"uses aggregateSnapshots for account history; per-account snapshots are not currently available"},
+			func(ctx context.Context, svc *monarch.Service) ([]monarch.HistoryRecord, error) {
+				return svc.GetAccountHistory(ctx, args[0], historyFrom, historyTo)
+			},
+			func(history []monarch.HistoryRecord) {
+				fmt.Printf("%-12s %10s\n", "DATE", "AMOUNT")
+				for _, r := range history {
+					fmt.Printf("%-12s %10.2f\n", r.Date, r.Amount)
+				}
+			})
 	},
 }
 
@@ -245,51 +216,31 @@ var accountsUpdateCmd = &cobra.Command{
 	Short: "Update an account",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 		id := args[0]
-
-		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "accounts.update", err, start)
-			return
-		}
-
-		var name *string
-		if cmd.Flags().Changed("name") {
-			name = &accountName
-		}
-		var balance *float64
-		if cmd.Flags().Changed("balance") {
-			balance = &accountBalance
-		}
-
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("accounts.update", id, nil, map[string]any{"name": name, "balance": balance})
-			env := output.NewEnvelope("accounts.update", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "accounts.update", start)
-		if !ok {
-			return
-		}
-
-		result, err := deps.Mutate("accounts.update", id, func() (any, error) {
-			return deps.Service.UpdateAccount(cmd.Context(), id, name, balance)
-		}, "failed to update account")
-		if err != nil {
-			return
-		}
-		acc, _ := result.(*monarch.Account)
-
-		if jsonMode {
-			env := output.NewEnvelope("accounts.update", profile, output.SchemaVersion, requestID, acc, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Successfully updated account %s.\n", acc.ID)
-		}
+		runMutation(cmd, "accounts.update", "failed to update account", safety.TierMutation, func() (mutation, *errors.Error) {
+			var name *string
+			if cmd.Flags().Changed("name") {
+				name = &accountName
+			}
+			var balance *float64
+			if cmd.Flags().Changed("balance") {
+				balance = &accountBalance
+			}
+			var acc *monarch.Account
+			return mutation{
+				resourceID: id,
+				planAfter:  map[string]any{"name": name, "balance": balance},
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					a, err := svc.UpdateAccount(ctx, id, name, balance)
+					if err != nil {
+						return nil, err
+					}
+					acc = a
+					return a, nil
+				},
+				human: func() { fmt.Printf("Successfully updated account %s.\n", acc.ID) },
+			}, nil
+		})
 	},
 }
 
@@ -298,40 +249,19 @@ var accountsDeleteCmd = &cobra.Command{
 	Short: "Delete an account",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 		id := args[0]
-
-		if err := safety.Check(safety.TierDestructive, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "accounts.delete", err, start)
-			return
-		}
-
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("accounts.delete", id, nil, nil)
-			env := output.NewEnvelope("accounts.delete", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "accounts.delete", start)
-		if !ok {
-			return
-		}
-
-		if _, err := deps.Mutate("accounts.delete", id, func() (any, error) {
-			return nil, deps.Service.DeleteAccount(cmd.Context(), id)
-		}, "failed to delete account"); err != nil {
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("accounts.delete", profile, output.SchemaVersion, requestID, map[string]string{"status": "deleted"}, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Successfully deleted account %s.\n", id)
-		}
+		runMutation(cmd, "accounts.delete", "failed to delete account", safety.TierDestructive, func() (mutation, *errors.Error) {
+			return mutation{
+				resourceID: id,
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					if err := svc.DeleteAccount(ctx, id); err != nil {
+						return nil, err
+					}
+					return map[string]string{"status": "deleted"}, nil
+				},
+				human: func() { fmt.Printf("Successfully deleted account %s.\n", id) },
+			}, nil
+		})
 	},
 }
 
@@ -339,41 +269,23 @@ var accountsCreateManualCmd = &cobra.Command{
 	Use:   "create-manual",
 	Short: "Create a manual account",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "accounts.create-manual", err, start)
-			return
-		}
-
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("accounts.create-manual", "", nil, map[string]any{"name": accountName, "type": accountType, "balance": accountBalance})
-			env := output.NewEnvelope("accounts.create-manual", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "accounts.create-manual", start)
-		if !ok {
-			return
-		}
-
-		result, err := deps.Mutate("accounts.create-manual", "", func() (any, error) {
-			return deps.Service.CreateManualAccount(cmd.Context(), accountName, accountType, accountBalance)
-		}, "failed to create manual account")
-		if err != nil {
-			return
-		}
-		acc, _ := result.(*monarch.Account)
-
-		if jsonMode {
-			env := output.NewEnvelope("accounts.create-manual", profile, output.SchemaVersion, requestID, acc, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Successfully created manual account %s (%s).\n", acc.DisplayName, acc.ID)
-		}
+		runMutation(cmd, "accounts.create-manual", "failed to create manual account", safety.TierMutation, func() (mutation, *errors.Error) {
+			var acc *monarch.Account
+			return mutation{
+				planAfter: map[string]any{"name": accountName, "type": accountType, "balance": accountBalance},
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					a, err := svc.CreateManualAccount(ctx, accountName, accountType, accountBalance)
+					if err != nil {
+						return nil, err
+					}
+					acc = a
+					return a, nil
+				},
+				human: func() {
+					fmt.Printf("Successfully created manual account %s (%s).\n", acc.DisplayName, acc.ID)
+				},
+			}, nil
+		})
 	},
 }
 
@@ -382,52 +294,30 @@ var accountsUploadHistoryCmd = &cobra.Command{
 	Short: "Upload balance history for an account",
 	Args:  cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 		id := args[0]
 		path := args[1]
-
-		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "accounts.upload-history", err, start)
-			return
-		}
-
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("accounts.upload-history", id, nil, map[string]string{"file": path})
-			env := output.NewEnvelope("accounts.upload-history", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		f, err := os.Open(path)
-		if err != nil {
-			handleError(renderer, "accounts.upload-history", errors.New(errors.InternalError, "failed to open file", errors.CatInternal, false, err), start)
-			return
-		}
-		defer func() {
-			if cerr := f.Close(); cerr != nil {
-				fmt.Fprintf(os.Stderr, "warning: failed to close file: %v\n", cerr)
-			}
-		}()
-
-		deps, ok := newDeps(renderer, "accounts.upload-history", start)
-		if !ok {
-			return
-		}
-
-		if _, err := deps.Mutate("accounts.upload-history", id, func() (any, error) {
-			return nil, deps.Service.UploadAccountBalanceHistory(cmd.Context(), id, f)
-		}, "failed to upload history"); err != nil {
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("accounts.upload-history", profile, output.SchemaVersion, requestID, map[string]string{"status": "uploaded"}, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Successfully uploaded history for account %s.\n", id)
-		}
+		runMutation(cmd, "accounts.upload-history", "failed to upload history", safety.TierMutation, func() (mutation, *errors.Error) {
+			return mutation{
+				resourceID: id,
+				planAfter:  map[string]string{"file": path},
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					f, err := os.Open(path)
+					if err != nil {
+						return nil, errors.New(errors.InternalError, "failed to open file", errors.CatInternal, false, err)
+					}
+					defer func() {
+						if cerr := f.Close(); cerr != nil {
+							fmt.Fprintf(os.Stderr, "warning: failed to close file: %v\n", cerr)
+						}
+					}()
+					if err := svc.UploadAccountBalanceHistory(ctx, id, f); err != nil {
+						return nil, err
+					}
+					return map[string]string{"status": "uploaded"}, nil
+				},
+				human: func() { fmt.Printf("Successfully uploaded history for account %s.\n", id) },
+			}, nil
+		})
 	},
 }
 
@@ -487,31 +377,16 @@ var accountsRecentBalancesCmd = &cobra.Command{
 	Use:   "recent-balances",
 	Short: "Get recent daily balances for all accounts",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		if historyFrom == "" {
-			historyFrom = time.Now().AddDate(0, 0, -31).Format("2006-01-02")
-		}
-
-		deps, ok := newDeps(renderer, "accounts.recent-balances", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		res, err := svc.GetAccountRecentBalances(cmd.Context(), historyFrom)
-		if err != nil {
-			handleError(renderer, "accounts.recent-balances", wrapError(err, "failed to get recent balances"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("accounts.recent-balances", profile, output.SchemaVersion, requestID, res, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Println("Recent daily balances fetched.")
-		}
+		run(cmd.Context(), "accounts.recent-balances", "failed to get recent balances",
+			func(ctx context.Context, svc *monarch.Service) ([]monarch.AccountRecentBalance, error) {
+				if historyFrom == "" {
+					historyFrom = time.Now().AddDate(0, 0, -31).Format("2006-01-02")
+				}
+				return svc.GetAccountRecentBalances(ctx, historyFrom)
+			},
+			func(_ []monarch.AccountRecentBalance) {
+				fmt.Println("Recent daily balances fetched.")
+			})
 	},
 }
 
@@ -519,31 +394,16 @@ var accountsSnapshotsCmd = &cobra.Command{
 	Use:   "snapshots",
 	Short: "Get net value snapshots by account type",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		if historyFrom == "" {
-			historyFrom = time.Now().AddDate(-1, 0, 0).Format("2006-01-02")
-		}
-
-		deps, ok := newDeps(renderer, "accounts.snapshots", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		res, err := svc.GetSnapshotsByAccountType(cmd.Context(), historyFrom, timeframe)
-		if err != nil {
-			handleError(renderer, "accounts.snapshots", wrapError(err, "failed to get snapshots"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("accounts.snapshots", profile, output.SchemaVersion, requestID, res, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Println("Account type snapshots fetched.")
-		}
+		run(cmd.Context(), "accounts.snapshots", "failed to get snapshots",
+			func(ctx context.Context, svc *monarch.Service) (any, error) {
+				if historyFrom == "" {
+					historyFrom = time.Now().AddDate(-1, 0, 0).Format("2006-01-02")
+				}
+				return svc.GetSnapshotsByAccountType(ctx, historyFrom, timeframe)
+			},
+			func(_ any) {
+				fmt.Println("Account type snapshots fetched.")
+			})
 	},
 }
 
@@ -551,27 +411,13 @@ var accountsAggregateSnapshotsCmd = &cobra.Command{
 	Use:   "aggregate-snapshots",
 	Short: "Get aggregate net value snapshots",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "accounts.aggregate-snapshots", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		res, err := svc.GetAggregateSnapshots(cmd.Context(), historyFrom, historyTo, accountType)
-		if err != nil {
-			handleError(renderer, "accounts.aggregate-snapshots", wrapError(err, "failed to get aggregate snapshots"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("accounts.aggregate-snapshots", profile, output.SchemaVersion, requestID, res, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Println("Aggregate snapshots fetched.")
-		}
+		run(cmd.Context(), "accounts.aggregate-snapshots", "failed to get aggregate snapshots",
+			func(ctx context.Context, svc *monarch.Service) (any, error) {
+				return svc.GetAggregateSnapshots(ctx, historyFrom, historyTo, accountType)
+			},
+			func(_ any) {
+				fmt.Println("Aggregate snapshots fetched.")
+			})
 	},
 }
 
@@ -579,27 +425,13 @@ var networthCmd = &cobra.Command{
 	Use:   "networth",
 	Short: "Get net worth history over time",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "networth", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		res, err := svc.GetAggregateSnapshots(cmd.Context(), historyFrom, historyTo, accountType)
-		if err != nil {
-			handleError(renderer, "networth", wrapError(err, "failed to get net worth data"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("networth", profile, output.SchemaVersion, requestID, res, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Println("Net worth snapshots fetched.")
-		}
+		run(cmd.Context(), "networth", "failed to get net worth data",
+			func(ctx context.Context, svc *monarch.Service) (any, error) {
+				return svc.GetAggregateSnapshots(ctx, historyFrom, historyTo, accountType)
+			},
+			func(_ any) {
+				fmt.Println("Net worth snapshots fetched.")
+			})
 	},
 }
 

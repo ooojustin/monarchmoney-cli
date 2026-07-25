@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/thedavidweng/monarchmoney-cli/internal/config"
 )
 
 // Session represents a Monarch Money authenticated session.
@@ -56,6 +58,15 @@ func (s *Store) Load() (*Session, error) {
 	if err := json.Unmarshal(data, &sess); err != nil {
 		return nil, err
 	}
+
+	// The stored token may use the "env:NAME" indirection form; resolve it to
+	// the real secret here, at the single point where the session becomes
+	// usable credentials. A literal token is returned unchanged.
+	token, err := config.ResolveSecret(sess.Token)
+	if err != nil {
+		return nil, err
+	}
+	sess.Token = token
 
 	return &sess, nil
 }

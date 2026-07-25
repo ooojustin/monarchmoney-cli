@@ -24,10 +24,6 @@ linters:
         - diagnostic
         - performance
         - style
-      disabled-checks:
-        - hugeParam
-        - rangeValCopy
-        - filepathJoin
     misspell:
       locale: US
     nolintlint:

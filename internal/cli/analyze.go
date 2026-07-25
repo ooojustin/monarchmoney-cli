@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -10,7 +11,6 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/analyze"
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
-	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 )
 
 var (
@@ -51,54 +51,43 @@ locally so agents do not need to group transactions themselves.`,
 	Example: `  monarch analyze anomalies --json
   monarch analyze anomalies --month 2026-05 --history-months 6 --min-ratio 1.5 --min-amount 100 --json`,
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-		month := normalizeAnalyzeMonth(analyzeAnomaliesMonth, start)
-		if _, err := time.Parse("2006-01", month); err != nil {
-			handleError(renderer, "analyze.anomalies", errors.New(errors.InvalidArguments, "--month must use YYYY-MM", errors.CatValidation, false, err), start)
-			return
-		}
-		if analyzeHistoryMonths <= 0 {
-			handleError(renderer, "analyze.anomalies", errors.New(errors.InvalidArguments, "--history-months must be greater than zero", errors.CatValidation, false, nil), start)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "analyze.anomalies", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		currentStart, currentEnd, historyStart, err := analyze.AnomalyWindow(month, analyzeHistoryMonths)
-		if err != nil {
-			handleError(renderer, "analyze.anomalies", errors.New(errors.InvalidArguments, "--month must use YYYY-MM", errors.CatValidation, false, err), start)
-			return
-		}
-		txs, err := svc.ListAllTransactions(cmd.Context(), monarch.ListTransactionsOptions{Limit: 1000, StartDate: historyStart, EndDate: currentEnd})
-		if err != nil {
-			handleError(renderer, "analyze.anomalies", wrapError(err, "failed to list transactions"), start)
-			return
-		}
-		result, err := analyze.BuildAnomalies(txs, analyze.AnomalyOptions{
-			Month:         strings.TrimSuffix(currentStart, "-01"),
-			HistoryMonths: analyzeHistoryMonths,
-			MinRatio:      analyzeMinRatio,
-			MinAmount:     analyzeMinAmount,
-		})
-		if err != nil {
-			handleError(renderer, "analyze.anomalies", errors.New(errors.InvalidArguments, "failed to analyze anomalies", errors.CatValidation, false, err), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("analyze.anomalies", profile, output.SchemaVersion, requestID, map[string]any{"period": map[string]string{"start_date": currentStart, "end_date": currentEnd}, "anomalies": result}, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-		fmt.Printf("%-30s %12s %12s %8s %-8s %-20s %12s\n", "CATEGORY", "CURRENT", "AVG", "RATIO", "SEVERITY", "LARGEST MERCHANT", "AMOUNT")
-		for _, a := range result {
-			fmt.Printf("%-30s %12.2f %12.2f %8.2f %-8s %-20s %12.2f\n", a.Category, a.CurrentMonth, a.AvgHistory, a.Ratio, a.Severity, a.LargestMerchant, a.LargestAmount)
-		}
+		now := time.Now()
+		var result []analyze.Anomaly
+		run(cmd.Context(), "analyze.anomalies", "failed to analyze anomalies",
+			func(ctx context.Context, svc *monarch.Service) (map[string]any, error) {
+				month := normalizeAnalyzeMonth(analyzeAnomaliesMonth, now)
+				if _, err := time.Parse("2006-01", month); err != nil {
+					return nil, errors.New(errors.InvalidArguments, "--month must use YYYY-MM", errors.CatValidation, false, err)
+				}
+				if analyzeHistoryMonths <= 0 {
+					return nil, errors.New(errors.InvalidArguments, "--history-months must be greater than zero", errors.CatValidation, false, nil)
+				}
+				currentStart, currentEnd, historyStart, err := analyze.AnomalyWindow(month, analyzeHistoryMonths)
+				if err != nil {
+					return nil, errors.New(errors.InvalidArguments, "--month must use YYYY-MM", errors.CatValidation, false, err)
+				}
+				txs, err := svc.ListAllTransactions(ctx, &monarch.ListTransactionsOptions{Limit: 1000, StartDate: historyStart, EndDate: currentEnd})
+				if err != nil {
+					return nil, wrapError(err, "failed to list transactions")
+				}
+				anomalies, err := analyze.BuildAnomalies(txs, analyze.AnomalyOptions{
+					Month:         strings.TrimSuffix(currentStart, "-01"),
+					HistoryMonths: analyzeHistoryMonths,
+					MinRatio:      analyzeMinRatio,
+					MinAmount:     analyzeMinAmount,
+				})
+				if err != nil {
+					return nil, errors.New(errors.InvalidArguments, "failed to analyze anomalies", errors.CatValidation, false, err)
+				}
+				result = anomalies
+				return map[string]any{"period": map[string]string{"start_date": currentStart, "end_date": currentEnd}, "anomalies": anomalies}, nil
+			},
+			func(_ map[string]any) {
+				fmt.Printf("%-30s %12s %12s %8s %-8s %-20s %12s\n", "CATEGORY", "CURRENT", "AVG", "RATIO", "SEVERITY", "LARGEST MERCHANT", "AMOUNT")
+				for _, a := range result {
+					fmt.Printf("%-30s %12.2f %12.2f %8.2f %-8s %-20s %12.2f\n", a.Category, a.CurrentMonth, a.AvgHistory, a.Ratio, a.Severity, a.LargestMerchant, a.LargestAmount)
+				}
+			})
 	},
 }
 
@@ -113,35 +102,26 @@ the services are wasteful.`,
 	Example: `  monarch analyze subscriptions --json
   monarch analyze subscriptions --past-days 370 --future-days 370 --json`,
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-		if analyzePastDays < 0 || analyzeFutureDays < 0 {
-			handleError(renderer, "analyze.subscriptions", errors.New(errors.InvalidArguments, "day windows must be non-negative", errors.CatValidation, false, nil), start)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "analyze.subscriptions", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-		startDate := start.AddDate(0, 0, -analyzePastDays).Format("2006-01-02")
-		endDate := start.AddDate(0, 0, analyzeFutureDays).Format("2006-01-02")
-		items, err := svc.ListRecurringItems(cmd.Context(), startDate, endDate)
-		if err != nil {
-			handleError(renderer, "analyze.subscriptions", wrapError(err, "failed to list recurring items"), start)
-			return
-		}
-		result := analyze.BuildSubscriptions(items)
-		if jsonMode {
-			env := output.NewEnvelope("analyze.subscriptions", profile, output.SchemaVersion, requestID, result, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-		fmt.Printf("%-24s %10s %10s %-12s %-12s %-12s %s\n", "MERCHANT", "MONTHLY", "ANNUAL", "FREQUENCY", "LAST", "NEXT", "CATEGORY")
-		for _, sub := range result.Subscriptions {
-			fmt.Printf("%-24s %10.2f %10.2f %-12s %-12s %-12s %s\n", sub.Merchant, sub.Monthly, sub.Annual, sub.Frequency, sub.LastCharge, sub.NextCharge, sub.Category)
-		}
+		now := time.Now()
+		run(cmd.Context(), "analyze.subscriptions", "failed to list recurring items",
+			func(ctx context.Context, svc *monarch.Service) (analyze.SubscriptionSummary, error) {
+				if analyzePastDays < 0 || analyzeFutureDays < 0 {
+					return analyze.SubscriptionSummary{}, errors.New(errors.InvalidArguments, "day windows must be non-negative", errors.CatValidation, false, nil)
+				}
+				startDate := now.AddDate(0, 0, -analyzePastDays).Format("2006-01-02")
+				endDate := now.AddDate(0, 0, analyzeFutureDays).Format("2006-01-02")
+				items, err := svc.ListRecurringItems(ctx, startDate, endDate)
+				if err != nil {
+					return analyze.SubscriptionSummary{}, wrapError(err, "failed to list recurring items")
+				}
+				return analyze.BuildSubscriptions(items), nil
+			},
+			func(result analyze.SubscriptionSummary) {
+				fmt.Printf("%-24s %10s %10s %-12s %-12s %-12s %s\n", "MERCHANT", "MONTHLY", "ANNUAL", "FREQUENCY", "LAST", "NEXT", "CATEGORY")
+				for _, sub := range result.Subscriptions {
+					fmt.Printf("%-24s %10.2f %10.2f %-12s %-12s %-12s %s\n", sub.Merchant, sub.Monthly, sub.Annual, sub.Frequency, sub.LastCharge, sub.NextCharge, sub.Category)
+				}
+			})
 	},
 }
 
@@ -155,47 +135,39 @@ expense_previous, change_pct, and direction with stable semantics for agents.`,
 	Example: `  monarch analyze merchants --compare previous-month --json
   monarch analyze merchants --month 2026-05 --compare previous-month --limit 20 --json`,
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-		if analyzeCompare != "previous-month" {
-			handleError(renderer, "analyze.merchants", errors.New(errors.InvalidArguments, "--compare currently supports previous-month", errors.CatValidation, false, nil), start)
-			return
-		}
-		month := normalizeAnalyzeMonth(analyzeMerchantsMonth, start)
-		current, previous, err := analyze.PreviousMonthComparisonWindow(month)
-		if err != nil {
-			handleError(renderer, "analyze.merchants", errors.New(errors.InvalidArguments, "--month must use YYYY-MM", errors.CatValidation, false, err), start)
-			return
-		}
-		deps, ok := newDeps(renderer, "analyze.merchants", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-		currentRecords, err := svc.GetCashflowMerchants(cmd.Context(), current.StartDate, current.EndDate)
-		if err != nil {
-			handleError(renderer, "analyze.merchants", wrapError(err, "failed to get current merchant spending"), start)
-			return
-		}
-		previousRecords, err := svc.GetCashflowMerchants(cmd.Context(), previous.StartDate, previous.EndDate)
-		if err != nil {
-			handleError(renderer, "analyze.merchants", wrapError(err, "failed to get previous merchant spending"), start)
-			return
-		}
-		result := analyze.BuildMerchantComparison(currentRecords, previousRecords, analyzeLimit)
-		if jsonMode {
-			env := output.NewEnvelope("analyze.merchants", profile, output.SchemaVersion, requestID, map[string]any{"period": current, "previous_period": previous, "comparison": result}, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-		fmt.Printf("%-24s %12s %12s %12s %s\n", "MERCHANT", "CURRENT", "PREVIOUS", "CHANGE %", "DIRECTION")
-		for _, row := range result {
-			change := "null"
-			if row.ChangePct != nil {
-				change = fmt.Sprintf("%.2f", *row.ChangePct)
-			}
-			fmt.Printf("%-24s %12.2f %12.2f %12s %s\n", row.Merchant, row.ExpenseCurrent, row.ExpensePrevious, change, row.Direction)
-		}
+		now := time.Now()
+		var result []analyze.MerchantComparison
+		run(cmd.Context(), "analyze.merchants", "failed to compare merchants",
+			func(ctx context.Context, svc *monarch.Service) (map[string]any, error) {
+				if analyzeCompare != "previous-month" {
+					return nil, errors.New(errors.InvalidArguments, "--compare currently supports previous-month", errors.CatValidation, false, nil)
+				}
+				month := normalizeAnalyzeMonth(analyzeMerchantsMonth, now)
+				current, previous, err := analyze.PreviousMonthComparisonWindow(month)
+				if err != nil {
+					return nil, errors.New(errors.InvalidArguments, "--month must use YYYY-MM", errors.CatValidation, false, err)
+				}
+				currentRecords, err := svc.GetCashflowMerchants(ctx, current.StartDate, current.EndDate)
+				if err != nil {
+					return nil, wrapError(err, "failed to get current merchant spending")
+				}
+				previousRecords, err := svc.GetCashflowMerchants(ctx, previous.StartDate, previous.EndDate)
+				if err != nil {
+					return nil, wrapError(err, "failed to get previous merchant spending")
+				}
+				result = analyze.BuildMerchantComparison(currentRecords, previousRecords, analyzeLimit)
+				return map[string]any{"period": current, "previous_period": previous, "comparison": result}, nil
+			},
+			func(_ map[string]any) {
+				fmt.Printf("%-24s %12s %12s %12s %s\n", "MERCHANT", "CURRENT", "PREVIOUS", "CHANGE %", "DIRECTION")
+				for _, row := range result {
+					change := "null"
+					if row.ChangePct != nil {
+						change = fmt.Sprintf("%.2f", *row.ChangePct)
+					}
+					fmt.Printf("%-24s %12.2f %12.2f %12s %s\n", row.Merchant, row.ExpenseCurrent, row.ExpensePrevious, change, row.Direction)
+				}
+			})
 	},
 }
 
@@ -209,43 +181,37 @@ math. It does not re-sum transactions or make subjective budget advice.`,
 	Example: `  monarch analyze burn-rate --json
   monarch analyze burn-rate --month 2026-05 --json`,
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-		month := normalizeAnalyzeMonth(analyzeBurnRateMonth, start)
-		monthStart, monthEnd, err := monthRange(month)
-		if err != nil {
-			handleError(renderer, "analyze.burn-rate", errors.New(errors.InvalidArguments, "--month must use YYYY-MM", errors.CatValidation, false, err), start)
-			return
-		}
-		deps, ok := newDeps(renderer, "analyze.burn-rate", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-		budgets, err := svc.ListBudgets(cmd.Context(), monarch.ListBudgetsOptions{StartDate: monthStart, EndDate: monthEnd})
-		if err != nil {
-			handleError(renderer, "analyze.burn-rate", wrapError(err, "failed to list budgets"), start)
-			return
-		}
-		now := start
-		if month != start.Format("2006-01") {
-			parsed, _ := time.Parse("2006-01", month)
-			now = time.Date(parsed.Year(), parsed.Month(), time.Date(parsed.Year(), parsed.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day(), 12, 0, 0, 0, time.UTC)
-		}
-		result, err := analyze.BuildBurnRate(budgets, now)
-		if err != nil {
-			handleError(renderer, "analyze.burn-rate", errors.New(errors.InternalError, "failed to analyze burn rate", errors.CatInternal, false, err), start)
-			return
-		}
-		if jsonMode {
-			env := output.NewEnvelope("analyze.burn-rate", profile, output.SchemaVersion, requestID, map[string]any{"period": map[string]string{"start_date": monthStart, "end_date": monthEnd}, "budgets": result}, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-		fmt.Printf("%-30s %10s %10s %10s %8s %8s %s\n", "CATEGORY", "BUDGETED", "SPENT", "REMAINING", "BURN %", "TIME %", "STATUS")
-		for _, b := range result {
-			fmt.Printf("%-30s %10.2f %10.2f %10.2f %8.2f %8.2f %s\n", b.Category, b.Budgeted, b.Spent, b.Remaining, b.BurnPct, b.TimePct, b.Status)
-		}
+		startTime := time.Now()
+		var result []analyze.BurnRateBudget
+		run(cmd.Context(), "analyze.burn-rate", "failed to analyze burn rate",
+			func(ctx context.Context, svc *monarch.Service) (map[string]any, error) {
+				month := normalizeAnalyzeMonth(analyzeBurnRateMonth, startTime)
+				monthStart, monthEnd, err := monthRange(month)
+				if err != nil {
+					return nil, errors.New(errors.InvalidArguments, "--month must use YYYY-MM", errors.CatValidation, false, err)
+				}
+				budgets, err := svc.ListBudgets(ctx, monarch.ListBudgetsOptions{StartDate: monthStart, EndDate: monthEnd})
+				if err != nil {
+					return nil, wrapError(err, "failed to list budgets")
+				}
+				now := startTime
+				if month != startTime.Format("2006-01") {
+					parsed, _ := time.Parse("2006-01", month)
+					now = time.Date(parsed.Year(), parsed.Month(), time.Date(parsed.Year(), parsed.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day(), 12, 0, 0, 0, time.UTC)
+				}
+				burn, err := analyze.BuildBurnRate(budgets, now)
+				if err != nil {
+					return nil, errors.New(errors.InternalError, "failed to analyze burn rate", errors.CatInternal, false, err)
+				}
+				result = burn
+				return map[string]any{"period": map[string]string{"start_date": monthStart, "end_date": monthEnd}, "budgets": burn}, nil
+			},
+			func(_ map[string]any) {
+				fmt.Printf("%-30s %10s %10s %10s %8s %8s %s\n", "CATEGORY", "BUDGETED", "SPENT", "REMAINING", "BURN %", "TIME %", "STATUS")
+				for _, b := range result {
+					fmt.Printf("%-30s %10.2f %10.2f %10.2f %8.2f %8.2f %s\n", b.Category, b.Budgeted, b.Spent, b.Remaining, b.BurnPct, b.TimePct, b.Status)
+				}
+			})
 	},
 }
 

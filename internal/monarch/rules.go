@@ -124,7 +124,8 @@ func (s *Service) ListRules(ctx context.Context) ([]Rule, error) {
 	}
 
 	rules := make([]Rule, len(resp.TransactionRules))
-	for i, r := range resp.TransactionRules {
+	for i := range resp.TransactionRules {
+		r := &resp.TransactionRules[i]
 		rule := Rule{
 			ID:                       r.ID,
 			Order:                    r.Order,
@@ -158,7 +159,7 @@ func (s *Service) ListRules(ctx context.Context) ([]Rule, error) {
 	return rules, nil
 }
 
-func (s *Service) CreateRule(ctx context.Context, input CreateRuleInput) error {
+func (s *Service) CreateRule(ctx context.Context, input *CreateRuleInput) error {
 	ruleInput := map[string]any{
 		"applyToExistingTransactions": input.ApplyToExisting,
 	}
@@ -200,7 +201,7 @@ func (s *Service) CreateRule(ctx context.Context, input CreateRuleInput) error {
 	return nil
 }
 
-func (s *Service) UpdateRule(ctx context.Context, input UpdateRuleInput) error {
+func (s *Service) UpdateRule(ctx context.Context, input *UpdateRuleInput) error {
 	ruleInput := map[string]any{
 		"id":                          input.ID,
 		"applyToExistingTransactions": input.ApplyToExisting,

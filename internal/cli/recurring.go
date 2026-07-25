@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
-	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 	"github.com/thedavidweng/monarchmoney-cli/internal/safety"
 )
 
@@ -48,42 +48,23 @@ var recurringUpdateCmd = &cobra.Command{
 	Short: "Update a recurring transaction",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 		id := args[0]
-
-		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "recurring.update", err, start)
-			return
-		}
-
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("recurring.update", id, nil, map[string]any{"amount": recurringAmount})
-			env := output.NewEnvelope("recurring.update", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "recurring.update", start)
-		if !ok {
-			return
-		}
-
-		result, err := deps.Mutate("recurring.update", id, func() (any, error) {
-			return deps.Service.UpdateRecurring(cmd.Context(), id, recurringAmount)
-		}, "failed to update recurring transaction")
-		if err != nil {
-			return
-		}
-		r, _ := result.(*monarch.RecurringTransaction)
-
-		if jsonMode {
-			env := output.NewEnvelope("recurring.update", profile, output.SchemaVersion, requestID, r, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Successfully updated recurring transaction %s.\n", r.ID)
-		}
+		runMutation(cmd, "recurring.update", "failed to update recurring transaction", safety.TierMutation, func() (mutation, *errors.Error) {
+			var r *monarch.RecurringTransaction
+			return mutation{
+				resourceID: id,
+				planAfter:  map[string]any{"amount": recurringAmount},
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					updated, err := svc.UpdateRecurring(ctx, id, recurringAmount)
+					if err != nil {
+						return nil, err
+					}
+					r = updated
+					return updated, nil
+				},
+				human: func() { fmt.Printf("Successfully updated recurring transaction %s.\n", r.ID) },
+			}, nil
+		})
 	},
 }
 

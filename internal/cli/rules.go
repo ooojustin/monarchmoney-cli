@@ -3,12 +3,11 @@ package cli
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
-	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 	"github.com/thedavidweng/monarchmoney-cli/internal/safety"
 )
 
@@ -65,53 +64,31 @@ var rulesCreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create a transaction rule",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "rules.create", err, start)
-			return
-		}
-
-		input := monarch.CreateRuleInput{
-			MerchantOperator: ruleMerchantOperator,
-			MerchantValue:    ruleMerchantValue,
-			AmountOperator:   ruleAmountOperator,
-			AmountIsExpense:  ruleAmountIsExpense,
-			SetCategoryID:    ruleSetCategoryID,
-			AddTagIDs:        ruleAddTagIDs,
-			AccountIDs:       ruleAccountIDs,
-			ApplyToExisting:  ruleApplyToExisting,
-		}
-		if cmd.Flags().Changed("amount-value") {
-			input.AmountValue = &ruleAmountValue
-		}
-
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("rules.create", "", nil, map[string]any{"input": input})
-			env := output.NewEnvelope("rules.create", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "rules.create", start)
-		if !ok {
-			return
-		}
-
-		if _, err := deps.Mutate("rules.create", "", func() (any, error) {
-			return nil, deps.Service.CreateRule(cmd.Context(), input)
-		}, "failed to create rule"); err != nil {
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("rules.create", profile, output.SchemaVersion, requestID, map[string]string{"status": "created"}, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Println("Successfully created rule.")
-		}
+		runMutation(cmd, "rules.create", "failed to create rule", safety.TierMutation, func() (mutation, *errors.Error) {
+			input := monarch.CreateRuleInput{
+				MerchantOperator: ruleMerchantOperator,
+				MerchantValue:    ruleMerchantValue,
+				AmountOperator:   ruleAmountOperator,
+				AmountIsExpense:  ruleAmountIsExpense,
+				SetCategoryID:    ruleSetCategoryID,
+				AddTagIDs:        ruleAddTagIDs,
+				AccountIDs:       ruleAccountIDs,
+				ApplyToExisting:  ruleApplyToExisting,
+			}
+			if cmd.Flags().Changed("amount-value") {
+				input.AmountValue = &ruleAmountValue
+			}
+			return mutation{
+				planAfter: map[string]any{"input": input},
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					if err := svc.CreateRule(ctx, &input); err != nil {
+						return nil, err
+					}
+					return map[string]string{"status": "created"}, nil
+				},
+				human: func() { fmt.Println("Successfully created rule.") },
+			}, nil
+		})
 	},
 }
 
@@ -120,55 +97,34 @@ var rulesUpdateCmd = &cobra.Command{
 	Short: "Update a transaction rule",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 		id := args[0]
-
-		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "rules.update", err, start)
-			return
-		}
-
-		input := monarch.UpdateRuleInput{
-			ID:               id,
-			MerchantOperator: ruleMerchantOperator,
-			MerchantValue:    ruleMerchantValue,
-			AmountOperator:   ruleAmountOperator,
-			AmountIsExpense:  ruleAmountIsExpense,
-			SetCategoryID:    ruleSetCategoryID,
-			AddTagIDs:        ruleAddTagIDs,
-			AccountIDs:       ruleAccountIDs,
-			ApplyToExisting:  ruleApplyToExisting,
-		}
-		if cmd.Flags().Changed("amount-value") {
-			input.AmountValue = &ruleAmountValue
-		}
-
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("rules.update", id, nil, map[string]any{"input": input})
-			env := output.NewEnvelope("rules.update", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "rules.update", start)
-		if !ok {
-			return
-		}
-
-		if _, err := deps.Mutate("rules.update", id, func() (any, error) {
-			return nil, deps.Service.UpdateRule(cmd.Context(), input)
-		}, "failed to update rule"); err != nil {
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("rules.update", profile, output.SchemaVersion, requestID, map[string]string{"status": "updated"}, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Successfully updated rule %s.\n", id)
-		}
+		runMutation(cmd, "rules.update", "failed to update rule", safety.TierMutation, func() (mutation, *errors.Error) {
+			input := monarch.UpdateRuleInput{
+				ID:               id,
+				MerchantOperator: ruleMerchantOperator,
+				MerchantValue:    ruleMerchantValue,
+				AmountOperator:   ruleAmountOperator,
+				AmountIsExpense:  ruleAmountIsExpense,
+				SetCategoryID:    ruleSetCategoryID,
+				AddTagIDs:        ruleAddTagIDs,
+				AccountIDs:       ruleAccountIDs,
+				ApplyToExisting:  ruleApplyToExisting,
+			}
+			if cmd.Flags().Changed("amount-value") {
+				input.AmountValue = &ruleAmountValue
+			}
+			return mutation{
+				resourceID: id,
+				planAfter:  map[string]any{"input": input},
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					if err := svc.UpdateRule(ctx, &input); err != nil {
+						return nil, err
+					}
+					return map[string]string{"status": "updated"}, nil
+				},
+				human: func() { fmt.Printf("Successfully updated rule %s.\n", id) },
+			}, nil
+		})
 	},
 }
 
@@ -177,40 +133,19 @@ var rulesDeleteCmd = &cobra.Command{
 	Short: "Delete a transaction rule",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 		id := args[0]
-
-		if err := safety.Check(safety.TierDestructive, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "rules.delete", err, start)
-			return
-		}
-
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("rules.delete", id, nil, nil)
-			env := output.NewEnvelope("rules.delete", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "rules.delete", start)
-		if !ok {
-			return
-		}
-
-		if _, err := deps.Mutate("rules.delete", id, func() (any, error) {
-			return nil, deps.Service.DeleteRule(cmd.Context(), id)
-		}, "failed to delete rule"); err != nil {
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("rules.delete", profile, output.SchemaVersion, requestID, map[string]string{"status": "deleted"}, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Successfully deleted rule %s.\n", id)
-		}
+		runMutation(cmd, "rules.delete", "failed to delete rule", safety.TierDestructive, func() (mutation, *errors.Error) {
+			return mutation{
+				resourceID: id,
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					if err := svc.DeleteRule(ctx, id); err != nil {
+						return nil, err
+					}
+					return map[string]string{"status": "deleted"}, nil
+				},
+				human: func() { fmt.Printf("Successfully deleted rule %s.\n", id) },
+			}, nil
+		})
 	},
 }
 

@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/thedavidweng/monarchmoney-cli/internal/audit"
 	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
 	"github.com/thedavidweng/monarchmoney-cli/internal/config"
@@ -11,6 +13,7 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
+	"github.com/thedavidweng/monarchmoney-cli/internal/safety"
 )
 
 // CommandDeps bundles the dependencies every command handler needs.
@@ -24,7 +27,7 @@ type CommandDeps struct {
 // client, and building the monarch.Service. On failure it renders the error and
 // returns ok=false; callers should return immediately.
 func newDeps(renderer *output.Renderer, command string, start time.Time) (CommandDeps, bool) {
-	cfg, err := config.Load()
+	cfg, err := config.Load(cfgFile)
 	if err != nil {
 		handleError(renderer, command, errors.New(errors.InternalError, "failed to load config", errors.CatInternal, false, err), start)
 		return CommandDeps{}, false
@@ -45,12 +48,18 @@ func newDeps(renderer *output.Renderer, command string, start time.Time) (Comman
 	}, true
 }
 
-// run executes a read-only command: it builds the session-backed service, calls
-// fn, and either emits the standard JSON envelope or hands the typed result to
-// human for text rendering. Errors are rendered and the process exits via
-// handleError. Handlers with safety gates, dry-run plans, or envelope warnings
-// keep their own flow.
+// run executes a read command on the session-backed service, then emits the JSON
+// envelope or hands the typed result to human. Errors render via handleError.
 func run[T any](ctx context.Context, command, failMsg string, fn func(context.Context, *monarch.Service) (T, error), human func(T)) {
+	runRead(ctx, command, failMsg, nil, fn, human)
+}
+
+// runWarn is run with static warnings attached to the envelope meta.
+func runWarn[T any](ctx context.Context, command, failMsg string, warnings []string, fn func(context.Context, *monarch.Service) (T, error), human func(T)) {
+	runRead(ctx, command, failMsg, warnings, fn, human)
+}
+
+func runRead[T any](ctx context.Context, command, failMsg string, warnings []string, fn func(context.Context, *monarch.Service) (T, error), human func(T)) {
 	start := time.Now()
 	renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 
@@ -66,10 +75,67 @@ func run[T any](ctx context.Context, command, failMsg string, fn func(context.Co
 	}
 
 	if jsonMode {
-		renderer.RenderSuccess(output.NewEnvelope(command, profile, output.SchemaVersion, requestID, data, time.Since(start)))
+		env := output.NewEnvelope(command, profile, output.SchemaVersion, requestID, data, time.Since(start))
+		if len(warnings) > 0 {
+			env.Meta.Warnings = append([]string(nil), warnings...)
+		}
+		renderer.RenderSuccess(env)
 		return
 	}
 	human(data)
+}
+
+// mutation is a prepared write: audit resource id, the dry-run plan "after"
+// payload, the remote write returning its envelope data, and the human line.
+type mutation struct {
+	resourceID string
+	planAfter  any
+	do         func(context.Context, *monarch.Service) (any, error)
+	human      func()
+}
+
+// runMutation owns the write pipeline: safety gate, dry-run plan, audit, envelope.
+// prepare runs after the safety check, reports validation errors, and builds the
+// plan and write closure. do runs only for a confirmed (non-dry-run) write.
+func runMutation(cmd *cobra.Command, command, failMsg string, tier safety.OperationTier, prepare func() (mutation, *errors.Error)) {
+	start := time.Now()
+	renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
+
+	if err := safety.Check(tier, readOnly, dryRun, confirm); err != nil {
+		handleError(renderer, command, err, start)
+		return
+	}
+
+	m, verr := prepare()
+	if verr != nil {
+		handleError(renderer, command, verr, start)
+		return
+	}
+
+	if dryRun {
+		plan := safety.NewPlan()
+		plan.Add(command, m.resourceID, nil, m.planAfter)
+		renderer.RenderSuccess(output.NewEnvelope(command, profile, output.SchemaVersion, requestID, plan, time.Since(start)))
+		return
+	}
+
+	deps, ok := newDeps(renderer, command, start)
+	if !ok {
+		return
+	}
+
+	data, err := deps.Mutate(command, m.resourceID, func() (any, error) {
+		return m.do(cmd.Context(), deps.Service)
+	}, failMsg)
+	if err != nil {
+		return
+	}
+
+	if jsonMode {
+		renderer.RenderSuccess(output.NewEnvelope(command, profile, output.SchemaVersion, requestID, data, time.Since(start)))
+		return
+	}
+	m.human()
 }
 
 // wrapError converts a generic error into a structured *errors.Error.

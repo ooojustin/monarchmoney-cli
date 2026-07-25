@@ -3,12 +3,11 @@ package cli
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
-	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 	"github.com/thedavidweng/monarchmoney-cli/internal/safety"
 )
 
@@ -45,41 +44,21 @@ var tagsCreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create a tag",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "tags.create", err, start)
-			return
-		}
-
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("tags.create", "", nil, map[string]string{"name": tagName, "color": tagColor})
-			env := output.NewEnvelope("tags.create", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "tags.create", start)
-		if !ok {
-			return
-		}
-
-		result, err := deps.Mutate("tags.create", "", func() (any, error) {
-			return deps.Service.CreateTag(cmd.Context(), tagName, tagColor)
-		}, "failed to create tag")
-		if err != nil {
-			return
-		}
-		tag, _ := result.(*monarch.Tag)
-
-		if jsonMode {
-			env := output.NewEnvelope("tags.create", profile, output.SchemaVersion, requestID, tag, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Successfully created tag %s (%s).\n", tag.Name, tag.ID)
-		}
+		runMutation(cmd, "tags.create", "failed to create tag", safety.TierMutation, func() (mutation, *errors.Error) {
+			var tag *monarch.Tag
+			return mutation{
+				planAfter: map[string]string{"name": tagName, "color": tagColor},
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					t, err := svc.CreateTag(ctx, tagName, tagColor)
+					if err != nil {
+						return nil, err
+					}
+					tag = t
+					return t, nil
+				},
+				human: func() { fmt.Printf("Successfully created tag %s (%s).\n", tag.Name, tag.ID) },
+			}, nil
+		})
 	},
 }
 

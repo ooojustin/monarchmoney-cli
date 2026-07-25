@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -8,7 +9,6 @@ import (
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
-	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 )
 
 var (
@@ -31,33 +31,18 @@ var cashflowSummaryCmd = &cobra.Command{
 	Use:   "summary",
 	Short: "Get cashflow summary",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "cashflow.summary", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		setCashflowDates()
-
-		summary, err := svc.GetCashflowSummary(cmd.Context(), cfStartDate, cfEndDate)
-		if err != nil {
-			handleError(renderer, "cashflow.summary", wrapError(err, "failed to get cashflow summary"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("cashflow.summary", profile, output.SchemaVersion, requestID, summary, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Cashflow Summary (%s to %s):\n", cfStartDate, cfEndDate)
-			fmt.Printf("Income:       %.2f\n", summary.Income)
-			fmt.Printf("Expense:      %.2f\n", summary.Expense)
-			fmt.Printf("Savings:      %.2f\n", summary.Savings)
-			fmt.Printf("Savings Rate: %.2f%%\n", summary.SavingsRate*100)
-		}
+		run(cmd.Context(), "cashflow.summary", "failed to get cashflow summary",
+			func(ctx context.Context, svc *monarch.Service) (*monarch.CashflowSummary, error) {
+				setCashflowDates()
+				return svc.GetCashflowSummary(ctx, cfStartDate, cfEndDate)
+			},
+			func(summary *monarch.CashflowSummary) {
+				fmt.Printf("Cashflow Summary (%s to %s):\n", cfStartDate, cfEndDate)
+				fmt.Printf("Income:       %.2f\n", summary.Income)
+				fmt.Printf("Expense:      %.2f\n", summary.Expense)
+				fmt.Printf("Savings:      %.2f\n", summary.Savings)
+				fmt.Printf("Savings Rate: %.2f%%\n", summary.SavingsRate*100)
+			})
 	},
 }
 
@@ -65,32 +50,17 @@ var cashflowCategoriesCmd = &cobra.Command{
 	Use:   "categories",
 	Short: "Get cashflow by category",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "cashflow.categories", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		setCashflowDates()
-
-		records, err := svc.GetCashflowCategories(cmd.Context(), cfStartDate, cfEndDate)
-		if err != nil {
-			handleError(renderer, "cashflow.categories", wrapError(err, "failed to get cashflow categories"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("cashflow.categories", profile, output.SchemaVersion, requestID, records, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("%-30s %10s\n", "CATEGORY", "AMOUNT")
-			for _, r := range records {
-				fmt.Printf("%-30s %10.2f\n", r.Name, r.Amount)
-			}
-		}
+		run(cmd.Context(), "cashflow.categories", "failed to get cashflow categories",
+			func(ctx context.Context, svc *monarch.Service) ([]monarch.CashflowRecord, error) {
+				setCashflowDates()
+				return svc.GetCashflowCategories(ctx, cfStartDate, cfEndDate)
+			},
+			func(records []monarch.CashflowRecord) {
+				fmt.Printf("%-30s %10s\n", "CATEGORY", "AMOUNT")
+				for _, r := range records {
+					fmt.Printf("%-30s %10.2f\n", r.Name, r.Amount)
+				}
+			})
 	},
 }
 
@@ -98,32 +68,17 @@ var cashflowMerchantsCmd = &cobra.Command{
 	Use:   "merchants",
 	Short: "Get cashflow by merchant",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "cashflow.merchants", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		setCashflowDates()
-
-		records, err := svc.GetCashflowMerchants(cmd.Context(), cfStartDate, cfEndDate)
-		if err != nil {
-			handleError(renderer, "cashflow.merchants", wrapError(err, "failed to get cashflow merchants"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("cashflow.merchants", profile, output.SchemaVersion, requestID, records, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("%-30s %10s\n", "MERCHANT", "AMOUNT")
-			for _, r := range records {
-				fmt.Printf("%-30s %10.2f\n", r.Name, r.Amount)
-			}
-		}
+		run(cmd.Context(), "cashflow.merchants", "failed to get cashflow merchants",
+			func(ctx context.Context, svc *monarch.Service) ([]monarch.CashflowRecord, error) {
+				setCashflowDates()
+				return svc.GetCashflowMerchants(ctx, cfStartDate, cfEndDate)
+			},
+			func(records []monarch.CashflowRecord) {
+				fmt.Printf("%-30s %10s\n", "MERCHANT", "AMOUNT")
+				for _, r := range records {
+					fmt.Printf("%-30s %10.2f\n", r.Name, r.Amount)
+				}
+			})
 	},
 }
 
@@ -134,62 +89,42 @@ var cashflowTrendsCmd = &cobra.Command{
 	Example: `  monarch cashflow trends --from 2026-01-01 --to 2026-03-31 --group-by category --period month
   monarch cashflow trends --from 2026-01-01 --to 2026-12-31 --group-by category-group --period quarter --account-id acc_123 --json --pretty`,
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		if cfStartDate == "" || cfEndDate == "" {
-			handleError(renderer, "cashflow.trends", errors.New(errors.InvalidArguments, "--from and --to are required", errors.CatValidation, false, nil), start)
-			return
-		}
-		if _, err := time.Parse("2006-01-02", cfStartDate); err != nil {
-			handleError(renderer, "cashflow.trends", errors.New(errors.InvalidArguments, "from date must use YYYY-MM-DD", errors.CatValidation, false, err), start)
-			return
-		}
-		if _, err := time.Parse("2006-01-02", cfEndDate); err != nil {
-			handleError(renderer, "cashflow.trends", errors.New(errors.InvalidArguments, "to date must use YYYY-MM-DD", errors.CatValidation, false, err), start)
-			return
-		}
-		if cfTrendGroupBy != "category" && cfTrendGroupBy != "category-group" {
-			handleError(renderer, "cashflow.trends", errors.New(errors.InvalidArguments, "group-by must be category or category-group", errors.CatValidation, false, nil), start)
-			return
-		}
-		if cfTrendPeriod != "month" && cfTrendPeriod != "quarter" && cfTrendPeriod != "year" {
-			handleError(renderer, "cashflow.trends", errors.New(errors.InvalidArguments, "period must be month, quarter, or year", errors.CatValidation, false, nil), start)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "cashflow.trends", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		rows, err := svc.GetCashflowTrends(cmd.Context(), monarch.CashflowTrendOptions{
-			StartDate:   cfStartDate,
-			EndDate:     cfEndDate,
-			GroupBy:     cfTrendGroupBy,
-			Period:      cfTrendPeriod,
-			AccountIDs:  cfTrendAccountIDs,
-			CategoryIDs: cfTrendCategoryIDs,
-		})
-		if err != nil {
-			handleError(renderer, "cashflow.trends", wrapError(err, "failed to get cashflow trends"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("cashflow.trends", profile, output.SchemaVersion, requestID, rows, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("%-12s %-30s %12s %12s %12s\n", "PERIOD", "GROUP", "SUM", "INCOME", "EXPENSE")
-			for _, row := range rows {
-				group := row.GroupName
-				if group == "" {
-					group = row.GroupID
+		run(cmd.Context(), "cashflow.trends", "failed to get cashflow trends",
+			func(ctx context.Context, svc *monarch.Service) ([]monarch.CashflowTrendRow, error) {
+				if cfStartDate == "" || cfEndDate == "" {
+					return nil, errors.New(errors.InvalidArguments, "--from and --to are required", errors.CatValidation, false, nil)
 				}
-				fmt.Printf("%-12s %-30s %12.2f %12.2f %12.2f\n", row.Period, group, row.Sum, row.SumIncome, row.SumExpense)
-			}
-		}
+				if _, err := time.Parse("2006-01-02", cfStartDate); err != nil {
+					return nil, errors.New(errors.InvalidArguments, "from date must use YYYY-MM-DD", errors.CatValidation, false, err)
+				}
+				if _, err := time.Parse("2006-01-02", cfEndDate); err != nil {
+					return nil, errors.New(errors.InvalidArguments, "to date must use YYYY-MM-DD", errors.CatValidation, false, err)
+				}
+				if cfTrendGroupBy != "category" && cfTrendGroupBy != "category-group" {
+					return nil, errors.New(errors.InvalidArguments, "group-by must be category or category-group", errors.CatValidation, false, nil)
+				}
+				if cfTrendPeriod != "month" && cfTrendPeriod != "quarter" && cfTrendPeriod != "year" {
+					return nil, errors.New(errors.InvalidArguments, "period must be month, quarter, or year", errors.CatValidation, false, nil)
+				}
+				return svc.GetCashflowTrends(ctx, &monarch.CashflowTrendOptions{
+					StartDate:   cfStartDate,
+					EndDate:     cfEndDate,
+					GroupBy:     cfTrendGroupBy,
+					Period:      cfTrendPeriod,
+					AccountIDs:  cfTrendAccountIDs,
+					CategoryIDs: cfTrendCategoryIDs,
+				})
+			},
+			func(rows []monarch.CashflowTrendRow) {
+				fmt.Printf("%-12s %-30s %12s %12s %12s\n", "PERIOD", "GROUP", "SUM", "INCOME", "EXPENSE")
+				for _, row := range rows {
+					group := row.GroupName
+					if group == "" {
+						group = row.GroupID
+					}
+					fmt.Printf("%-12s %-30s %12.2f %12.2f %12.2f\n", row.Period, group, row.Sum, row.SumIncome, row.SumExpense)
+				}
+			})
 	},
 }
 
@@ -208,32 +143,17 @@ var cashflowListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "Get cashflow records by period",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "cashflow.list", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		setCashflowDates()
-
-		records, err := svc.ListCashflow(cmd.Context(), cfStartDate, cfEndDate)
-		if err != nil {
-			handleError(renderer, "cashflow.list", wrapError(err, "failed to list cashflow"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("cashflow.list", profile, output.SchemaVersion, requestID, records, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("%-12s %10s %10s %10s\n", "PERIOD", "INCOME", "EXPENSE", "SAVINGS")
-			for _, r := range records {
-				fmt.Printf("%-12s %10.2f %10.2f %10.2f\n", r.Period, r.Income, r.Expense, r.Savings)
-			}
-		}
+		run(cmd.Context(), "cashflow.list", "failed to list cashflow",
+			func(ctx context.Context, svc *monarch.Service) ([]monarch.CashflowPeriod, error) {
+				setCashflowDates()
+				return svc.ListCashflow(ctx, cfStartDate, cfEndDate)
+			},
+			func(records []monarch.CashflowPeriod) {
+				fmt.Printf("%-12s %10s %10s %10s\n", "PERIOD", "INCOME", "EXPENSE", "SAVINGS")
+				for _, r := range records {
+					fmt.Printf("%-12s %10.2f %10.2f %10.2f\n", r.Period, r.Income, r.Expense, r.Savings)
+				}
+			})
 	},
 }
 
@@ -266,51 +186,40 @@ var cashflowSpendingCmd = &cobra.Command{
 	Use:   "spending",
 	Short: "Get spending breakdown by category with totals",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "cashflow.spending", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		setCashflowDates()
-
-		records, err := svc.GetCashflowCategories(cmd.Context(), cfStartDate, cfEndDate)
-		if err != nil {
-			handleError(renderer, "cashflow.spending", wrapError(err, "failed to get spending data"), start)
-			return
-		}
-
+		var records []monarch.CashflowRecord
 		var totalIncome, totalExpenses float64
-		for _, r := range records {
-			if r.Amount > 0 {
-				totalIncome += r.Amount
-			} else {
-				totalExpenses += -r.Amount
-			}
-		}
-
-		if jsonMode {
-			data := map[string]any{
-				"period":         map[string]string{"start_date": cfStartDate, "end_date": cfEndDate},
-				"total_income":   totalIncome,
-				"total_expenses": totalExpenses,
-				"net":            totalIncome - totalExpenses,
-				"by_category":    records,
-			}
-			env := output.NewEnvelope("cashflow.spending", profile, output.SchemaVersion, requestID, data, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Spending Summary (%s to %s):\n\n", cfStartDate, cfEndDate)
-			fmt.Printf("%-30s %10s\n", "CATEGORY", "AMOUNT")
-			for _, r := range records {
-				fmt.Printf("%-30s %10.2f\n", r.Name, r.Amount)
-			}
-			fmt.Printf("\n%-30s %10.2f\n", "Total Income:", totalIncome)
-			fmt.Printf("%-30s %10.2f\n", "Total Expenses:", totalExpenses)
-			fmt.Printf("%-30s %10.2f\n", "Net:", totalIncome-totalExpenses)
-		}
+		run(cmd.Context(), "cashflow.spending", "failed to get spending data",
+			func(ctx context.Context, svc *monarch.Service) (map[string]any, error) {
+				setCashflowDates()
+				recs, err := svc.GetCashflowCategories(ctx, cfStartDate, cfEndDate)
+				if err != nil {
+					return nil, err
+				}
+				records = recs
+				for _, r := range recs {
+					if r.Amount > 0 {
+						totalIncome += r.Amount
+					} else {
+						totalExpenses += -r.Amount
+					}
+				}
+				return map[string]any{
+					"period":         map[string]string{"start_date": cfStartDate, "end_date": cfEndDate},
+					"total_income":   totalIncome,
+					"total_expenses": totalExpenses,
+					"net":            totalIncome - totalExpenses,
+					"by_category":    recs,
+				}, nil
+			},
+			func(_ map[string]any) {
+				fmt.Printf("Spending Summary (%s to %s):\n\n", cfStartDate, cfEndDate)
+				fmt.Printf("%-30s %10s\n", "CATEGORY", "AMOUNT")
+				for _, r := range records {
+					fmt.Printf("%-30s %10.2f\n", r.Name, r.Amount)
+				}
+				fmt.Printf("\n%-30s %10.2f\n", "Total Income:", totalIncome)
+				fmt.Printf("%-30s %10.2f\n", "Total Expenses:", totalExpenses)
+				fmt.Printf("%-30s %10.2f\n", "Net:", totalIncome-totalExpenses)
+			})
 	},
 }

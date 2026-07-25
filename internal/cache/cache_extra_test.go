@@ -1,15 +1,13 @@
 package cache
 
 import (
+	"database/sql"
 	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
-
-	"github.com/glebarez/sqlite"
-	"gorm.io/gorm"
 )
 
 func TestNewStoreFailsWhenParentPathIsAFile(t *testing.T) {
@@ -25,11 +23,11 @@ func TestNewStoreFailsWhenParentPathIsAFile(t *testing.T) {
 }
 
 func TestNewStoreReturnsOpenError(t *testing.T) {
-	original := openSQLite
-	openSQLite = func(string) (*gorm.DB, error) {
+	original := openDB
+	openDB = func(string) (*sql.DB, error) {
 		return nil, errors.New("open failed")
 	}
-	defer func() { openSQLite = original }()
+	defer func() { openDB = original }()
 
 	if _, err := NewStore(filepath.Join(t.TempDir(), "monarch.sqlite")); err == nil {
 		t.Fatal("NewStore() error = nil, want failure")
@@ -37,18 +35,11 @@ func TestNewStoreReturnsOpenError(t *testing.T) {
 }
 
 func TestNewStoreReturnsMigrateError(t *testing.T) {
-	originalOpen := openSQLite
-	originalMigrate := migrateStore
-	openSQLite = func(path string) (*gorm.DB, error) {
-		return gorm.Open(sqlite.Open(path), &gorm.Config{})
-	}
-	migrateStore = func(*gorm.DB) error {
+	original := migrateStore
+	migrateStore = func(*sql.DB) error {
 		return errors.New("migrate failed")
 	}
-	defer func() {
-		openSQLite = originalOpen
-		migrateStore = originalMigrate
-	}()
+	defer func() { migrateStore = original }()
 
 	if _, err := NewStore(filepath.Join(t.TempDir(), "monarch.sqlite")); err == nil {
 		t.Fatal("NewStore() error = nil, want failure")
@@ -80,11 +71,7 @@ func TestSaveMethodsReturnDatabaseErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
-	sqlDB, err := store.db.DB()
-	if err != nil {
-		t.Fatalf("DB() error = %v", err)
-	}
-	if err := sqlDB.Close(); err != nil {
+	if err := store.db.Close(); err != nil {
 		t.Fatalf("Close() error = %v", err)
 	}
 

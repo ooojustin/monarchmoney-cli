@@ -31,6 +31,19 @@ Once authenticated, a session token is stored locally. This token is used for al
 - **Security**: The file is saved with `0600` permissions (read/write by owner only).
 - **Contents**: The session file stores the token, account email, timestamps, and profile metadata needed for `auth status`.
 
+### Secret Indirection (`env:NAME`)
+
+The stored `token` value may be a literal token or the indirection form `env:NAME`. When the token is `env:NAME`, it is resolved from the environment variable `NAME` each time the session is loaded, so the real secret never has to sit in the file. If `NAME` is unset, the CLI fails with an explicit error rather than proceeding unauthenticated.
+
+This is the agent-first alternative to an OS keychain (which cannot be used unattended). For example, write a `0600` session file containing `"token": "env:MONARCH_TOKEN"` and supply the secret from the environment or a secret manager at run time:
+
+```bash
+export MONARCH_TOKEN="..."
+monarch accounts list --json
+```
+
+See `docs/adr/0006-secrets-storage.md` for the full rationale.
+
 ### Checking Status
 To check if you have a valid local session:
 ```bash

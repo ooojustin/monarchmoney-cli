@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"golang.org/x/term"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
@@ -16,6 +15,15 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 )
+
+// firstNonEmpty returns a if it is non-empty, otherwise b. It implements the
+// flag > env precedence for login credentials.
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
+}
 
 var (
 	email     string
@@ -71,10 +79,10 @@ var loginCmd = &cobra.Command{
 		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 
 		// Priority: Flags > Env Vars > Prompt
-		email := viper.GetString("email")
-		password := viper.GetString("password")
-		mfaCode := viper.GetString("mfa-code")
-		mfaSecret := viper.GetString("mfa-secret")
+		email := firstNonEmpty(email, os.Getenv("MONARCH_EMAIL"))
+		password := firstNonEmpty(password, os.Getenv("MONARCH_PASSWORD"))
+		mfaCode := firstNonEmpty(mfaCode, os.Getenv("MONARCH_MFA_CODE"))
+		mfaSecret := firstNonEmpty(mfaSecret, os.Getenv("MONARCH_MFA_SECRET"))
 
 		if email == "" {
 			fmt.Print("Email: ")
@@ -232,11 +240,6 @@ func init() {
 	loginCmd.Flags().StringVar(&password, "password", "", "password")
 	loginCmd.Flags().StringVar(&mfaCode, "mfa-code", "", "6-digit MFA code")
 	loginCmd.Flags().StringVar(&mfaSecret, "mfa-secret", "", "TOTP secret key for automatic MFA")
-
-	viper.BindPFlag("email", loginCmd.Flags().Lookup("email"))           //nolint:errcheck // flag is registered above; BindPFlag only fails if the pflag is nil
-	viper.BindPFlag("password", loginCmd.Flags().Lookup("password"))     //nolint:errcheck // flag is registered above; BindPFlag only fails if the pflag is nil
-	viper.BindPFlag("mfa-code", loginCmd.Flags().Lookup("mfa-code"))     //nolint:errcheck // flag is registered above; BindPFlag only fails if the pflag is nil
-	viper.BindPFlag("mfa-secret", loginCmd.Flags().Lookup("mfa-secret")) //nolint:errcheck // flag is registered above; BindPFlag only fails if the pflag is nil
 
 	sessionCmd.AddCommand(sessionPathCmd)
 	authCmd.AddCommand(loginCmd)

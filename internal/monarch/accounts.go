@@ -535,7 +535,8 @@ func (s *Service) ListAccounts(ctx context.Context) ([]Account, error) {
 	}
 
 	accounts := make([]Account, len(resp.Accounts))
-	for i, a := range resp.Accounts {
+	for i := range resp.Accounts {
+		a := &resp.Accounts[i]
 		accounts[i] = Account{
 			ID:                              a.ID,
 			DisplayName:                     a.DisplayName,

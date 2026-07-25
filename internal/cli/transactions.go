@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -69,64 +70,54 @@ var transactionsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List transactions",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
+		var txs []monarch.Transaction
+		var total int
+		runWarn(cmd.Context(), "transactions.list", "failed to list transactions",
+			[]string{"uses legacy Monarch GraphQL root field: allTransactions"},
+			func(ctx context.Context, svc *monarch.Service) (map[string]any, error) {
+				opts := monarch.ListTransactionsOptions{
+					Limit:       limit,
+					Offset:      offset,
+					StartDate:   txStartDate,
+					EndDate:     txEndDate,
+					CategoryIDs: filterCategoryIDs,
+					AccountIDs:  filterAccountIDs,
+					TagIDs:      filterTagIDs,
+				}
+				if cmd.Flags().Changed("needs-review") {
+					opts.NeedsReview = &filterNeedsReview
+				}
+				if cmd.Flags().Changed("has-notes") {
+					opts.HasNotes = &filterHasNotes
+				}
+				if cmd.Flags().Changed("is-split") {
+					opts.IsSplit = &filterIsSplit
+				}
+				if cmd.Flags().Changed("is-recurring") {
+					opts.IsRecurring = &filterIsRecurring
+				}
+				if cmd.Flags().Changed("pending") {
+					opts.Pending = &filterPending
+				}
+				if cmd.Flags().Changed("hide-from-reports") {
+					opts.HideFromReports = &filterHideReports
+				}
+				opts.GoalIDs = filterGoalIDs
 
-		deps, ok := newDeps(renderer, "transactions.list", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		opts := monarch.ListTransactionsOptions{
-			Limit:       limit,
-			Offset:      offset,
-			StartDate:   txStartDate,
-			EndDate:     txEndDate,
-			CategoryIDs: filterCategoryIDs,
-			AccountIDs:  filterAccountIDs,
-			TagIDs:      filterTagIDs,
-		}
-		if cmd.Flags().Changed("needs-review") {
-			opts.NeedsReview = &filterNeedsReview
-		}
-		if cmd.Flags().Changed("has-notes") {
-			opts.HasNotes = &filterHasNotes
-		}
-		if cmd.Flags().Changed("is-split") {
-			opts.IsSplit = &filterIsSplit
-		}
-		if cmd.Flags().Changed("is-recurring") {
-			opts.IsRecurring = &filterIsRecurring
-		}
-		if cmd.Flags().Changed("pending") {
-			opts.Pending = &filterPending
-		}
-		if cmd.Flags().Changed("hide-from-reports") {
-			opts.HideFromReports = &filterHideReports
-		}
-		opts.GoalIDs = filterGoalIDs
-
-		txs, total, err := svc.ListTransactions(cmd.Context(), opts)
-		if err != nil {
-			handleError(renderer, "transactions.list", wrapError(err, "failed to list transactions"), start)
-			return
-		}
-
-		if jsonMode {
-			data := map[string]any{
-				"transactions": txs,
-				"total":        total,
-			}
-			env := envelopeWithWarnings("transactions.list", data, start, "uses legacy Monarch GraphQL root field: allTransactions")
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES")
-			for _, t := range txs {
-				fmt.Printf("%-12s %-20s %-15s %10.2f %s\n", t.Date, t.Merchant, t.Category, t.Amount, t.Notes)
-			}
-			fmt.Printf("\nTotal transactions: %d\n", total)
-		}
+				t, tot, err := svc.ListTransactions(ctx, &opts)
+				if err != nil {
+					return nil, err
+				}
+				txs, total = t, tot
+				return map[string]any{"transactions": t, "total": tot}, nil
+			},
+			func(_ map[string]any) {
+				fmt.Printf("%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES")
+				for _, t := range txs {
+					fmt.Printf("%-12s %-20s %-15s %10.2f %s\n", t.Date, t.Merchant, t.Category, t.Amount, t.Notes)
+				}
+				fmt.Printf("\nTotal transactions: %d\n", total)
+			})
 	},
 }
 
@@ -135,41 +126,31 @@ var transactionsSearchCmd = &cobra.Command{
 	Short: "Search transactions",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "transactions.search", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		txs, total, err := svc.ListTransactions(cmd.Context(), monarch.ListTransactionsOptions{
-			Limit:     limit,
-			Offset:    offset,
-			Search:    args[0],
-			StartDate: txStartDate,
-			EndDate:   txEndDate,
-		})
-		if err != nil {
-			handleError(renderer, "transactions.search", wrapError(err, "failed to search transactions"), start)
-			return
-		}
-
-		if jsonMode {
-			data := map[string]any{
-				"transactions": txs,
-				"total":        total,
-			}
-			env := envelopeWithWarnings("transactions.search", data, start, "uses legacy Monarch GraphQL root field: allTransactions")
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES")
-			for _, t := range txs {
-				fmt.Printf("%-12s %-20s %-15s %10.2f %s\n", t.Date, t.Merchant, t.Category, t.Amount, t.Notes)
-			}
-			fmt.Printf("\nTotal matches: %d\n", total)
-		}
+		var txs []monarch.Transaction
+		var total int
+		runWarn(cmd.Context(), "transactions.search", "failed to search transactions",
+			[]string{"uses legacy Monarch GraphQL root field: allTransactions"},
+			func(ctx context.Context, svc *monarch.Service) (map[string]any, error) {
+				t, tot, err := svc.ListTransactions(ctx, &monarch.ListTransactionsOptions{
+					Limit:     limit,
+					Offset:    offset,
+					Search:    args[0],
+					StartDate: txStartDate,
+					EndDate:   txEndDate,
+				})
+				if err != nil {
+					return nil, err
+				}
+				txs, total = t, tot
+				return map[string]any{"transactions": t, "total": tot}, nil
+			},
+			func(_ map[string]any) {
+				fmt.Printf("%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES")
+				for _, t := range txs {
+					fmt.Printf("%-12s %-20s %-15s %10.2f %s\n", t.Date, t.Merchant, t.Category, t.Amount, t.Notes)
+				}
+				fmt.Printf("\nTotal matches: %d\n", total)
+			})
 	},
 }
 
@@ -177,35 +158,20 @@ var transactionsDuplicatesCmd = &cobra.Command{
 	Use:   "duplicates",
 	Short: "Find duplicate transactions",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "transactions.duplicates", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		// Default to current month for duplicate search
-		now := time.Now()
-		startDate := now.Format("2006-01-02")
-		endDate := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, time.UTC).Format("2006-01-02")
-
-		txs, err := svc.GetDuplicateTransactions(cmd.Context(), startDate, endDate)
-		if err != nil {
-			handleError(renderer, "transactions.duplicates", wrapError(err, "failed to find duplicates"), start)
-			return
-		}
-
-		if jsonMode {
-			env := envelopeWithWarnings("transactions.duplicates", txs, start, "uses legacy Monarch GraphQL root field: allTransactions")
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("%-12s %-20s %10s %s\n", "DATE", "MERCHANT", "AMOUNT", "ID")
-			for _, t := range txs {
-				fmt.Printf("%-12s %-20s %10.2f %s\n", t.Date, t.Merchant, t.Amount, t.ID)
-			}
-		}
+		runWarn(cmd.Context(), "transactions.duplicates", "failed to find duplicates",
+			[]string{"uses legacy Monarch GraphQL root field: allTransactions"},
+			func(ctx context.Context, svc *monarch.Service) ([]monarch.Transaction, error) {
+				now := time.Now()
+				startDate := now.Format("2006-01-02")
+				endDate := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, time.UTC).Format("2006-01-02")
+				return svc.GetDuplicateTransactions(ctx, startDate, endDate)
+			},
+			func(txs []monarch.Transaction) {
+				fmt.Printf("%-12s %-20s %10s %s\n", "DATE", "MERCHANT", "AMOUNT", "ID")
+				for _, t := range txs {
+					fmt.Printf("%-12s %-20s %10.2f %s\n", t.Date, t.Merchant, t.Amount, t.ID)
+				}
+			})
 	},
 }
 
@@ -214,30 +180,16 @@ var transactionsSplitsCmd = &cobra.Command{
 	Short: "Get splits for a transaction",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "transactions.splits", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		splits, err := svc.GetTransactionSplits(cmd.Context(), args[0])
-		if err != nil {
-			handleError(renderer, "transactions.splits", wrapError(err, "failed to get splits"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("transactions.splits", profile, output.SchemaVersion, requestID, splits, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("%-20s %10s %s\n", "CATEGORY", "AMOUNT", "NOTES")
-			for _, s := range splits {
-				fmt.Printf("%-20s %10.2f %s\n", s.Category, s.Amount, s.Notes)
-			}
-		}
+		run(cmd.Context(), "transactions.splits", "failed to get splits",
+			func(ctx context.Context, svc *monarch.Service) ([]monarch.TransactionSplit, error) {
+				return svc.GetTransactionSplits(ctx, args[0])
+			},
+			func(splits []monarch.TransactionSplit) {
+				fmt.Printf("%-20s %10s %s\n", "CATEGORY", "AMOUNT", "NOTES")
+				for _, s := range splits {
+					fmt.Printf("%-20s %10.2f %s\n", s.Category, s.Amount, s.Notes)
+				}
+			})
 	},
 }
 
@@ -246,75 +198,55 @@ var transactionsUpdateCmd = &cobra.Command{
 	Short: "Update a transaction",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 		id := args[0]
-
-		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "transactions.update", err, start)
-			return
-		}
-
-		var notes *string
-		if cmd.Flags().Changed("notes") {
-			notes = &txNotes
-		}
-		var categoryID *string
-		if cmd.Flags().Changed("category") {
-			categoryID = &txCategoryID
-		}
-		var amount *float64
-		if cmd.Flags().Changed("amount") {
-			amount = &txAmount
-		}
-		var date *string
-		if cmd.Flags().Changed("date") {
-			date = &txDate
-		}
-		var merchantName *string
-		if cmd.Flags().Changed("merchant") {
-			merchantName = &txMerchant
-		}
-		var hideFromReports *bool
-		if cmd.Flags().Changed("hide-from-reports") {
-			hideFromReports = &txHideFromReports
-		}
-		var needsReview *bool
-		if cmd.Flags().Changed("needs-review") {
-			needsReview = &txNeedsReview
-		}
-		if txMarkReviewed {
-			f := false
-			needsReview = &f
-		}
-
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("transactions.update", id, nil, map[string]any{"notes": notes, "categoryId": categoryID, "amount": amount, "date": date, "merchant": merchantName, "hideFromReports": hideFromReports, "needsReview": needsReview})
-			env := output.NewEnvelope("transactions.update", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "transactions.update", start)
-		if !ok {
-			return
-		}
-
-		result, err := deps.Mutate("transactions.update", id, func() (any, error) {
-			return deps.Service.UpdateTransaction(cmd.Context(), id, notes, categoryID, amount, date, merchantName, hideFromReports, needsReview)
-		}, "failed to update transaction")
-		if err != nil {
-			return
-		}
-		tx, _ := result.(*monarch.Transaction)
-
-		if jsonMode {
-			env := output.NewEnvelope("transactions.update", profile, output.SchemaVersion, requestID, tx, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Successfully updated transaction %s.\n", tx.ID)
-		}
+		runMutation(cmd, "transactions.update", "failed to update transaction", safety.TierMutation, func() (mutation, *errors.Error) {
+			var notes *string
+			if cmd.Flags().Changed("notes") {
+				notes = &txNotes
+			}
+			var categoryID *string
+			if cmd.Flags().Changed("category") {
+				categoryID = &txCategoryID
+			}
+			var amount *float64
+			if cmd.Flags().Changed("amount") {
+				amount = &txAmount
+			}
+			var date *string
+			if cmd.Flags().Changed("date") {
+				date = &txDate
+			}
+			var merchantName *string
+			if cmd.Flags().Changed("merchant") {
+				merchantName = &txMerchant
+			}
+			var hideFromReports *bool
+			if cmd.Flags().Changed("hide-from-reports") {
+				hideFromReports = &txHideFromReports
+			}
+			var needsReview *bool
+			if cmd.Flags().Changed("needs-review") {
+				needsReview = &txNeedsReview
+			}
+			if txMarkReviewed {
+				f := false
+				needsReview = &f
+			}
+			var tx *monarch.Transaction
+			return mutation{
+				resourceID: id,
+				planAfter:  map[string]any{"notes": notes, "categoryId": categoryID, "amount": amount, "date": date, "merchant": merchantName, "hideFromReports": hideFromReports, "needsReview": needsReview},
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					updated, err := svc.UpdateTransaction(ctx, id, notes, categoryID, amount, date, merchantName, hideFromReports, needsReview)
+					if err != nil {
+						return nil, err
+					}
+					tx = updated
+					return updated, nil
+				},
+				human: func() { fmt.Printf("Successfully updated transaction %s.\n", tx.ID) },
+			}, nil
+		})
 	},
 }
 
@@ -323,40 +255,19 @@ var transactionsDeleteCmd = &cobra.Command{
 	Short: "Delete a transaction",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 		id := args[0]
-
-		if err := safety.Check(safety.TierDestructive, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "transactions.delete", err, start)
-			return
-		}
-
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("transactions.delete", id, nil, nil)
-			env := output.NewEnvelope("transactions.delete", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "transactions.delete", start)
-		if !ok {
-			return
-		}
-
-		if _, err := deps.Mutate("transactions.delete", id, func() (any, error) {
-			return nil, deps.Service.DeleteTransaction(cmd.Context(), id)
-		}, "failed to delete transaction"); err != nil {
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("transactions.delete", profile, output.SchemaVersion, requestID, map[string]string{"status": "deleted"}, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Successfully deleted transaction %s.\n", id)
-		}
+		runMutation(cmd, "transactions.delete", "failed to delete transaction", safety.TierDestructive, func() (mutation, *errors.Error) {
+			return mutation{
+				resourceID: id,
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					if err := svc.DeleteTransaction(ctx, id); err != nil {
+						return nil, err
+					}
+					return map[string]string{"status": "deleted"}, nil
+				},
+				human: func() { fmt.Printf("Successfully deleted transaction %s.\n", id) },
+			}, nil
+		})
 	},
 }
 
@@ -364,45 +275,24 @@ var transactionsCreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create a transaction",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "transactions.create", err, start)
-			return
-		}
-
-		if txDate == "" {
-			txDate = time.Now().Format("2006-01-02")
-		}
-
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("transactions.create", "", nil, map[string]any{"amount": txAmount, "merchant": txMerchant, "date": txDate, "categoryId": txCategoryID})
-			env := output.NewEnvelope("transactions.create", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "transactions.create", start)
-		if !ok {
-			return
-		}
-
-		result, err := deps.Mutate("transactions.create", "", func() (any, error) {
-			return deps.Service.CreateTransaction(cmd.Context(), txAmount, txMerchant, txDate, txCategoryID, txAccountID, txNotes)
-		}, "failed to create transaction")
-		if err != nil {
-			return
-		}
-		tx, _ := result.(*monarch.Transaction)
-
-		if jsonMode {
-			env := output.NewEnvelope("transactions.create", profile, output.SchemaVersion, requestID, tx, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Successfully created transaction %s.\n", tx.ID)
-		}
+		runMutation(cmd, "transactions.create", "failed to create transaction", safety.TierMutation, func() (mutation, *errors.Error) {
+			if txDate == "" {
+				txDate = time.Now().Format("2006-01-02")
+			}
+			var tx *monarch.Transaction
+			return mutation{
+				planAfter: map[string]any{"amount": txAmount, "merchant": txMerchant, "date": txDate, "categoryId": txCategoryID},
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					created, err := svc.CreateTransaction(ctx, txAmount, txMerchant, txDate, txCategoryID, txAccountID, txNotes)
+					if err != nil {
+						return nil, err
+					}
+					tx = created
+					return created, nil
+				},
+				human: func() { fmt.Printf("Successfully created transaction %s.\n", tx.ID) },
+			}, nil
+		})
 	},
 }
 
@@ -411,52 +301,28 @@ var transactionsSplitCmd = &cobra.Command{
 	Short: "Split a transaction",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 		id := args[0]
-
-		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "transactions.split", err, start)
-			return
-		}
-
-		data, err := os.ReadFile(splitFile)
-		if err != nil {
-			handleError(renderer, "transactions.split", errors.New(errors.ValidationFailed, "failed to read split file: "+err.Error(), errors.CatValidation, false, err), start)
-			return
-		}
-
-		var splits []monarch.SplitInput
-		if err := jsonUnmarshal(data, &splits); err != nil {
-			handleError(renderer, "transactions.split", errors.New(errors.ValidationFailed, "invalid split JSON: "+err.Error(), errors.CatValidation, false, err), start)
-			return
-		}
-
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("transactions.split", id, nil, map[string]any{"splits": splits})
-			env := output.NewEnvelope("transactions.split", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "transactions.split", start)
-		if !ok {
-			return
-		}
-
-		if _, err := deps.Mutate("transactions.split", id, func() (any, error) {
-			return nil, deps.Service.UpdateTransactionSplits(cmd.Context(), id, splits)
-		}, "failed to split transaction"); err != nil {
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("transactions.split", profile, output.SchemaVersion, requestID, map[string]string{"status": "split updated"}, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Successfully split transaction %s.\n", id)
-		}
+		runMutation(cmd, "transactions.split", "failed to split transaction", safety.TierMutation, func() (mutation, *errors.Error) {
+			data, err := os.ReadFile(splitFile)
+			if err != nil {
+				return mutation{}, errors.New(errors.ValidationFailed, "failed to read split file: "+err.Error(), errors.CatValidation, false, err)
+			}
+			var splits []monarch.SplitInput
+			if err := jsonUnmarshal(data, &splits); err != nil {
+				return mutation{}, errors.New(errors.ValidationFailed, "invalid split JSON: "+err.Error(), errors.CatValidation, false, err)
+			}
+			return mutation{
+				resourceID: id,
+				planAfter:  map[string]any{"splits": splits},
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					if err := svc.UpdateTransactionSplits(ctx, id, splits); err != nil {
+						return nil, err
+					}
+					return map[string]string{"status": "split updated"}, nil
+				},
+				human: func() { fmt.Printf("Successfully split transaction %s.\n", id) },
+			}, nil
+		})
 	},
 }
 
@@ -487,7 +353,7 @@ var transactionsExportCmd = &cobra.Command{
 			opts.HideFromReports = &filterHideReports
 		}
 
-		txs, _, err := svc.ListTransactions(cmd.Context(), opts)
+		txs, _, err := svc.ListTransactions(cmd.Context(), &opts)
 		if err != nil {
 			handleError(renderer, "transactions.export", wrapError(err, "failed to list transactions"), start)
 			return
@@ -531,40 +397,20 @@ var transactionsTagsSetCmd = &cobra.Command{
 	Short: "Set tags for a transaction",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 		id := args[0]
-
-		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "transactions.tags.set", err, start)
-			return
-		}
-
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("transactions.tags.set", id, nil, map[string]any{"tag_ids": tagIDs})
-			env := output.NewEnvelope("transactions.tags.set", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "transactions.tags.set", start)
-		if !ok {
-			return
-		}
-
-		if _, err := deps.Mutate("transactions.tags.set", id, func() (any, error) {
-			return nil, deps.Service.SetTransactionTags(cmd.Context(), id, tagIDs)
-		}, "failed to set transaction tags"); err != nil {
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("transactions.tags.set", profile, output.SchemaVersion, requestID, map[string]string{"status": "tags set"}, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Successfully set tags for transaction %s.\n", id)
-		}
+		runMutation(cmd, "transactions.tags.set", "failed to set transaction tags", safety.TierMutation, func() (mutation, *errors.Error) {
+			return mutation{
+				resourceID: id,
+				planAfter:  map[string]any{"tag_ids": tagIDs},
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					if err := svc.SetTransactionTags(ctx, id, tagIDs); err != nil {
+						return nil, err
+					}
+					return map[string]string{"status": "tags set"}, nil
+				},
+				human: func() { fmt.Printf("Successfully set tags for transaction %s.\n", id) },
+			}, nil
+		})
 	},
 }
 
@@ -578,34 +424,20 @@ var transactionsAttachmentsListCmd = &cobra.Command{
 	Short: "List attachments for a transaction",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "transactions.attachments.list", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		attachments, err := svc.ListTransactionAttachments(cmd.Context(), args[0])
-		if err != nil {
-			handleError(renderer, "transactions.attachments.list", wrapError(err, "failed to list attachments"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("transactions.attachments.list", profile, output.SchemaVersion, requestID, attachments, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			if len(attachments) == 0 {
-				fmt.Println("No attachments found.")
-			} else {
+		run(cmd.Context(), "transactions.attachments.list", "failed to list attachments",
+			func(ctx context.Context, svc *monarch.Service) ([]monarch.Attachment, error) {
+				return svc.ListTransactionAttachments(ctx, args[0])
+			},
+			func(attachments []monarch.Attachment) {
+				if len(attachments) == 0 {
+					fmt.Println("No attachments found.")
+					return
+				}
 				fmt.Printf("%-36s %-20s %s\n", "ID", "FILENAME", "SIZE")
 				for _, a := range attachments {
 					fmt.Printf("%-36s %-20s %d bytes\n", a.ID, a.Filename, a.SizeBytes)
 				}
-			}
-		}
+			})
 	},
 }
 
@@ -614,67 +446,48 @@ var transactionsAttachmentsDownloadCmd = &cobra.Command{
 	Short: "Download an attachment for a transaction",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		if attachmentID == "" {
-			handleError(renderer, "transactions.attachments.download", errors.New(errors.InvalidArguments, "--id flag is required", errors.CatValidation, false, nil), start)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "transactions.attachments.download", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		// Get attachments to find the URL
-		attachments, err := svc.ListTransactionAttachments(cmd.Context(), args[0])
-		if err != nil {
-			handleError(renderer, "transactions.attachments.download", wrapError(err, "failed to list attachments"), start)
-			return
-		}
-
-		var targetURL, targetFilename string
-		for _, a := range attachments {
-			if a.ID == attachmentID {
-				targetURL = a.URL
-				targetFilename = a.Filename
-				break
-			}
-		}
-		if targetURL == "" {
-			handleError(renderer, "transactions.attachments.download", errors.New(errors.ResourceNotFound, "attachment not found", errors.CatAPI, false, nil), start)
-			return
-		}
-
-		outPath := outputFile
-		if outPath == "" {
-			outPath = targetFilename
-		}
-
-		f, err := os.Create(outPath)
-		if err != nil {
-			handleError(renderer, "transactions.attachments.download", errors.New(errors.InternalError, "failed to create output file: "+err.Error(), errors.CatInternal, false, err), start)
-			return
-		}
-		defer func() {
-			if cerr := f.Close(); cerr != nil {
-				fmt.Fprintf(os.Stderr, "warning: failed to close file: %v\n", cerr)
-			}
-		}()
-
-		if err := svc.DownloadAttachment(cmd.Context(), targetURL, f); err != nil {
-			handleError(renderer, "transactions.attachments.download", wrapError(err, "failed to download attachment"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("transactions.attachments.download", profile, output.SchemaVersion, requestID, map[string]string{"status": "downloaded", "path": outPath}, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Downloaded attachment to %s\n", outPath)
-		}
+		var outPath string
+		run(cmd.Context(), "transactions.attachments.download", "failed to download attachment",
+			func(ctx context.Context, svc *monarch.Service) (map[string]string, error) {
+				if attachmentID == "" {
+					return nil, errors.New(errors.InvalidArguments, "--id flag is required", errors.CatValidation, false, nil)
+				}
+				attachments, err := svc.ListTransactionAttachments(ctx, args[0])
+				if err != nil {
+					return nil, wrapError(err, "failed to list attachments")
+				}
+				var targetURL, targetFilename string
+				for _, a := range attachments {
+					if a.ID == attachmentID {
+						targetURL = a.URL
+						targetFilename = a.Filename
+						break
+					}
+				}
+				if targetURL == "" {
+					return nil, errors.New(errors.ResourceNotFound, "attachment not found", errors.CatAPI, false, nil)
+				}
+				outPath = outputFile
+				if outPath == "" {
+					outPath = targetFilename
+				}
+				f, err := os.Create(outPath)
+				if err != nil {
+					return nil, errors.New(errors.InternalError, "failed to create output file: "+err.Error(), errors.CatInternal, false, err)
+				}
+				defer func() {
+					if cerr := f.Close(); cerr != nil {
+						fmt.Fprintf(os.Stderr, "warning: failed to close file: %v\n", cerr)
+					}
+				}()
+				if err := svc.DownloadAttachment(ctx, targetURL, f); err != nil {
+					return nil, wrapError(err, "failed to download attachment")
+				}
+				return map[string]string{"status": "downloaded", "path": outPath}, nil
+			},
+			func(_ map[string]string) {
+				fmt.Printf("Downloaded attachment to %s\n", outPath)
+			})
 	},
 }
 
@@ -683,32 +496,18 @@ var transactionsShowCmd = &cobra.Command{
 	Short: "Show detailed information for a transaction",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "transactions.show", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		tx, err := svc.GetTransaction(cmd.Context(), args[0])
-		if err != nil {
-			handleError(renderer, "transactions.show", wrapError(err, "failed to get transaction"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("transactions.show", profile, output.SchemaVersion, requestID, tx, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("ID:       %s\n", tx.ID)
-			fmt.Printf("Date:     %s\n", tx.Date)
-			fmt.Printf("Merchant: %s\n", tx.Merchant)
-			fmt.Printf("Category: %s\n", tx.Category)
-			fmt.Printf("Amount:   %.2f\n", tx.Amount)
-			fmt.Printf("Notes:    %s\n", tx.Notes)
-		}
+		run(cmd.Context(), "transactions.show", "failed to get transaction",
+			func(ctx context.Context, svc *monarch.Service) (*monarch.Transaction, error) {
+				return svc.GetTransaction(ctx, args[0])
+			},
+			func(tx *monarch.Transaction) {
+				fmt.Printf("ID:       %s\n", tx.ID)
+				fmt.Printf("Date:     %s\n", tx.Date)
+				fmt.Printf("Merchant: %s\n", tx.Merchant)
+				fmt.Printf("Category: %s\n", tx.Category)
+				fmt.Printf("Amount:   %.2f\n", tx.Amount)
+				fmt.Printf("Notes:    %s\n", tx.Notes)
+			})
 	},
 }
 
@@ -716,27 +515,13 @@ var transactionsSummaryCmd = &cobra.Command{
 	Use:   "summary",
 	Short: "Get transaction summary",
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		deps, ok := newDeps(renderer, "transactions.summary", start)
-		if !ok {
-			return
-		}
-		svc := deps.Service
-
-		summary, err := svc.GetTransactionsSummary(cmd.Context(), txStartDate, txEndDate)
-		if err != nil {
-			handleError(renderer, "transactions.summary", wrapError(err, "failed to get transaction summary"), start)
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("transactions.summary", profile, output.SchemaVersion, requestID, summary, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Println("Transaction Summary")
-		}
+		run(cmd.Context(), "transactions.summary", "failed to get transaction summary",
+			func(ctx context.Context, svc *monarch.Service) (*monarch.TransactionSummaryResult, error) {
+				return svc.GetTransactionsSummary(ctx, txStartDate, txEndDate)
+			},
+			func(_ *monarch.TransactionSummaryResult) {
+				fmt.Println("Transaction Summary")
+			})
 	},
 }
 
@@ -745,40 +530,19 @@ var transactionsTagsClearCmd = &cobra.Command{
 	Short: "Clear all tags for a transaction",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 		id := args[0]
-
-		if err := safety.Check(safety.TierMutation, readOnly, dryRun, confirm); err != nil {
-			handleError(renderer, "transactions.tags.clear", err, start)
-			return
-		}
-
-		if dryRun {
-			plan := safety.NewPlan()
-			plan.Add("transactions.tags.clear", id, nil, nil)
-			env := output.NewEnvelope("transactions.tags.clear", profile, output.SchemaVersion, requestID, plan, time.Since(start))
-			renderer.RenderSuccess(env)
-			return
-		}
-
-		deps, ok := newDeps(renderer, "transactions.tags.clear", start)
-		if !ok {
-			return
-		}
-
-		if _, err := deps.Mutate("transactions.tags.clear", id, func() (any, error) {
-			return nil, deps.Service.SetTransactionTags(cmd.Context(), id, []string{})
-		}, "failed to clear transaction tags"); err != nil {
-			return
-		}
-
-		if jsonMode {
-			env := output.NewEnvelope("transactions.tags.clear", profile, output.SchemaVersion, requestID, map[string]string{"status": "tags cleared"}, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Printf("Successfully cleared tags for transaction %s.\n", id)
-		}
+		runMutation(cmd, "transactions.tags.clear", "failed to clear transaction tags", safety.TierMutation, func() (mutation, *errors.Error) {
+			return mutation{
+				resourceID: id,
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					if err := svc.SetTransactionTags(ctx, id, []string{}); err != nil {
+						return nil, err
+					}
+					return map[string]string{"status": "tags cleared"}, nil
+				},
+				human: func() { fmt.Printf("Successfully cleared tags for transaction %s.\n", id) },
+			}, nil
+		})
 	},
 }
 
