@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/Monarch-Money-Press-Kit/logo-light.png" alt="Monarch Money Logo" width="400">
+  <img src="assets/icon.png" alt="Monarch Money Logo" width="400">
 </p>
 
 <h1 align="center">monarchmoney-cli</h1>
@@ -108,10 +108,10 @@ Remove config if desired: `rm -rf ~/.config/monarchmoney-cli`
 
 ## Documentation
 
-- [Capabilities](docs/capabilities.md) — full list of supported commands and features
+- [Commands](COMMANDS.md) — full list of supported commands and features
 - [Authentication](docs/auth.md) — MFA support and session management
 - [Safety Model](docs/safety.md) — how we protect your financial data
-- [JSON Schema](docs/json-schema.md) — stable output contract details
+- [JSON Schema](JSON_SCHEMA.md) — stable output contract details
 - [Agent Guide](docs/agent-guide.md) — guide for connecting with AI agents
 - [Contributing](CONTRIBUTING.md) — development setup and contribution guidelines
 
