@@ -32,7 +32,7 @@ func (s *Service) ListInstitutions(ctx context.Context) ([]Institution, error) {
 	}
 
 	err := s.Client.Do(ctx, &graphql.Request{
-		OperationName: "GetInstitutionSettings",
+		OperationName: "Web_GetInstitutionSettings",
 		Query:         GetInstitutionsQuery,
 	}, &resp)
 

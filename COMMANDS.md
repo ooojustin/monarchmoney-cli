@@ -13,8 +13,8 @@
 | **Cashflow** | Summary, category/merchant breakdown, grouped trends, spending totals | `monarch cashflow` |
 | **Overview** | Net worth, cashflow, and recent transactions in one call | `monarch overview` |
 | **Analysis** | Deterministic anomaly, subscription, merchant, and budget burn-rate analysis | `monarch analyze` |
-| **Categories** | List, groups, create, delete | `monarch categories` |
-| **Goals** | List goals | `monarch goals` |
+| **Categories** | List, groups, create, update, rollover, delete | `monarch categories` |
+| **Goals** | List goals with progress/balance, savings goal budgets | `monarch goals` |
 | **Investments** | Portfolio holdings and security performance | `monarch investments` |
 | **Tags** | List, create, set, add, clear | `monarch tags` |
 | **Institutions** | List linked financial institutions | `monarch institutions` |
@@ -60,7 +60,8 @@
 - `monarch cashflow merchants`: View spending by merchant.
 - `monarch cashflow trends`: View aggregate trends by category or category group and period.
 - `monarch overview`: Get a compact financial overview (net worth, cashflow, recent transactions) for the current month or a custom range via `--from`/`--to`.
-- `monarch goals list`: List goals.
+- `monarch goals list`: List goals with progress, balance, and target.
+- `monarch goals budgets`: View savings goal monthly budget amounts.
 - `monarch investments portfolio`: View portfolio performance and holdings.
 - `monarch investments performance`: View historical security performance.
 - `monarch analyze anomalies`: Find category spending anomalies from transaction history.
@@ -70,6 +71,8 @@
 - `monarch recurring list`: View recurring transactions.
 - `monarch credit history`: View credit score history.
 - `monarch categories groups`: List category groups.
+- `monarch categories groups update <group-id>`: Update a category group (name, budget variability, rollover settings).
+- `monarch categories rollover <category-id>`: Show rollover settings for a category.
 - `monarch institutions list`: List linked financial institutions.
 - `monarch subscription show`: Show Monarch subscription details.
 - `monarch auth status`: Check current authentication status.
@@ -104,6 +107,7 @@ All mutations are protected by the [Safety Model](./safety.md).
 - `monarch budgets flexible set <category-id>`: Set flexible budget amount.
 - `monarch budgets flex-rollover set <category-id>`: Set flex-rollover budget amount.
 - `monarch categories create`: Create a new category.
+- `monarch categories update <id>`: Update a category (name, icon, budget variability, exclude from budget).
 - `monarch categories delete <id>`: Delete a category.
 - `monarch categories delete-many <id...>`: Delete multiple categories.
 - `monarch recurring update <id>`: Update a recurring transaction.

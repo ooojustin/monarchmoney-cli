@@ -1,4 +1,4 @@
-query GetJointPlanningData($startDate: Date!, $endDate: Date!) {
+query Common_GetJointPlanningData($startDate: Date!, $endDate: Date!) {
   budgetData(startMonth: $startDate, endMonth: $endDate) {
     monthlyAmountsByCategory {
       category {

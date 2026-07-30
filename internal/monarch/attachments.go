@@ -34,7 +34,7 @@ func (s *Service) ListTransactionAttachments(ctx context.Context, txID string) (
 	}
 
 	err := s.Client.Do(ctx, &graphql.Request{
-		OperationName: "GetTransaction",
+		OperationName: "GetTransactionDrawer",
 		Query:         GetTransactionQuery,
 		Variables:     map[string]any{"id": txID},
 	}, &resp)

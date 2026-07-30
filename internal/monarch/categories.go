@@ -2,6 +2,7 @@ package monarch
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 	"github.com/thedavidweng/monarchmoney-cli/queries"
@@ -12,6 +13,9 @@ var GetCategoryGroupsQuery = queries.Get("categories/groups.graphql")
 var CreateCategoryMutation = queries.Get("categories/create.graphql")
 var DeleteCategoryMutation = queries.Get("categories/delete.graphql")
 var DeleteCategoriesMutation = queries.Get("categories/delete_many.graphql")
+var UpdateCategoryMutation = queries.Get("categories/update.graphql")
+var GetCategoryRolloverQuery = queries.Get("categories/rollover.graphql")
+var UpdateCategoryGroupMutation = queries.Get("categories/update_group.graphql")
 
 type Category struct {
 	ID        string `json:"id"`
@@ -44,7 +48,7 @@ func (s *Service) ListCategoryGroups(ctx context.Context) ([]CategoryGroup, erro
 	}
 
 	err := s.Client.Do(ctx, &graphql.Request{
-		OperationName: "GetCategoryGroups",
+		OperationName: "ManageGetCategoryGroups",
 		Query:         GetCategoryGroupsQuery,
 	}, &resp)
 
@@ -120,7 +124,7 @@ func (s *Service) CreateCategory(ctx context.Context, name, groupID string) (*Ca
 	}
 
 	err := s.Client.DoMutation(ctx, &graphql.Request{
-		OperationName: "CreateCategory",
+		OperationName: "Web_CreateCategory",
 		Query:         CreateCategoryMutation,
 		Variables: map[string]any{
 			"name":    name,
@@ -146,7 +150,7 @@ func (s *Service) DeleteCategory(ctx context.Context, id string) error {
 	}
 
 	return s.Client.DoMutation(ctx, &graphql.Request{
-		OperationName: "DeleteCategory",
+		OperationName: "Web_DeleteCategory",
 		Query:         DeleteCategoryMutation,
 		Variables:     map[string]any{"id": id},
 	}, &resp)
@@ -164,4 +168,178 @@ func (s *Service) DeleteCategories(ctx context.Context, ids []string) error {
 		Query:         DeleteCategoriesMutation,
 		Variables:     map[string]any{"ids": ids},
 	}, &resp)
+}
+
+type CategoryRollover struct {
+	ID              string  `json:"id"`
+	Name            string  `json:"name"`
+	StartMonth      string  `json:"start_month"`
+	StartingBalance float64 `json:"starting_balance"`
+	Type            string  `json:"type"`
+	Frequency       string  `json:"frequency"`
+	TargetAmount    float64 `json:"target_amount"`
+}
+
+type UpdateCategoryOptions struct {
+	Name              *string
+	Icon              *string
+	BudgetVariability *string
+	ExcludeFromBudget *bool
+}
+
+func (s *Service) UpdateCategory(ctx context.Context, categoryID string, opts UpdateCategoryOptions) (*Category, error) {
+	input := map[string]any{"id": categoryID}
+	if opts.Name != nil {
+		input["name"] = *opts.Name
+	}
+	if opts.Icon != nil {
+		input["icon"] = *opts.Icon
+	}
+	if opts.BudgetVariability != nil {
+		input["budgetVariability"] = *opts.BudgetVariability
+	}
+	if opts.ExcludeFromBudget != nil {
+		input["excludeFromBudget"] = *opts.ExcludeFromBudget
+	}
+
+	var resp struct {
+		UpdateCategory struct {
+			Errors []struct {
+				Message string `json:"message"`
+				Code    string `json:"code"`
+			} `json:"errors"`
+			Category struct {
+				ID                string `json:"id"`
+				Name              string `json:"name"`
+				Icon              string `json:"icon"`
+				BudgetVariability string `json:"budgetVariability"`
+				ExcludeFromBudget bool   `json:"excludeFromBudget"`
+				Group             struct {
+					ID   string `json:"id"`
+					Type string `json:"type"`
+				} `json:"group"`
+			} `json:"category"`
+		} `json:"updateCategory"`
+	}
+
+	err := s.Client.DoMutation(ctx, &graphql.Request{
+		OperationName: "Web_UpdateCategory",
+		Query:         UpdateCategoryMutation,
+		Variables:     map[string]any{"input": input},
+	}, &resp)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(resp.UpdateCategory.Errors) > 0 {
+		return nil, fmt.Errorf("update category failed: %s", resp.UpdateCategory.Errors[0].Message)
+	}
+
+	return &Category{
+		ID:        resp.UpdateCategory.Category.ID,
+		Name:      resp.UpdateCategory.Category.Name,
+		Icon:      resp.UpdateCategory.Category.Icon,
+		GroupID:   resp.UpdateCategory.Category.Group.ID,
+		GroupType: resp.UpdateCategory.Category.Group.Type,
+	}, nil
+}
+
+func (s *Service) GetCategoryRollover(ctx context.Context, categoryID string) (*CategoryRollover, error) {
+	var resp struct {
+		Category struct {
+			ID             string `json:"id"`
+			Name           string `json:"name"`
+			RolloverPeriod *struct {
+				ID              string  `json:"id"`
+				StartMonth      string  `json:"startMonth"`
+				StartingBalance float64 `json:"startingBalance"`
+				Type            string  `json:"type"`
+				Frequency       string  `json:"frequency"`
+				TargetAmount    float64 `json:"targetAmount"`
+			} `json:"rolloverPeriod"`
+		} `json:"category"`
+	}
+
+	err := s.Client.Do(ctx, &graphql.Request{
+		OperationName: "GetCategoryRollover",
+		Query:         GetCategoryRolloverQuery,
+		Variables:     map[string]any{"id": categoryID},
+	}, &resp)
+	if err != nil {
+		return nil, err
+	}
+
+	r := &CategoryRollover{ID: resp.Category.ID, Name: resp.Category.Name}
+	if resp.Category.RolloverPeriod != nil {
+		r.StartMonth = resp.Category.RolloverPeriod.StartMonth
+		r.StartingBalance = resp.Category.RolloverPeriod.StartingBalance
+		r.Type = resp.Category.RolloverPeriod.Type
+		r.Frequency = resp.Category.RolloverPeriod.Frequency
+		r.TargetAmount = resp.Category.RolloverPeriod.TargetAmount
+	}
+	return r, nil
+}
+
+type UpdateCategoryGroupOptions struct {
+	Name                       *string
+	BudgetVariability          *string
+	GroupLevelBudgetingEnabled *bool
+	RolloverEnabled            *bool
+	RolloverStartMonth         *string
+	RolloverStartingBalance    *float64
+	RolloverType               *string
+}
+
+func (s *Service) UpdateCategoryGroup(ctx context.Context, groupID string, opts UpdateCategoryGroupOptions) (*CategoryGroup, error) {
+	input := map[string]any{"id": groupID}
+	if opts.Name != nil {
+		input["name"] = *opts.Name
+	}
+	if opts.BudgetVariability != nil {
+		input["budgetVariability"] = *opts.BudgetVariability
+	}
+	if opts.GroupLevelBudgetingEnabled != nil {
+		input["groupLevelBudgetingEnabled"] = *opts.GroupLevelBudgetingEnabled
+	}
+	if opts.RolloverEnabled != nil {
+		input["rolloverEnabled"] = *opts.RolloverEnabled
+	}
+	if opts.RolloverStartMonth != nil {
+		input["rolloverStartMonth"] = *opts.RolloverStartMonth
+	}
+	if opts.RolloverStartingBalance != nil {
+		input["rolloverStartingBalance"] = *opts.RolloverStartingBalance
+	}
+	if opts.RolloverType != nil {
+		input["rolloverType"] = *opts.RolloverType
+	}
+
+	var resp struct {
+		UpdateCategoryGroup struct {
+			CategoryGroup struct {
+				ID                         string `json:"id"`
+				Name                       string `json:"name"`
+				Order                      int    `json:"order"`
+				Type                       string `json:"type"`
+				Color                      string `json:"color"`
+				GroupLevelBudgetingEnabled bool   `json:"groupLevelBudgetingEnabled"`
+				BudgetVariability          string `json:"budgetVariability"`
+			} `json:"categoryGroup"`
+		} `json:"updateCategoryGroup"`
+	}
+
+	err := s.Client.DoMutation(ctx, &graphql.Request{
+		OperationName: "Common_UpdateCategoryGroup",
+		Query:         UpdateCategoryGroupMutation,
+		Variables:     map[string]any{"input": input},
+	}, &resp)
+	if err != nil {
+		return nil, err
+	}
+
+	return &CategoryGroup{
+		ID:   resp.UpdateCategoryGroup.CategoryGroup.ID,
+		Name: resp.UpdateCategoryGroup.CategoryGroup.Name,
+		Type: resp.UpdateCategoryGroup.CategoryGroup.Type,
+	}, nil
 }

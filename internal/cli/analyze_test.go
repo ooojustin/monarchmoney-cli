@@ -131,8 +131,8 @@ func TestAnalyzeBurnRateJSON(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-		if gqlReq.OperationName != "GetJointPlanningData" {
-			t.Fatalf("operation = %q, want GetJointPlanningData", gqlReq.OperationName)
+		if gqlReq.OperationName != "Common_GetJointPlanningData" {
+			t.Fatalf("operation = %q, want Common_GetJointPlanningData", gqlReq.OperationName)
 		}
 		return testutil.JSONResponse(`{"data":{"budgetData":{"monthlyAmountsByCategory":[{"category":{"id":"cat","name":"Dining"},"monthlyAmounts":[{"month":"2026-05","plannedCashFlowAmount":600,"actualAmount":670}]}]}}}`), nil
 	})

@@ -1,4 +1,4 @@
-query GetAccountsRefreshStatus {
+query ForceRefreshAccountsQuery {
   accounts {
     id
     hasSyncInProgress

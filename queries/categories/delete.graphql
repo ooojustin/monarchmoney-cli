@@ -1,4 +1,4 @@
-mutation DeleteCategory($id: ID!) {
+mutation Web_DeleteCategory($id: ID!) {
   deleteCategory(id: $id) {
     ok
   }

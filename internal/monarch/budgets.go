@@ -48,7 +48,7 @@ func (s *Service) GetBudget(ctx context.Context, categoryID, startDate, endDate 
 	}
 
 	err := s.Client.Do(ctx, &graphql.Request{
-		OperationName: "GetJointPlanningData",
+		OperationName: "Common_GetJointPlanningData",
 		Query:         GetBudgetsQuery,
 		Variables:     variables,
 	}, &resp)
@@ -81,7 +81,7 @@ func (s *Service) UpdateFlexibleBudget(ctx context.Context, month, year int, amo
 	}
 
 	return s.Client.DoMutation(ctx, &graphql.Request{
-		OperationName: "UpdateFlexibleBudget",
+		OperationName: "Common_UpdateFlexBudgetMutation",
 		Query:         UpdateFlexibleBudgetMutation,
 		Variables: map[string]any{
 			"input": map[string]any{
@@ -138,7 +138,7 @@ func (s *Service) ListBudgets(ctx context.Context, opts ListBudgetsOptions) ([]B
 	}
 
 	err := s.Client.Do(ctx, &graphql.Request{
-		OperationName: "GetJointPlanningData",
+		OperationName: "Common_GetJointPlanningData",
 		Query:         GetBudgetsQuery,
 		Variables:     variables,
 	}, &resp)
@@ -164,26 +164,26 @@ func (s *Service) ListBudgets(ctx context.Context, opts ListBudgetsOptions) ([]B
 
 func (s *Service) SetBudget(ctx context.Context, categoryID string, amount float64, startDate string) (*Budget, error) {
 	var resp struct {
-		SetBudget struct {
-			Budget struct {
-				Category struct {
-					Name string `json:"name"`
-				} `json:"category"`
-				Planned float64 `json:"planned"`
-			} `json:"budget"`
-		} `json:"setBudget"`
+		UpdateOrCreateBudgetItem struct {
+			BudgetItem struct {
+				ID           string  `json:"id"`
+				BudgetAmount float64 `json:"budgetAmount"`
+			} `json:"budgetItem"`
+		} `json:"updateOrCreateBudgetItem"`
 	}
 
 	variables := map[string]any{
 		"input": map[string]any{
-			"categoryId": categoryID,
-			"amount":     amount,
-			"month":      startDate,
+			"categoryId":    categoryID,
+			"amount":        amount,
+			"timeframe":     "month",
+			"startDate":     startDate,
+			"applyToFuture": false,
 		},
 	}
 
 	err := s.Client.DoMutation(ctx, &graphql.Request{
-		OperationName: "SetBudget",
+		OperationName: "Common_UpdateBudgetItem",
 		Query:         SetBudgetMutation,
 		Variables:     variables,
 	}, &resp)
@@ -193,8 +193,8 @@ func (s *Service) SetBudget(ctx context.Context, categoryID string, amount float
 	}
 
 	return &Budget{
-		CategoryName: resp.SetBudget.Budget.Category.Name,
-		Planned:      resp.SetBudget.Budget.Planned,
+		CategoryID: categoryID,
+		Planned:    resp.UpdateOrCreateBudgetItem.BudgetItem.BudgetAmount,
 	}, nil
 }
 

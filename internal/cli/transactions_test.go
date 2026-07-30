@@ -134,8 +134,8 @@ func testTransactionsShow(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-		if gqlReq.OperationName != "GetTransaction" {
-			t.Fatalf("operation = %q, want GetTransaction", gqlReq.OperationName)
+		if gqlReq.OperationName != "GetTransactionDrawer" {
+			t.Fatalf("operation = %q, want GetTransactionDrawer", gqlReq.OperationName)
 		}
 		return testutil.JSONResponse(`{"data":{"getTransaction":{"id":"tx-1","date":"2026-05-08","amount":-20,"merchant":{"name":"Store"},"category":{"name":"Food"},"notes":"lunch","account":{"id":"acc-1","displayName":"Checking"},"tags":[]}}}`), nil
 	})
@@ -426,8 +426,8 @@ func testTransactionsTagsAdd(t *testing.T) {
 		}
 		callCount++
 		if callCount == 1 {
-			if gqlReq.OperationName != "GetTransaction" {
-				t.Fatalf("call %d: operation = %q, want GetTransaction", callCount, gqlReq.OperationName)
+			if gqlReq.OperationName != "GetTransactionDrawer" {
+				t.Fatalf("call %d: operation = %q, want GetTransactionDrawer", callCount, gqlReq.OperationName)
 			}
 			return testutil.JSONResponse(`{"data":{"getTransaction":{"id":"tx-1","date":"2026-05-08","amount":-20,"merchant":{"name":"Store"},"category":{"name":"Food"},"notes":"lunch","account":{"id":"acc-1","displayName":"Checking"},"tags":[{"id":"tag-old","name":"existing","color":"#ff0000"}]}}}`), nil
 		}
@@ -548,8 +548,8 @@ func testTransactionsAttachmentsList(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-		if gqlReq.OperationName != "GetTransaction" {
-			t.Fatalf("operation = %q, want GetTransaction", gqlReq.OperationName)
+		if gqlReq.OperationName != "GetTransactionDrawer" {
+			t.Fatalf("operation = %q, want GetTransactionDrawer", gqlReq.OperationName)
 		}
 		return testutil.JSONResponse(`{"data":{"getTransaction":{"attachments":[{"id":"att-1","extension":"pdf","filename":"receipt.pdf","originalAssetUrl":"https://example.com/receipt.pdf","sizeBytes":1024}]}}}`), nil
 	})

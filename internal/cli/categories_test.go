@@ -18,6 +18,9 @@ func TestCategories(t *testing.T) {
 	t.Run("delete_many", testCategoriesDeleteManyJSON)
 	t.Run("delete_many_missing_file", testCategoriesDeleteManyMissingFile)
 	t.Run("delete_many_file_not_found", testCategoriesDeleteManyFileNotFound)
+	t.Run("update", testCategoriesUpdateJSON)
+	t.Run("rollover", testCategoriesRolloverJSON)
+	t.Run("group_update", testCategoriesGroupUpdateJSON)
 }
 
 func testCategoriesListWithGroups(t *testing.T) {
@@ -73,8 +76,8 @@ func testCategoriesGroupsJSON(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-		if gqlReq.OperationName != "GetCategoryGroups" {
-			t.Fatalf("operation = %q, want GetCategoryGroups", gqlReq.OperationName)
+		if gqlReq.OperationName != "ManageGetCategoryGroups" {
+			t.Fatalf("operation = %q, want ManageGetCategoryGroups", gqlReq.OperationName)
 		}
 		return testutil.JSONResponse(`{"data":{"categoryGroups":[
 			{"id":"grp-1","name":"Food & Drink","type":"expense","categories":[{"id":"cat-1","name":"Dining"}]},
@@ -114,8 +117,8 @@ func testCategoriesDeleteJSON(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-		if gqlReq.OperationName != "DeleteCategory" {
-			t.Fatalf("operation = %q, want DeleteCategory", gqlReq.OperationName)
+		if gqlReq.OperationName != "Web_DeleteCategory" {
+			t.Fatalf("operation = %q, want Web_DeleteCategory", gqlReq.OperationName)
 		}
 		if gqlReq.Variables["id"] != "cat-old" {
 			t.Fatalf("variables id = %v, want cat-old", gqlReq.Variables["id"])
@@ -220,5 +223,112 @@ func testCategoriesDeleteManyFileNotFound(t *testing.T) {
 	}
 	if !strings.Contains(out, "failed to open file") {
 		t.Fatalf("output = %q, want file open failure", out)
+	}
+}
+
+func testCategoriesUpdateJSON(t *testing.T) {
+	dir := t.TempDir()
+	sessionPath := filepath.Join(dir, "session.json")
+	exitCode := withWriteCommandTestDefaults(t, sessionPath, categoriesUpdateCmd)
+	saveTestSession(t, sessionPath)
+
+	http.DefaultTransport = testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		var gqlReq struct {
+			OperationName string `json:"operationName"`
+		}
+		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
+			t.Fatalf("Decode request error = %v", err)
+		}
+		if gqlReq.OperationName != "Web_UpdateCategory" {
+			t.Fatalf("operation = %q, want Web_UpdateCategory", gqlReq.OperationName)
+		}
+		return testutil.JSONResponse(`{"data":{"updateCategory":{"errors":[],"category":{"id":"cat-1","name":"Groceries","icon":"cart","budgetVariability":"flexible","excludeFromBudget":false,"group":{"id":"grp-1","type":"expense"}}}}}`), nil
+	})
+
+	_ = categoriesUpdateCmd.Flags().Set("name", "Groceries")
+	out := captureStdout(t, func() {
+		categoriesUpdateCmd.Run(categoriesUpdateCmd, []string{"cat-1"})
+	})
+
+	if *exitCode != 0 {
+		t.Fatalf("exitCode = %d; output=%q", *exitCode, out)
+	}
+	if !strings.Contains(out, `"command":"categories.update"`) {
+		t.Fatalf("output missing command = %q", out)
+	}
+	if !strings.Contains(out, `"name":"Groceries"`) {
+		t.Fatalf("output missing name = %q", out)
+	}
+}
+
+func testCategoriesRolloverJSON(t *testing.T) {
+	dir := t.TempDir()
+	sessionPath := filepath.Join(dir, "session.json")
+	exitCode := withReadCommandTestDefaults(t, sessionPath, categoriesRolloverCmd)
+	saveTestSession(t, sessionPath)
+
+	http.DefaultTransport = testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		var gqlReq struct {
+			OperationName string `json:"operationName"`
+		}
+		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
+			t.Fatalf("Decode request error = %v", err)
+		}
+		if gqlReq.OperationName != "GetCategoryRollover" {
+			t.Fatalf("operation = %q, want GetCategoryRollover", gqlReq.OperationName)
+		}
+		return testutil.JSONResponse(`{"data":{"category":{"id":"cat-1","name":"Food","rolloverPeriod":{"id":"rp1","startMonth":"2026-01-01","startingBalance":100,"type":"monthly","frequency":"monthly","targetAmount":500}}}}`), nil
+	})
+
+	out := captureStdout(t, func() {
+		categoriesRolloverCmd.Run(categoriesRolloverCmd, []string{"cat-1"})
+	})
+
+	if *exitCode != 0 {
+		t.Fatalf("exitCode = %d; output=%q", *exitCode, out)
+	}
+	if !strings.Contains(out, `"command":"categories.rollover"`) {
+		t.Fatalf("output missing command = %q", out)
+	}
+	if !strings.Contains(out, `"name":"Food"`) {
+		t.Fatalf("output missing name = %q", out)
+	}
+	if !strings.Contains(out, `"start_month":"2026-01-01"`) {
+		t.Fatalf("output missing start_month = %q", out)
+	}
+}
+
+func testCategoriesGroupUpdateJSON(t *testing.T) {
+	dir := t.TempDir()
+	sessionPath := filepath.Join(dir, "session.json")
+	exitCode := withWriteCommandTestDefaults(t, sessionPath, categoriesGroupUpdateCmd)
+	saveTestSession(t, sessionPath)
+
+	http.DefaultTransport = testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		var gqlReq struct {
+			OperationName string `json:"operationName"`
+		}
+		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
+			t.Fatalf("Decode request error = %v", err)
+		}
+		if gqlReq.OperationName != "Common_UpdateCategoryGroup" {
+			t.Fatalf("operation = %q, want Common_UpdateCategoryGroup", gqlReq.OperationName)
+		}
+		return testutil.JSONResponse(`{"data":{"updateCategoryGroup":{"categoryGroup":{"id":"grp-1","name":"Food & Drink","order":1,"type":"expense","color":"","groupLevelBudgetingEnabled":false,"budgetVariability":"fixed"}}}}`), nil
+	})
+
+	_ = categoriesGroupUpdateCmd.Flags().Set("name", "Food & Drink")
+	out := captureStdout(t, func() {
+		categoriesGroupUpdateCmd.Run(categoriesGroupUpdateCmd, []string{"grp-1"})
+	})
+
+	if *exitCode != 0 {
+		t.Fatalf("exitCode = %d; output=%q", *exitCode, out)
+	}
+	if !strings.Contains(out, `"command":"categories.groups.update"`) {
+		t.Fatalf("output missing command = %q", out)
+	}
+	if !strings.Contains(out, `"name":"Food \u0026 Drink"`) {
+		t.Fatalf("output missing name = %q", out)
 	}
 }

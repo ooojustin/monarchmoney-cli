@@ -1,4 +1,4 @@
-mutation UpdateFlexibleBudget($input: UpdateOrCreateFlexBudgetItemMutationInput!) {
+mutation Common_UpdateFlexBudgetMutation($input: UpdateOrCreateFlexBudgetItemMutationInput!) {
   updateOrCreateFlexBudgetItem(input: $input) {
     flexBudgetItem {
       month

@@ -1,4 +1,4 @@
-query GetInstitutionSettings {
+query Web_GetInstitutionSettings {
   credentials {
     id
     updateRequired

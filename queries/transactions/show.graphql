@@ -1,4 +1,4 @@
-query GetTransaction($id: UUID!) {
+query GetTransactionDrawer($id: UUID!) {
   getTransaction(id: $id) {
     id
     amount

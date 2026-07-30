@@ -160,8 +160,8 @@ func TestBudgetsShowJSON(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-		if gqlReq.OperationName != "GetJointPlanningData" {
-			t.Fatalf("operation = %q, want GetJointPlanningData", gqlReq.OperationName)
+		if gqlReq.OperationName != "Common_GetJointPlanningData" {
+			t.Fatalf("operation = %q, want Common_GetJointPlanningData", gqlReq.OperationName)
 		}
 		return testutil.JSONResponse(`{"data":{"budgetData":{"monthlyAmountsByCategory":[{"category":{"id":"cat-dining","name":"Dining"},"monthlyAmounts":[{"month":"2026-05","plannedCashFlowAmount":300,"actualAmount":245.50}]}]}}}`), nil
 	})
@@ -226,8 +226,8 @@ func TestTransactionsShowJSON(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-		if gqlReq.OperationName != "GetTransaction" {
-			t.Fatalf("operation = %q, want GetTransaction", gqlReq.OperationName)
+		if gqlReq.OperationName != "GetTransactionDrawer" {
+			t.Fatalf("operation = %q, want GetTransactionDrawer", gqlReq.OperationName)
 		}
 		if gqlReq.Variables["id"] != "tx-123" {
 			t.Fatalf("variables = %#v, want id tx-123", gqlReq.Variables)
@@ -424,8 +424,8 @@ func TestCategoriesCreateJSON(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-		if gqlReq.OperationName != "CreateCategory" {
-			t.Fatalf("operation = %q, want CreateCategory", gqlReq.OperationName)
+		if gqlReq.OperationName != "Web_CreateCategory" {
+			t.Fatalf("operation = %q, want Web_CreateCategory", gqlReq.OperationName)
 		}
 		if gqlReq.Variables["name"] != "Streaming Services" {
 			t.Fatalf("variables name = %v, want Streaming Services", gqlReq.Variables["name"])
@@ -470,8 +470,8 @@ func TestBudgetsSetJSON(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-		if gqlReq.OperationName != "SetBudget" {
-			t.Fatalf("operation = %q, want SetBudget", gqlReq.OperationName)
+		if gqlReq.OperationName != "Common_UpdateBudgetItem" {
+			t.Fatalf("operation = %q, want Common_UpdateBudgetItem", gqlReq.OperationName)
 		}
 		input, _ := gqlReq.Variables["input"].(map[string]any)
 		if input["categoryId"] != "cat-dining" {
@@ -480,7 +480,7 @@ func TestBudgetsSetJSON(t *testing.T) {
 		if input["amount"] != float64(500) {
 			t.Fatalf("input amount = %v, want 500", input["amount"])
 		}
-		return testutil.JSONResponse(`{"data":{"setBudget":{"budget":{"category":{"name":"Dining"},"planned":500}}}}`), nil
+		return testutil.JSONResponse(`{"data":{"updateOrCreateBudgetItem":{"budgetItem":{"id":"bi-1","budgetAmount":500}}}}`), nil
 	})
 
 	_ = budgetsSetCmd.Flags().Set("amount", "500")
@@ -495,8 +495,8 @@ func TestBudgetsSetJSON(t *testing.T) {
 	if !strings.Contains(out, `"command":"budgets.set"`) {
 		t.Fatalf("output missing command = %q", out)
 	}
-	if !strings.Contains(out, `"category_name":"Dining"`) {
-		t.Fatalf("output missing category name = %q", out)
+	if !strings.Contains(out, `"category_id":"cat-dining"`) {
+		t.Fatalf("output missing category id = %q", out)
 	}
 	if !strings.Contains(out, `"planned":500`) {
 		t.Fatalf("output missing planned amount = %q", out)

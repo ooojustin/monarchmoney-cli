@@ -1,0 +1,17 @@
+query GetSavingsGoals($startDate: Date!, $endDate: Date!) {
+  savingsGoalMonthlyBudgetAmounts(startMonth: $startDate, endMonth: $endDate) {
+    id
+    savingsGoal {
+      id
+      name
+      type
+      status
+    }
+    monthlyAmounts {
+      month
+      plannedAmount
+      actualAmount
+      remainingAmount
+    }
+  }
+}

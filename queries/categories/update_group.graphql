@@ -1,0 +1,19 @@
+mutation Common_UpdateCategoryGroup($input: UpdateCategoryGroupInput!) {
+  updateCategoryGroup(input: $input) {
+    categoryGroup {
+      id
+      name
+      order
+      type
+      color
+      groupLevelBudgetingEnabled
+      budgetVariability
+      rolloverPeriod {
+        id
+        startMonth
+        endMonth
+        startingBalance
+      }
+    }
+  }
+}

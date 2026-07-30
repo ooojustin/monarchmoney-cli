@@ -1,4 +1,4 @@
-mutation DeleteAccount($id: ID!) {
+mutation Common_DeleteAccount($id: ID!) {
   deleteAccount(id: $id) {
     ok
   }

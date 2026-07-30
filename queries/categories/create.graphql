@@ -1,4 +1,4 @@
-mutation CreateCategory($name: String!, $groupId: ID!) {
+mutation Web_CreateCategory($name: String!, $groupId: ID!) {
   createCategory(name: $name, groupId: $groupId) {
     category {
       id

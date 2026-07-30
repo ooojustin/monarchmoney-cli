@@ -28,8 +28,8 @@ func testTagsListJSON(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-		if gqlReq.OperationName != "GetTags" {
-			t.Fatalf("operation = %q, want GetTags", gqlReq.OperationName)
+		if gqlReq.OperationName != "GetHouseholdTransactionTags" {
+			t.Fatalf("operation = %q, want GetHouseholdTransactionTags", gqlReq.OperationName)
 		}
 		return testutil.JSONResponse(`{"data":{"householdTransactionTags":[
 			{"id":"tag-1","name":"reimbursable","color":"#ff0000"},
@@ -69,8 +69,8 @@ func testTagsCreateJSON(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-		if gqlReq.OperationName != "CreateTag" {
-			t.Fatalf("operation = %q, want CreateTag", gqlReq.OperationName)
+		if gqlReq.OperationName != "Common_CreateTransactionTag" {
+			t.Fatalf("operation = %q, want Common_CreateTransactionTag", gqlReq.OperationName)
 		}
 		if gqlReq.Variables["name"] != "vacation" {
 			t.Fatalf("variables name = %v, want vacation", gqlReq.Variables["name"])

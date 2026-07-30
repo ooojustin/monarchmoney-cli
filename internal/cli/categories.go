@@ -15,9 +15,17 @@ import (
 )
 
 var (
-	categoryName    string
-	categoryGroupID string
-	categoryFile    string
+	categoryName            string
+	categoryGroupID         string
+	categoryFile            string
+	categoryIcon            string
+	categoryBudgetVar       string
+	categoryExcludeBudget   bool
+	categoryGroupName       string
+	categoryRolloverEnabled bool
+	categoryRolloverMonth   string
+	categoryRolloverBalance float64
+	categoryRolloverType    string
 )
 
 var categoriesCmd = &cobra.Command{
@@ -144,6 +152,115 @@ var categoriesGroupsCmd = &cobra.Command{
 	},
 }
 
+var categoriesUpdateCmd = &cobra.Command{
+	Use:   "update <category-id>",
+	Short: "Update a category",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		id := args[0]
+		runMutation(cmd, "categories.update", "failed to update category", safety.TierMutation, func() (mutation, *errors.Error) {
+			opts := monarch.UpdateCategoryOptions{}
+			if cmd.Flags().Changed("name") {
+				opts.Name = &categoryName
+			}
+			if cmd.Flags().Changed("icon") {
+				opts.Icon = &categoryIcon
+			}
+			if cmd.Flags().Changed("budget-variability") {
+				opts.BudgetVariability = &categoryBudgetVar
+			}
+			if cmd.Flags().Changed("exclude-from-budget") {
+				opts.ExcludeFromBudget = &categoryExcludeBudget
+			}
+			var cat *monarch.Category
+			return mutation{
+				resourceID: id,
+				planAfter:  map[string]any{"name": categoryName, "icon": categoryIcon},
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					c, err := svc.UpdateCategory(ctx, id, opts)
+					if err != nil {
+						return nil, err
+					}
+					cat = c
+					return c, nil
+				},
+				human: func() { fmt.Printf("Successfully updated category %s (%s).\n", cat.Name, cat.ID) },
+			}, nil
+		})
+	},
+}
+
+var categoriesRolloverCmd = &cobra.Command{
+	Use:   "rollover <category-id>",
+	Short: "Show rollover settings for a category",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		id := args[0]
+		run(cmd.Context(), "categories.rollover", "failed to get category rollover",
+			func(ctx context.Context, svc *monarch.Service) (*monarch.CategoryRollover, error) {
+				return svc.GetCategoryRollover(ctx, id)
+			},
+			func(r *monarch.CategoryRollover) {
+				fmt.Printf("Category:  %s\n", r.Name)
+				if r.StartMonth == "" {
+					fmt.Println("Rollover:  not enabled")
+					return
+				}
+				fmt.Printf("Start Month:      %s\n", r.StartMonth)
+				fmt.Printf("Starting Balance: %.2f\n", r.StartingBalance)
+				fmt.Printf("Type:             %s\n", r.Type)
+				fmt.Printf("Frequency:        %s\n", r.Frequency)
+				if r.TargetAmount > 0 {
+					fmt.Printf("Target Amount:    %.2f\n", r.TargetAmount)
+				}
+			})
+	},
+}
+
+var categoriesGroupUpdateCmd = &cobra.Command{
+	Use:   "groups update <group-id>",
+	Short: "Update a category group",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		id := args[0]
+		runMutation(cmd, "categories.groups.update", "failed to update category group", safety.TierMutation, func() (mutation, *errors.Error) {
+			opts := monarch.UpdateCategoryGroupOptions{}
+			if cmd.Flags().Changed("name") {
+				opts.Name = &categoryGroupName
+			}
+			if cmd.Flags().Changed("budget-variability") {
+				opts.BudgetVariability = &categoryBudgetVar
+			}
+			if cmd.Flags().Changed("rollover-enabled") {
+				opts.RolloverEnabled = &categoryRolloverEnabled
+			}
+			if cmd.Flags().Changed("rollover-month") {
+				opts.RolloverStartMonth = &categoryRolloverMonth
+			}
+			if cmd.Flags().Changed("rollover-balance") {
+				opts.RolloverStartingBalance = &categoryRolloverBalance
+			}
+			if cmd.Flags().Changed("rollover-type") {
+				opts.RolloverType = &categoryRolloverType
+			}
+			var group *monarch.CategoryGroup
+			return mutation{
+				resourceID: id,
+				planAfter:  map[string]any{"name": categoryGroupName},
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					g, err := svc.UpdateCategoryGroup(ctx, id, opts)
+					if err != nil {
+						return nil, err
+					}
+					group = g
+					return g, nil
+				},
+				human: func() { fmt.Printf("Successfully updated category group %s (%s).\n", group.Name, group.ID) },
+			}, nil
+		})
+	},
+}
+
 func init() {
 	categoriesCreateCmd.Flags().StringVar(&categoryName, "name", "", "category name")
 	categoriesCreateCmd.Flags().StringVar(&categoryGroupID, "group", "", "category group ID")
@@ -153,10 +270,25 @@ func init() {
 	categoriesDeleteManyCmd.Flags().StringVar(&categoryFile, "file", "", "file with category IDs (one per line)")
 	categoriesDeleteManyCmd.MarkFlagRequired("file") //nolint:errcheck // flag registered above
 
+	categoriesUpdateCmd.Flags().StringVar(&categoryName, "name", "", "new category name")
+	categoriesUpdateCmd.Flags().StringVar(&categoryIcon, "icon", "", "category icon")
+	categoriesUpdateCmd.Flags().StringVar(&categoryBudgetVar, "budget-variability", "", "budget variability (fixed or flexible)")
+	categoriesUpdateCmd.Flags().BoolVar(&categoryExcludeBudget, "exclude-from-budget", false, "exclude from budget")
+
+	categoriesGroupUpdateCmd.Flags().StringVar(&categoryGroupName, "name", "", "new group name")
+	categoriesGroupUpdateCmd.Flags().StringVar(&categoryBudgetVar, "budget-variability", "", "budget variability (fixed or flexible)")
+	categoriesGroupUpdateCmd.Flags().BoolVar(&categoryRolloverEnabled, "rollover-enabled", false, "enable rollover")
+	categoriesGroupUpdateCmd.Flags().StringVar(&categoryRolloverMonth, "rollover-month", "", "rollover start month (YYYY-MM-DD)")
+	categoriesGroupUpdateCmd.Flags().Float64Var(&categoryRolloverBalance, "rollover-balance", 0, "rollover starting balance")
+	categoriesGroupUpdateCmd.Flags().StringVar(&categoryRolloverType, "rollover-type", "", "rollover type (e.g., monthly)")
+
 	categoriesCmd.AddCommand(categoriesListCmd)
 	categoriesCmd.AddCommand(categoriesGroupsCmd)
 	categoriesCmd.AddCommand(categoriesCreateCmd)
+	categoriesCmd.AddCommand(categoriesUpdateCmd)
+	categoriesCmd.AddCommand(categoriesRolloverCmd)
 	categoriesCmd.AddCommand(categoriesDeleteCmd)
 	categoriesCmd.AddCommand(categoriesDeleteManyCmd)
+	categoriesGroupsCmd.AddCommand(categoriesGroupUpdateCmd)
 	RootCmd.AddCommand(categoriesCmd)
 }

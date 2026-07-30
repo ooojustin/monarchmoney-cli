@@ -110,8 +110,8 @@ func testAccountsShowJSON(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-		if gqlReq.OperationName != "GetAccount" {
-			t.Fatalf("operation = %q, want GetAccount", gqlReq.OperationName)
+		if gqlReq.OperationName != "AccountDetails_getAccount" {
+			t.Fatalf("operation = %q, want AccountDetails_getAccount", gqlReq.OperationName)
 		}
 		if gqlReq.Variables["id"] != "acc-1" {
 			t.Fatalf("variables = %#v, want id=acc-1", gqlReq.Variables)
@@ -322,8 +322,8 @@ func testAccountsRefreshJSON(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-		if gqlReq.OperationName != "RefreshAccounts" {
-			t.Fatalf("operation = %q, want RefreshAccounts", gqlReq.OperationName)
+		if gqlReq.OperationName != "Common_ForceRefreshAccountsMutation" {
+			t.Fatalf("operation = %q, want Common_ForceRefreshAccountsMutation", gqlReq.OperationName)
 		}
 		return testutil.JSONResponse(`{"data":{"requestAccountsRefresh":{"ok":true}}}`), nil
 	})
@@ -356,8 +356,8 @@ func testAccountsRefreshStatusJSON(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-		if gqlReq.OperationName != "GetAccountsRefreshStatus" {
-			t.Fatalf("operation = %q, want GetAccountsRefreshStatus", gqlReq.OperationName)
+		if gqlReq.OperationName != "ForceRefreshAccountsQuery" {
+			t.Fatalf("operation = %q, want ForceRefreshAccountsQuery", gqlReq.OperationName)
 		}
 		return testutil.JSONResponse(`{"data":{"accounts":[{"id":"a1","hasSyncInProgress":false}]}}`), nil
 	})
@@ -391,8 +391,8 @@ func testAccountsUpdateJSON(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-		if gqlReq.OperationName != "UpdateAccount" {
-			t.Fatalf("operation = %q, want UpdateAccount", gqlReq.OperationName)
+		if gqlReq.OperationName != "Common_UpdateAccount" {
+			t.Fatalf("operation = %q, want Common_UpdateAccount", gqlReq.OperationName)
 		}
 		if gqlReq.Variables["id"] != "acc-1" {
 			t.Fatalf("variables = %#v, want id=acc-1", gqlReq.Variables)
@@ -436,8 +436,8 @@ func testAccountsDeleteJSON(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-		if gqlReq.OperationName != "DeleteAccount" {
-			t.Fatalf("operation = %q, want DeleteAccount", gqlReq.OperationName)
+		if gqlReq.OperationName != "Common_DeleteAccount" {
+			t.Fatalf("operation = %q, want Common_DeleteAccount", gqlReq.OperationName)
 		}
 		if gqlReq.Variables["id"] != "acc-1" {
 			t.Fatalf("variables = %#v, want id=acc-1", gqlReq.Variables)
@@ -474,8 +474,8 @@ func testAccountsCreateManualJSON(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-		if gqlReq.OperationName != "CreateManualAccount" {
-			t.Fatalf("operation = %q, want CreateManualAccount", gqlReq.OperationName)
+		if gqlReq.OperationName != "Web_CreateManualAccount" {
+			t.Fatalf("operation = %q, want Web_CreateManualAccount", gqlReq.OperationName)
 		}
 		if gqlReq.Variables["name"] != "Savings" {
 			t.Fatalf("variables = %#v, want name=Savings", gqlReq.Variables)

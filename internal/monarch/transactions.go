@@ -107,7 +107,7 @@ func (s *Service) GetTransaction(ctx context.Context, id string) (*Transaction, 
 	}
 
 	err := s.Client.Do(ctx, &graphql.Request{
-		OperationName: "GetTransaction",
+		OperationName: "GetTransactionDrawer",
 		Query:         GetTransactionQuery,
 		Variables:     map[string]any{"id": id},
 	}, &resp)

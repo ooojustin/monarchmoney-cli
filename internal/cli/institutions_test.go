@@ -31,8 +31,8 @@ func testInstitutionsListJSON(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-		if gqlReq.OperationName != "GetInstitutionSettings" {
-			t.Fatalf("operation = %q, want GetInstitutionSettings", gqlReq.OperationName)
+		if gqlReq.OperationName != "Web_GetInstitutionSettings" {
+			t.Fatalf("operation = %q, want Web_GetInstitutionSettings", gqlReq.OperationName)
 		}
 		return testutil.JSONResponse(`{"data":{"credentials":[
 			{"id":"cred-1","updateRequired":false,"disconnectedFromDataProviderAt":null,"dataProvider":"plaid","institution":{"id":"inst-1","plaidInstitutionId":"ins_1","name":"Chase","status":"active"}},

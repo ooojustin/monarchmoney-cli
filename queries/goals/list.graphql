@@ -1,6 +1,20 @@
-query Web_GoalsV2 {
-  goalsV2 {
+query Common_SavingsGoals {
+  savingsGoals {
     id
+    type
     name
+    status
+    progress
+    currentBalance
+    targetDate
+    targetAmount
+    plannedMonthlyContribution
+    currentMonthPlannedContributionAmount
+    spendingTotal
+    netContribution
+    estimatedMonthsUntilCompletion
+    forecastedCompletionDate
+    isSinkingFund
+    priority
   }
 }

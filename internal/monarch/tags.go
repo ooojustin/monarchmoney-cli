@@ -26,7 +26,7 @@ func (s *Service) ListTags(ctx context.Context) ([]Tag, error) {
 	}
 
 	err := s.Client.Do(ctx, &graphql.Request{
-		OperationName: "GetTags",
+		OperationName: "GetHouseholdTransactionTags",
 		Query:         GetTagsQuery,
 	}, &resp)
 
@@ -58,7 +58,7 @@ func (s *Service) CreateTag(ctx context.Context, name, color string) (*Tag, erro
 	}
 
 	err := s.Client.DoMutation(ctx, &graphql.Request{
-		OperationName: "CreateTag",
+		OperationName: "Common_CreateTransactionTag",
 		Query:         CreateTagMutation,
 		Variables: map[string]any{
 			"name":  name,

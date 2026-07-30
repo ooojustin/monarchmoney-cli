@@ -1,4 +1,4 @@
-query GetAccount($id: UUID!) {
+query AccountDetails_getAccount($id: UUID!) {
   account(id: $id) {
     id
     displayName

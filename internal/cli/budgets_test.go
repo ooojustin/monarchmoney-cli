@@ -38,8 +38,8 @@ func testBudgetsListJSON(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-		if gqlReq.OperationName != "GetJointPlanningData" {
-			t.Fatalf("operation = %q, want GetJointPlanningData", gqlReq.OperationName)
+		if gqlReq.OperationName != "Common_GetJointPlanningData" {
+			t.Fatalf("operation = %q, want Common_GetJointPlanningData", gqlReq.OperationName)
 		}
 		return testutil.JSONResponse(`{"data":{"budgetData":{"monthlyAmountsByCategory":[{"category":{"id":"cat-1","name":"Dining"},"monthlyAmounts":[{"month":"2026-06","plannedCashFlowAmount":300,"actualAmount":150.50}]},{"category":{"id":"cat-2","name":"Groceries"},"monthlyAmounts":[{"month":"2026-06","plannedCashFlowAmount":500,"actualAmount":425}]}]}}}`), nil
 	})
@@ -231,8 +231,8 @@ func testBudgetsFlexibleSetJSON(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-		if gqlReq.OperationName != "UpdateFlexibleBudget" {
-			t.Fatalf("operation = %q, want UpdateFlexibleBudget", gqlReq.OperationName)
+		if gqlReq.OperationName != "Common_UpdateFlexBudgetMutation" {
+			t.Fatalf("operation = %q, want Common_UpdateFlexBudgetMutation", gqlReq.OperationName)
 		}
 		return testutil.JSONResponse(`{"data":{"updateOrCreateFlexBudgetItem":{"flexBudgetItem":{"month":6}}}}`), nil
 	})

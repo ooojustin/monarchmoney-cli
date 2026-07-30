@@ -1,10 +1,8 @@
-mutation SetBudget($input: SetBudgetMutationInput!) {
-  setBudget(input: $input) {
-    budget {
-      category {
-        name
-      }
-      planned
+mutation Common_UpdateBudgetItem($input: UpdateOrCreateBudgetItemMutationInput!) {
+  updateOrCreateBudgetItem(input: $input) {
+    budgetItem {
+      id
+      budgetAmount
     }
   }
 }

@@ -93,7 +93,7 @@ var budgetsSetCmd = &cobra.Command{
 					return b, nil
 				},
 				human: func() {
-					fmt.Printf("Successfully set budget for %s to %.2f.\n", budget.CategoryName, budget.Planned)
+					fmt.Printf("Successfully set budget for %s to %.2f.\n", categoryID, budget.Planned)
 				},
 			}, nil
 		})

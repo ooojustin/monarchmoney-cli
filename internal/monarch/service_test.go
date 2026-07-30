@@ -170,7 +170,7 @@ func testServiceAccountsCoreReadPaths(t *testing.T) {
 	})
 
 	t.Run("get account", func(t *testing.T) {
-		runGraphQLCase(t, "GetAccount", map[string]any{"id": "acc-1"}, `{"account":{"id":"acc-1","displayName":"Cash","type":{"name":"cash"},"subtype":{"name":"cash"},"displayBalance":9.5,"updatedAt":"2026-05-08"}}`, func(s *Service) error {
+		runGraphQLCase(t, "AccountDetails_getAccount", map[string]any{"id": "acc-1"}, `{"account":{"id":"acc-1","displayName":"Cash","type":{"name":"cash"},"subtype":{"name":"cash"},"displayBalance":9.5,"updatedAt":"2026-05-08"}}`, func(s *Service) error {
 			got, err := s.GetAccount(context.Background(), "acc-1")
 			mustNoErr(t, err)
 			mustNotNil(t, got)
@@ -191,7 +191,7 @@ func testServiceAccountsCoreReadPaths(t *testing.T) {
 	})
 
 	t.Run("refresh status", func(t *testing.T) {
-		runGraphQLCase(t, "GetAccountsRefreshStatus", nil, `{"accounts":[{"id":"acc-1","hasSyncInProgress":false},{"id":"acc-2","hasSyncInProgress":true}]}`, func(s *Service) error {
+		runGraphQLCase(t, "ForceRefreshAccountsQuery", nil, `{"accounts":[{"id":"acc-1","hasSyncInProgress":false},{"id":"acc-2","hasSyncInProgress":true}]}`, func(s *Service) error {
 			got, err := s.GetAccountsRefreshStatus(context.Background())
 			mustNoErr(t, err)
 			eq(t, false, got["is_complete"])
@@ -206,7 +206,7 @@ func testServiceAccountsCoreMutationPaths(t *testing.T) {
 	t.Helper()
 
 	t.Run("create manual account", func(t *testing.T) {
-		runGraphQLCase(t, "CreateManualAccount", map[string]any{"name": "Savings", "type": "bank", "balance": 10.0}, `{"createManualAccount":{"account":{"id":"a2","displayName":"Savings","displayBalance":10}}}`, func(s *Service) error {
+		runGraphQLCase(t, "Web_CreateManualAccount", map[string]any{"name": "Savings", "type": "bank", "balance": 10.0}, `{"createManualAccount":{"account":{"id":"a2","displayName":"Savings","displayBalance":10}}}`, func(s *Service) error {
 			got, err := s.CreateManualAccount(context.Background(), "Savings", "bank", 10)
 			mustNoErr(t, err)
 			mustNotNil(t, got)
@@ -220,7 +220,7 @@ func testServiceAccountsCoreMutationPaths(t *testing.T) {
 	t.Run("update account", func(t *testing.T) {
 		name := "New name"
 		balance := 11.25
-		runGraphQLCase(t, "UpdateAccount", map[string]any{"id": "acc-1", "displayName": name, "balance": balance}, `{"updateAccount":{"account":{"id":"acc-1","displayName":"New name","displayBalance":11.25}}}`, func(s *Service) error {
+		runGraphQLCase(t, "Common_UpdateAccount", map[string]any{"id": "acc-1", "displayName": name, "balance": balance}, `{"updateAccount":{"account":{"id":"acc-1","displayName":"New name","displayBalance":11.25}}}`, func(s *Service) error {
 			got, err := s.UpdateAccount(context.Background(), "acc-1", &name, &balance)
 			mustNoErr(t, err)
 			mustNotNil(t, got)
@@ -231,13 +231,13 @@ func testServiceAccountsCoreMutationPaths(t *testing.T) {
 	})
 
 	t.Run("refresh accounts", func(t *testing.T) {
-		runGraphQLCase(t, "RefreshAccounts", map[string]any{"accountIds": []string{"a1", "a2"}}, `{"requestAccountsRefresh":{"ok":true}}`, func(s *Service) error {
+		runGraphQLCase(t, "Common_ForceRefreshAccountsMutation", map[string]any{"accountIds": []string{"a1", "a2"}}, `{"requestAccountsRefresh":{"ok":true}}`, func(s *Service) error {
 			return s.RefreshAccounts(context.Background(), []string{"a1", "a2"})
 		})
 	})
 
 	t.Run("delete account", func(t *testing.T) {
-		runGraphQLCase(t, "DeleteAccount", map[string]any{"id": "acc-1"}, `{"deleteAccount":{"ok":true}}`, func(s *Service) error {
+		runGraphQLCase(t, "Common_DeleteAccount", map[string]any{"id": "acc-1"}, `{"deleteAccount":{"ok":true}}`, func(s *Service) error {
 			return s.DeleteAccount(context.Background(), "acc-1")
 		})
 	})
@@ -337,7 +337,7 @@ func testServiceBudgetMutationAndReadPaths(t *testing.T) {
 	t.Helper()
 
 	t.Run("get budget", func(t *testing.T) {
-		runGraphQLCase(t, "GetJointPlanningData", map[string]any{"startDate": "2026-05-01", "endDate": "2026-05-31"}, `{"budgetData":{"monthlyAmountsByCategory":[{"category":{"id":"cat-1","name":"Food"},"monthlyAmounts":[{"month":"2026-05","plannedCashFlowAmount":100,"actualAmount":80}]}]}}`, func(s *Service) error {
+		runGraphQLCase(t, "Common_GetJointPlanningData", map[string]any{"startDate": "2026-05-01", "endDate": "2026-05-31"}, `{"budgetData":{"monthlyAmountsByCategory":[{"category":{"id":"cat-1","name":"Food"},"monthlyAmounts":[{"month":"2026-05","plannedCashFlowAmount":100,"actualAmount":80}]}]}}`, func(s *Service) error {
 			got, err := s.GetBudget(context.Background(), "cat-1", "2026-05-01", "2026-05-31")
 			mustNoErr(t, err)
 			mustNotNil(t, got)
@@ -350,7 +350,7 @@ func testServiceBudgetMutationAndReadPaths(t *testing.T) {
 	})
 
 	t.Run("list budgets", func(t *testing.T) {
-		runGraphQLCase(t, "GetJointPlanningData", map[string]any{"startDate": "2026-05-01", "endDate": "2026-05-31"}, `{"budgetData":{"monthlyAmountsByCategory":[{"category":{"id":"cat-1","name":"Food"},"monthlyAmounts":[{"month":"2026-05","plannedCashFlowAmount":100,"actualAmount":80}]}]}}`, func(s *Service) error {
+		runGraphQLCase(t, "Common_GetJointPlanningData", map[string]any{"startDate": "2026-05-01", "endDate": "2026-05-31"}, `{"budgetData":{"monthlyAmountsByCategory":[{"category":{"id":"cat-1","name":"Food"},"monthlyAmounts":[{"month":"2026-05","plannedCashFlowAmount":100,"actualAmount":80}]}]}}`, func(s *Service) error {
 			got, err := s.ListBudgets(context.Background(), ListBudgetsOptions{StartDate: "2026-05-01", EndDate: "2026-05-31"})
 			mustNoErr(t, err)
 			mustLen(t, got, 1)
@@ -360,18 +360,18 @@ func testServiceBudgetMutationAndReadPaths(t *testing.T) {
 	})
 
 	t.Run("set budget", func(t *testing.T) {
-		runGraphQLCase(t, "SetBudget", map[string]any{"input": map[string]any{"categoryId": "cat-1", "amount": 75.5, "month": "2026-05-01"}}, `{"setBudget":{"budget":{"category":{"name":"Food"},"planned":75.5}}}`, func(s *Service) error {
+		runGraphQLCase(t, "Common_UpdateBudgetItem", map[string]any{"input": map[string]any{"categoryId": "cat-1", "amount": 75.5, "timeframe": "month", "startDate": "2026-05-01", "applyToFuture": false}}, `{"updateOrCreateBudgetItem":{"budgetItem":{"id":"bi-1","budgetAmount":75.5}}}`, func(s *Service) error {
 			got, err := s.SetBudget(context.Background(), "cat-1", 75.5, "2026-05-01")
 			mustNoErr(t, err)
 			mustNotNil(t, got)
-			eq(t, "Food", got.CategoryName)
+			eq(t, "cat-1", got.CategoryID)
 			eq(t, 75.5, got.Planned)
 			return nil
 		})
 	})
 
 	t.Run("update flexible budget", func(t *testing.T) {
-		runGraphQLCase(t, "UpdateFlexibleBudget", map[string]any{"input": map[string]any{"month": 5, "year": 2026, "plannedCashFlowAmount": 25.0}}, `{"updateOrCreateFlexBudgetItem":{"flexBudgetItem":{"month":5}}}`, func(s *Service) error {
+		runGraphQLCase(t, "Common_UpdateFlexBudgetMutation", map[string]any{"input": map[string]any{"month": 5, "year": 2026, "plannedCashFlowAmount": 25.0}}, `{"updateOrCreateFlexBudgetItem":{"flexBudgetItem":{"month":5}}}`, func(s *Service) error {
 			return s.UpdateFlexibleBudget(context.Background(), 5, 2026, 25)
 		})
 	})
@@ -494,7 +494,7 @@ func testServiceTagAndCategoryCRUDPaths(t *testing.T) {
 	t.Helper()
 
 	t.Run("list tags", func(t *testing.T) {
-		runGraphQLCase(t, "GetTags", nil, `{"householdTransactionTags":[{"id":"tag-1","name":"Trip","color":"blue"}]}`, func(s *Service) error {
+		runGraphQLCase(t, "GetHouseholdTransactionTags", nil, `{"householdTransactionTags":[{"id":"tag-1","name":"Trip","color":"blue"}]}`, func(s *Service) error {
 			got, err := s.ListTags(context.Background())
 			mustNoErr(t, err)
 			mustLen(t, got, 1)
@@ -504,7 +504,7 @@ func testServiceTagAndCategoryCRUDPaths(t *testing.T) {
 	})
 
 	t.Run("create tag", func(t *testing.T) {
-		runGraphQLCase(t, "CreateTag", map[string]any{"name": "Trip", "color": "blue"}, `{"createHouseholdTransactionTag":{"tag":{"id":"tag-1","name":"Trip","color":"blue"}}}`, func(s *Service) error {
+		runGraphQLCase(t, "Common_CreateTransactionTag", map[string]any{"name": "Trip", "color": "blue"}, `{"createHouseholdTransactionTag":{"tag":{"id":"tag-1","name":"Trip","color":"blue"}}}`, func(s *Service) error {
 			got, err := s.CreateTag(context.Background(), "Trip", "blue")
 			mustNoErr(t, err)
 			mustNotNil(t, got)
@@ -515,7 +515,7 @@ func testServiceTagAndCategoryCRUDPaths(t *testing.T) {
 	})
 
 	t.Run("list category groups", func(t *testing.T) {
-		runGraphQLCase(t, "GetCategoryGroups", nil, `{"categoryGroups":[{"id":"g1","name":"Income","type":"income","categories":[{"id":"c1","name":"Salary"}]}]}`, func(s *Service) error {
+		runGraphQLCase(t, "ManageGetCategoryGroups", nil, `{"categoryGroups":[{"id":"g1","name":"Income","type":"income","categories":[{"id":"c1","name":"Salary"}]}]}`, func(s *Service) error {
 			got, err := s.ListCategoryGroups(context.Background())
 			mustNoErr(t, err)
 			mustLen(t, got, 1)
@@ -540,7 +540,7 @@ func testServiceTagAndCategoryCRUDPaths(t *testing.T) {
 	})
 
 	t.Run("create category", func(t *testing.T) {
-		runGraphQLCase(t, "CreateCategory", map[string]any{"name": "Food", "groupId": "g1"}, `{"createCategory":{"category":{"id":"c1","name":"Food"}}}`, func(s *Service) error {
+		runGraphQLCase(t, "Web_CreateCategory", map[string]any{"name": "Food", "groupId": "g1"}, `{"createCategory":{"category":{"id":"c1","name":"Food"}}}`, func(s *Service) error {
 			got, err := s.CreateCategory(context.Background(), "Food", "g1")
 			mustNoErr(t, err)
 			mustNotNil(t, got)
@@ -551,7 +551,7 @@ func testServiceTagAndCategoryCRUDPaths(t *testing.T) {
 	})
 
 	t.Run("delete category", func(t *testing.T) {
-		runGraphQLCase(t, "DeleteCategory", map[string]any{"id": "c1"}, `{"deleteCategory":{"ok":true}}`, func(s *Service) error {
+		runGraphQLCase(t, "Web_DeleteCategory", map[string]any{"id": "c1"}, `{"deleteCategory":{"ok":true}}`, func(s *Service) error {
 			return s.DeleteCategory(context.Background(), "c1")
 		})
 	})
@@ -559,6 +559,41 @@ func testServiceTagAndCategoryCRUDPaths(t *testing.T) {
 	t.Run("delete categories", func(t *testing.T) {
 		runGraphQLCase(t, "DeleteCategories", map[string]any{"ids": []string{"c1", "c2"}}, `{"deleteTransactionCategories":{"ok":true}}`, func(s *Service) error {
 			return s.DeleteCategories(context.Background(), []string{"c1", "c2"})
+		})
+	})
+
+	t.Run("update category", func(t *testing.T) {
+		runGraphQLCase(t, "Web_UpdateCategory", map[string]any{"input": map[string]any{"id": "c1", "name": "Groceries"}}, `{"updateCategory":{"errors":[],"category":{"id":"c1","name":"Groceries","icon":"cart","budgetVariability":"flexible","excludeFromBudget":false,"group":{"id":"g1","type":"expense"}}}}`, func(s *Service) error {
+			name := "Groceries"
+			got, err := s.UpdateCategory(context.Background(), "c1", UpdateCategoryOptions{Name: &name})
+			mustNoErr(t, err)
+			mustNotNil(t, got)
+			eq(t, "Groceries", got.Name)
+			eq(t, "cart", got.Icon)
+			return nil
+		})
+	})
+
+	t.Run("get category rollover", func(t *testing.T) {
+		runGraphQLCase(t, "GetCategoryRollover", map[string]any{"id": "c1"}, `{"category":{"id":"c1","name":"Food","rolloverPeriod":{"id":"rp1","startMonth":"2026-01-01","startingBalance":100,"type":"monthly","frequency":"monthly","targetAmount":500}}}`, func(s *Service) error {
+			got, err := s.GetCategoryRollover(context.Background(), "c1")
+			mustNoErr(t, err)
+			mustNotNil(t, got)
+			eq(t, "Food", got.Name)
+			eq(t, "2026-01-01", got.StartMonth)
+			eq(t, 100.0, got.StartingBalance)
+			return nil
+		})
+	})
+
+	t.Run("update category group", func(t *testing.T) {
+		runGraphQLCase(t, "Common_UpdateCategoryGroup", map[string]any{"input": map[string]any{"id": "g1", "name": "Food & Drink"}}, `{"updateCategoryGroup":{"categoryGroup":{"id":"g1","name":"Food & Drink","order":1,"type":"expense","color":"","groupLevelBudgetingEnabled":false,"budgetVariability":"fixed"}}}`, func(s *Service) error {
+			name := "Food & Drink"
+			got, err := s.UpdateCategoryGroup(context.Background(), "g1", UpdateCategoryGroupOptions{Name: &name})
+			mustNoErr(t, err)
+			mustNotNil(t, got)
+			eq(t, "Food & Drink", got.Name)
+			return nil
 		})
 	})
 }
@@ -578,7 +613,7 @@ func testServiceLookupAndSubscriptionPaths(t *testing.T) {
 	})
 
 	t.Run("institutions", func(t *testing.T) {
-		runGraphQLCase(t, "GetInstitutionSettings", nil, `{"credentials":[{"id":"c1","updateRequired":false,"disconnectedFromDataProviderAt":"","dataProvider":"plaid","institution":{"id":"i1","plaidInstitutionId":"https://bank.example","name":"Bank","status":"connected"}}]}`, func(s *Service) error {
+		runGraphQLCase(t, "Web_GetInstitutionSettings", nil, `{"credentials":[{"id":"c1","updateRequired":false,"disconnectedFromDataProviderAt":"","dataProvider":"plaid","institution":{"id":"i1","plaidInstitutionId":"https://bank.example","name":"Bank","status":"connected"}}]}`, func(s *Service) error {
 			got, err := s.ListInstitutions(context.Background())
 			mustNoErr(t, err)
 			mustLen(t, got, 1)
@@ -642,12 +677,27 @@ func testServiceRecurringAndGoalsPaths(t *testing.T) {
 	})
 
 	t.Run("goals list", func(t *testing.T) {
-		runGraphQLCase(t, "Web_GoalsV2", nil, `{"goalsV2":[{"id":"goal-1","name":"Vacation"}]}`, func(s *Service) error {
+		runGraphQLCase(t, "Common_SavingsGoals", nil, `{"savingsGoals":[{"id":"goal-1","name":"Vacation","type":"savings_goal","status":"active","progress":0.75,"currentBalance":7500,"targetAmount":10000,"plannedMonthlyContribution":500,"isSinkingFund":false,"priority":1}]}`, func(s *Service) error {
 			got, err := s.ListGoals(context.Background())
 			mustNoErr(t, err)
 			mustLen(t, got, 1)
 			eq(t, "goal-1", got[0].ID)
 			eq(t, "Vacation", got[0].Name)
+			eq(t, "active", got[0].Status)
+			eq(t, 7500.0, got[0].CurrentBalance)
+			eq(t, 10000.0, got[0].TargetAmount)
+			return nil
+		})
+	})
+
+	t.Run("savings goal budgets", func(t *testing.T) {
+		runGraphQLCase(t, "GetSavingsGoals", map[string]any{"startDate": "2026-05-01", "endDate": "2026-05-31"}, `{"savingsGoalMonthlyBudgetAmounts":[{"id":"sgb-1","savingsGoal":{"id":"goal-1","name":"Vacation","type":"savings_goal","status":"active"},"monthlyAmounts":[{"month":"2026-05","plannedAmount":500,"actualAmount":450,"remainingAmount":50}]}]}`, func(s *Service) error {
+			got, err := s.ListSavingsGoalBudgets(context.Background(), "2026-05-01", "2026-05-31")
+			mustNoErr(t, err)
+			mustLen(t, got, 1)
+			eq(t, "Vacation", got[0].GoalName)
+			eq(t, 500.0, got[0].Planned)
+			eq(t, 450.0, got[0].Actual)
 			return nil
 		})
 	})
@@ -663,7 +713,7 @@ func testServiceTransactionReadPaths(t *testing.T) {
 	t.Helper()
 
 	t.Run("get transaction", func(t *testing.T) {
-		runGraphQLCase(t, "GetTransaction", map[string]any{"id": "tx-1"}, `{"getTransaction":{"id":"tx-1","date":"2026-05-08","amount":-20,"merchant":{"name":"Store"},"category":{"name":"Food"},"notes":"lunch","account":{"id":"acc-1","displayName":"Checking"},"tags":[{"id":"tag-1","name":"Trip","color":"blue"}]}}`, func(s *Service) error {
+		runGraphQLCase(t, "GetTransactionDrawer", map[string]any{"id": "tx-1"}, `{"getTransaction":{"id":"tx-1","date":"2026-05-08","amount":-20,"merchant":{"name":"Store"},"category":{"name":"Food"},"notes":"lunch","account":{"id":"acc-1","displayName":"Checking"},"tags":[{"id":"tag-1","name":"Trip","color":"blue"}]}}`, func(s *Service) error {
 			got, err := s.GetTransaction(context.Background(), "tx-1")
 			mustNoErr(t, err)
 			mustNotNil(t, got)
@@ -891,16 +941,16 @@ func TestServiceCacheAndExportHelpers(t *testing.T) {
 func TestServiceErrorBranches(t *testing.T) {
 	t.Run("accounts and reference methods", func(t *testing.T) {
 		runGraphQLErrorCase(t, "GetAccounts", nil, func(s *Service) error { _, err := s.ListAccounts(context.Background()); return err })
-		runGraphQLErrorCase(t, "GetAccount", map[string]any{"id": "acc-1"}, func(s *Service) error { _, err := s.GetAccount(context.Background(), "acc-1"); return err })
+		runGraphQLErrorCase(t, "AccountDetails_getAccount", map[string]any{"id": "acc-1"}, func(s *Service) error { _, err := s.GetAccount(context.Background(), "acc-1"); return err })
 		runGraphQLErrorCase(t, "GetAccountTypeOptions", nil, func(s *Service) error { _, err := s.GetAccountTypes(context.Background()); return err })
-		runGraphQLErrorCase(t, "GetAccountsRefreshStatus", nil, func(s *Service) error { _, err := s.GetAccountsRefreshStatus(context.Background()); return err })
-		runGraphQLErrorCase(t, "CreateManualAccount", map[string]any{"name": "Savings", "type": "bank", "balance": 10.0}, func(s *Service) error {
+		runGraphQLErrorCase(t, "ForceRefreshAccountsQuery", nil, func(s *Service) error { _, err := s.GetAccountsRefreshStatus(context.Background()); return err })
+		runGraphQLErrorCase(t, "Web_CreateManualAccount", map[string]any{"name": "Savings", "type": "bank", "balance": 10.0}, func(s *Service) error {
 			_, err := s.CreateManualAccount(context.Background(), "Savings", "bank", 10)
 			return err
 		})
-		runGraphQLErrorCase(t, "UpdateAccount", map[string]any{"id": "acc-1"}, func(s *Service) error { _, err := s.UpdateAccount(context.Background(), "acc-1", nil, nil); return err })
-		runGraphQLErrorCase(t, "RefreshAccounts", map[string]any{}, func(s *Service) error { return s.RefreshAccounts(context.Background(), nil) })
-		runGraphQLErrorCase(t, "DeleteAccount", map[string]any{"id": "acc-1"}, func(s *Service) error { return s.DeleteAccount(context.Background(), "acc-1") })
+		runGraphQLErrorCase(t, "Common_UpdateAccount", map[string]any{"id": "acc-1"}, func(s *Service) error { _, err := s.UpdateAccount(context.Background(), "acc-1", nil, nil); return err })
+		runGraphQLErrorCase(t, "Common_ForceRefreshAccountsMutation", map[string]any{}, func(s *Service) error { return s.RefreshAccounts(context.Background(), nil) })
+		runGraphQLErrorCase(t, "Common_DeleteAccount", map[string]any{"id": "acc-1"}, func(s *Service) error { return s.DeleteAccount(context.Background(), "acc-1") })
 		runGraphQLErrorCase(t, "Web_GetHoldings", nil, func(s *Service) error { _, err := s.GetAccountHoldings(context.Background(), "acc-1"); return err })
 		runGraphQLErrorCase(t, "GetAccountHistory", map[string]any{"filters": map[string]any{}}, func(s *Service) error {
 			_, err := s.GetAccountHistory(context.Background(), "acc-1", "", "")
@@ -925,15 +975,15 @@ func TestServiceErrorBranches(t *testing.T) {
 	})
 
 	t.Run("budgets cashflow and lookup", func(t *testing.T) {
-		runGraphQLErrorCase(t, "GetJointPlanningData", map[string]any{"startDate": "2026-05-01", "endDate": "2026-05-31"}, func(s *Service) error {
+		runGraphQLErrorCase(t, "Common_GetJointPlanningData", map[string]any{"startDate": "2026-05-01", "endDate": "2026-05-31"}, func(s *Service) error {
 			_, err := s.GetBudget(context.Background(), "cat-1", "2026-05-01", "2026-05-31")
 			return err
 		})
-		runGraphQLErrorCase(t, "GetJointPlanningData", map[string]any{"startDate": "", "endDate": ""}, func(s *Service) error {
+		runGraphQLErrorCase(t, "Common_GetJointPlanningData", map[string]any{"startDate": "", "endDate": ""}, func(s *Service) error {
 			_, err := s.ListBudgets(context.Background(), ListBudgetsOptions{})
 			return err
 		})
-		runGraphQLErrorCase(t, "SetBudget", map[string]any{"input": map[string]any{"categoryId": "cat-1", "amount": 10.0, "month": "2026-05-01"}}, func(s *Service) error {
+		runGraphQLErrorCase(t, "Common_UpdateBudgetItem", map[string]any{"input": map[string]any{"categoryId": "cat-1", "amount": 10.0, "timeframe": "month", "startDate": "2026-05-01", "applyToFuture": false}}, func(s *Service) error {
 			_, err := s.SetBudget(context.Background(), "cat-1", 10, "2026-05-01")
 			return err
 		})
@@ -959,24 +1009,24 @@ func TestServiceErrorBranches(t *testing.T) {
 			return err
 		})
 		runGraphQLErrorCase(t, "GetTransactionRules", nil, func(s *Service) error { _, err := s.ListRules(context.Background()); return err })
-		runGraphQLErrorCase(t, "GetCategoryGroups", nil, func(s *Service) error { _, err := s.ListCategoryGroups(context.Background()); return err })
+		runGraphQLErrorCase(t, "ManageGetCategoryGroups", nil, func(s *Service) error { _, err := s.ListCategoryGroups(context.Background()); return err })
 		runGraphQLErrorCase(t, "GetCategories", nil, func(s *Service) error { _, err := s.ListCategories(context.Background()); return err })
-		runGraphQLErrorCase(t, "CreateCategory", map[string]any{"name": "Food", "groupId": "g1"}, func(s *Service) error { _, err := s.CreateCategory(context.Background(), "Food", "g1"); return err })
+		runGraphQLErrorCase(t, "Web_CreateCategory", map[string]any{"name": "Food", "groupId": "g1"}, func(s *Service) error { _, err := s.CreateCategory(context.Background(), "Food", "g1"); return err })
 		runGraphQLErrorCase(t, "GetCreditScoreSnapshots", nil, func(s *Service) error { _, err := s.GetCreditHistory(context.Background()); return err })
-		runGraphQLErrorCase(t, "GetInstitutionSettings", nil, func(s *Service) error { _, err := s.ListInstitutions(context.Background()); return err })
+		runGraphQLErrorCase(t, "Web_GetInstitutionSettings", nil, func(s *Service) error { _, err := s.ListInstitutions(context.Background()); return err })
 		runGraphQLErrorCase(t, "Web_GetUpcomingRecurringTransactionItems", map[string]any{"startDate": "2026-05-01", "endDate": "2026-06-01", "filters": map[string]any{}}, func(s *Service) error {
 			_, err := s.ListRecurring(context.Background(), "2026-05-01", "2026-06-01")
 			return err
 		})
 		runGraphQLErrorCase(t, "UpdateRecurringTransaction", map[string]any{"id": "r1", "amount": 21.5}, func(s *Service) error { _, err := s.UpdateRecurring(context.Background(), "r1", 21.5); return err })
 		runGraphQLErrorCase(t, "GetSubscriptionDetails", nil, func(s *Service) error { _, err := s.GetSubscriptionDetails(context.Background()); return err })
-		runGraphQLErrorCase(t, "Web_GoalsV2", nil, func(s *Service) error { _, err := s.ListGoals(context.Background()); return err })
-		runGraphQLErrorCase(t, "GetTags", nil, func(s *Service) error { _, err := s.ListTags(context.Background()); return err })
-		runGraphQLErrorCase(t, "CreateTag", map[string]any{"name": "Trip", "color": "blue"}, func(s *Service) error { _, err := s.CreateTag(context.Background(), "Trip", "blue"); return err })
+		runGraphQLErrorCase(t, "Common_SavingsGoals", nil, func(s *Service) error { _, err := s.ListGoals(context.Background()); return err })
+		runGraphQLErrorCase(t, "GetHouseholdTransactionTags", nil, func(s *Service) error { _, err := s.ListTags(context.Background()); return err })
+		runGraphQLErrorCase(t, "Common_CreateTransactionTag", map[string]any{"name": "Trip", "color": "blue"}, func(s *Service) error { _, err := s.CreateTag(context.Background(), "Trip", "blue"); return err })
 	})
 
 	t.Run("transactions", func(t *testing.T) {
-		runGraphQLErrorCase(t, "GetTransaction", map[string]any{"id": "tx-1"}, func(s *Service) error { _, err := s.GetTransaction(context.Background(), "tx-1"); return err })
+		runGraphQLErrorCase(t, "GetTransactionDrawer", map[string]any{"id": "tx-1"}, func(s *Service) error { _, err := s.GetTransaction(context.Background(), "tx-1"); return err })
 		runGraphQLErrorCase(t, "GetTransactionsPage", map[string]any{"filters": map[string]any{"search": "", "categories": []string{}, "accounts": []string{}, "tags": []string{}, "startDate": "2026-05-01", "endDate": "2026-05-31"}}, func(s *Service) error {
 			_, err := s.GetTransactionsSummary(context.Background(), "2026-05-01", "2026-05-31")
 			return err

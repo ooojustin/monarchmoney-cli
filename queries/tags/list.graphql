@@ -1,4 +1,4 @@
-query GetTags {
+query GetHouseholdTransactionTags {
   householdTransactionTags {
     id
     name

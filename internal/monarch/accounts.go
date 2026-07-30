@@ -234,7 +234,7 @@ func (s *Service) GetAccount(ctx context.Context, id string) (*Account, error) {
 	}
 
 	err := s.Client.Do(ctx, &graphql.Request{
-		OperationName: "GetAccount",
+		OperationName: "AccountDetails_getAccount",
 		Query:         GetAccountQuery,
 		Variables:     map[string]any{"id": id},
 	}, &resp)
@@ -452,7 +452,7 @@ func (s *Service) GetAccountsRefreshStatus(ctx context.Context) (map[string]any,
 	}
 
 	err := s.Client.Do(ctx, &graphql.Request{
-		OperationName: "GetAccountsRefreshStatus",
+		OperationName: "ForceRefreshAccountsQuery",
 		Query:         GetAccountsRefreshStatusQuery,
 	}, &resp)
 
@@ -585,7 +585,7 @@ func (s *Service) CreateManualAccount(ctx context.Context, name, accType string,
 	}
 
 	err := s.Client.DoMutation(ctx, &graphql.Request{
-		OperationName: "CreateManualAccount",
+		OperationName: "Web_CreateManualAccount",
 		Query:         CreateManualAccountMutation,
 		Variables: map[string]any{
 			"name":    name,
@@ -618,7 +618,7 @@ func (s *Service) RefreshAccounts(ctx context.Context, accountIDs []string) erro
 	}
 
 	return s.Client.DoMutation(ctx, &graphql.Request{
-		OperationName: "RefreshAccounts",
+		OperationName: "Common_ForceRefreshAccountsMutation",
 		Query:         RefreshAccountsMutation,
 		Variables:     variables,
 	}, &resp)
@@ -644,7 +644,7 @@ func (s *Service) UpdateAccount(ctx context.Context, id string, name *string, ba
 	}
 
 	err := s.Client.DoMutation(ctx, &graphql.Request{
-		OperationName: "UpdateAccount",
+		OperationName: "Common_UpdateAccount",
 		Query:         UpdateAccountMutation,
 		Variables:     variables,
 	}, &resp)
@@ -668,7 +668,7 @@ func (s *Service) DeleteAccount(ctx context.Context, id string) error {
 	}
 
 	return s.Client.DoMutation(ctx, &graphql.Request{
-		OperationName: "DeleteAccount",
+		OperationName: "Common_DeleteAccount",
 		Query:         DeleteAccountMutation,
 		Variables:     map[string]any{"id": id},
 	}, &resp)

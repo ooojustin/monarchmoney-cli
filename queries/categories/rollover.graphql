@@ -1,0 +1,14 @@
+query GetCategoryRollover($id: UUID!) {
+  category(id: $id) {
+    id
+    name
+    rolloverPeriod {
+      id
+      startMonth
+      startingBalance
+      type
+      frequency
+      targetAmount
+    }
+  }
+}

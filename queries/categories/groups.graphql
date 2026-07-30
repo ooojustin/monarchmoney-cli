@@ -1,4 +1,4 @@
-query GetCategoryGroups {
+query ManageGetCategoryGroups {
   categoryGroups {
     id
     name
