@@ -27,10 +27,6 @@ var GetAggregateSnapshotsQuery = queries.Get("accounts/aggregate_snapshots.graph
 var UpdateAccountMutation = queries.Get("accounts/update.graphql")
 var DeleteAccountMutation = queries.Get("accounts/delete.graphql")
 var CreateManualAccountMutation = queries.Get("accounts/create_manual.graphql")
-var newBalanceHistoryRequest = http.NewRequestWithContext
-var createBalanceHistoryFormFile = func(w *multipart.Writer, field, filename string) (io.Writer, error) {
-	return w.CreateFormFile(field, filename)
-}
 
 type Account struct {
 	ID                              string  `json:"id"`
@@ -681,7 +677,7 @@ func (s *Service) UploadAccountBalanceHistory(ctx context.Context, id string, r 
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-	part, err := createBalanceHistoryFormFile(writer, "file", "history.csv")
+	part, err := writer.CreateFormFile("file", "history.csv")
 	if err != nil {
 		return err
 	}
@@ -691,7 +687,7 @@ func (s *Service) UploadAccountBalanceHistory(ctx context.Context, id string, r 
 	writer.WriteField("account_id", id) //nolint:errcheck // best-effort write
 	writer.Close()
 
-	req, err := newBalanceHistoryRequest(ctx, "POST", url, body)
+	req, err := http.NewRequestWithContext(ctx, "POST", url, body)
 	if err != nil {
 		return err
 	}

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -83,8 +82,8 @@ func clientRespond(result any, payload string) error {
 	return json.Unmarshal([]byte(payload), result)
 }
 
-func newMockService(token string) *Service {
-	return NewService(&mockClient{token: token})
+func newMockService(token string, opts ...ServiceOption) *Service {
+	return NewService(&mockClient{token: token}, opts...)
 }
 
 func assertReq(t *testing.T, got *graphql.Request, op string) {
@@ -908,31 +907,19 @@ func TestServiceCacheAndExportHelpers(t *testing.T) {
 	})
 
 	t.Run("export csv header error", func(t *testing.T) {
-		original := newCSVWriter
-		newCSVWriter = func(io.Writer) csvWriter { return &fakeCSVWriter{failOnCall: 1} }
-		defer func() { newCSVWriter = original }()
-
-		if err := ExportTransactionsCSV([]Transaction{{Date: "2026-05-08"}}, io.Discard); err == nil {
+		if err := exportTransactionsCSV([]Transaction{{Date: "2026-05-08"}}, &fakeCSVWriter{failOnCall: 1}); err == nil {
 			t.Fatal("ExportTransactionsCSV() error = nil, want failure")
 		}
 	})
 
 	t.Run("export csv row error", func(t *testing.T) {
-		original := newCSVWriter
-		newCSVWriter = func(io.Writer) csvWriter { return &fakeCSVWriter{failOnCall: 2} }
-		defer func() { newCSVWriter = original }()
-
-		if err := ExportTransactionsCSV([]Transaction{{Date: "2026-05-08"}}, io.Discard); err == nil {
+		if err := exportTransactionsCSV([]Transaction{{Date: "2026-05-08"}}, &fakeCSVWriter{failOnCall: 2}); err == nil {
 			t.Fatal("ExportTransactionsCSV() error = nil, want failure")
 		}
 	})
 
 	t.Run("export csv flush error", func(t *testing.T) {
-		original := newCSVWriter
-		newCSVWriter = func(io.Writer) csvWriter { return &fakeCSVWriter{err: errors.New("flush failed")} }
-		defer func() { newCSVWriter = original }()
-
-		if err := ExportTransactionsCSV([]Transaction{{Date: "2026-05-08"}}, io.Discard); err == nil {
+		if err := exportTransactionsCSV([]Transaction{{Date: "2026-05-08"}}, &fakeCSVWriter{err: errors.New("flush failed")}); err == nil {
 			t.Fatal("ExportTransactionsCSV() error = nil, want failure")
 		}
 	})
@@ -1079,16 +1066,14 @@ func testServiceHTTPDownloadAttachmentPaths(t *testing.T) {
 	t.Helper()
 
 	t.Run("download attachment success", func(t *testing.T) {
-		orig := http.DefaultTransport
-		defer func() { http.DefaultTransport = orig }()
-		http.DefaultTransport = testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		transport := testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
 			mustEq(t, "GET", req.Method)
 			mustEq(t, "https://files.example/attachment.csv", req.URL.String())
 			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("hello"))}, nil
 		})
 
 		var buf bytes.Buffer
-		svc := newMockService("token-123")
+		svc := newMockService("token-123", WithHTTPTransport(transport))
 		mustNoErr(t, svc.DownloadAttachment(context.Background(), "https://files.example/attachment.csv", &buf))
 		eq(t, "hello", buf.String())
 	})
@@ -1099,26 +1084,22 @@ func testServiceHTTPDownloadAttachmentPaths(t *testing.T) {
 	})
 
 	t.Run("download attachment transport error", func(t *testing.T) {
-		orig := http.DefaultTransport
-		defer func() { http.DefaultTransport = orig }()
-		http.DefaultTransport = testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+		transport := testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 			return nil, errors.New("network down")
 		})
 
 		var buf bytes.Buffer
-		svc := newMockService("token-123")
+		svc := newMockService("token-123", WithHTTPTransport(transport))
 		hasErr(t, svc.DownloadAttachment(context.Background(), "https://files.example/attachment.csv", &buf))
 	})
 
 	t.Run("download attachment non-200", func(t *testing.T) {
-		orig := http.DefaultTransport
-		defer func() { http.DefaultTransport = orig }()
-		http.DefaultTransport = testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+		transport := testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 			return &http.Response{StatusCode: 500, Body: io.NopCloser(strings.NewReader(""))}, nil
 		})
 
 		var buf bytes.Buffer
-		svc := newMockService("token-123")
+		svc := newMockService("token-123", WithHTTPTransport(transport))
 		hasErr(t, svc.DownloadAttachment(context.Background(), "https://files.example/attachment.csv", &buf))
 	})
 }
@@ -1127,9 +1108,7 @@ func testServiceHTTPUploadBalanceHistoryPaths(t *testing.T) {
 	t.Helper()
 
 	t.Run("upload account balance history", func(t *testing.T) {
-		origTransport := http.DefaultTransport
-		defer func() { http.DefaultTransport = origTransport }()
-		http.DefaultTransport = testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		transport := testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
 			mustEq(t, "POST", req.Method)
 			mustEq(t, "web", req.Header.Get("Client-Platform"))
 			mustEq(t, "Token tok", req.Header.Get("Authorization"))
@@ -1145,14 +1124,12 @@ func testServiceHTTPUploadBalanceHistoryPaths(t *testing.T) {
 		mustNoErr(t, err)
 		defer file.Close()
 
-		svc := NewService(&mockClient{token: "tok"})
+		svc := NewService(&mockClient{token: "tok"}, WithHTTPTransport(transport))
 		mustNoErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", file))
 	})
 
 	t.Run("upload account balance history non-200", func(t *testing.T) {
-		origTransport := http.DefaultTransport
-		defer func() { http.DefaultTransport = origTransport }()
-		http.DefaultTransport = testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+		transport := testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 			return &http.Response{StatusCode: 500, Body: io.NopCloser(strings.NewReader(""))}, nil
 		})
 
@@ -1162,14 +1139,12 @@ func testServiceHTTPUploadBalanceHistoryPaths(t *testing.T) {
 		mustNoErr(t, err)
 		defer file.Close()
 
-		svc := NewService(&mockClient{token: "tok"})
+		svc := NewService(&mockClient{token: "tok"}, WithHTTPTransport(transport))
 		hasErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", file))
 	})
 
 	t.Run("upload account balance history network error", func(t *testing.T) {
-		origTransport := http.DefaultTransport
-		defer func() { http.DefaultTransport = origTransport }()
-		http.DefaultTransport = testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+		transport := testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 			return nil, errors.New("network down")
 		})
 
@@ -1179,35 +1154,18 @@ func testServiceHTTPUploadBalanceHistoryPaths(t *testing.T) {
 		mustNoErr(t, err)
 		defer file.Close()
 
-		svc := NewService(&mockClient{token: "tok"})
+		svc := NewService(&mockClient{token: "tok"}, WithHTTPTransport(transport))
 		hasErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", file))
 	})
 
 	t.Run("upload account balance history request error", func(t *testing.T) {
-		original := newBalanceHistoryRequest
-		newBalanceHistoryRequest = func(context.Context, string, string, io.Reader) (*http.Request, error) {
-			return nil, errors.New("request failed")
-		}
-		defer func() { newBalanceHistoryRequest = original }()
-
-		svc := NewService(&mockClient{token: "tok"})
+		svc := NewService(&mockClient{token: "tok"}, WithBalanceHistoryUploadEndpoint("://"))
 		hasErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", strings.NewReader("date,amount\n")))
 	})
 
 	t.Run("upload account balance history read error", func(t *testing.T) {
 		svc := NewService(&mockClient{token: "tok"})
 		hasErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", testutil.FailingReader{}))
-	})
-
-	t.Run("upload account balance history form file error", func(t *testing.T) {
-		original := createBalanceHistoryFormFile
-		createBalanceHistoryFormFile = func(*multipart.Writer, string, string) (io.Writer, error) {
-			return nil, errors.New("form file failed")
-		}
-		defer func() { createBalanceHistoryFormFile = original }()
-
-		svc := NewService(&mockClient{token: "tok"})
-		hasErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", strings.NewReader("date,amount\n")))
 	})
 }
 

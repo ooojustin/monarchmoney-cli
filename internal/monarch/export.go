@@ -12,13 +12,11 @@ type csvWriter interface {
 	Error() error
 }
 
-var newCSVWriter = func(w io.Writer) csvWriter {
-	return csv.NewWriter(w)
+func ExportTransactionsCSV(txs []Transaction, w io.Writer) error {
+	return exportTransactionsCSV(txs, csv.NewWriter(w))
 }
 
-func ExportTransactionsCSV(txs []Transaction, w io.Writer) error {
-	writer := newCSVWriter(w)
-
+func exportTransactionsCSV(txs []Transaction, writer csvWriter) error {
 	header := []string{"Date", "Merchant", "Category", "Amount", "Notes"}
 	if err := writer.Write(header); err != nil {
 		return err
