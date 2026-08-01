@@ -2,6 +2,7 @@ package auth
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,13 +15,26 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 )
 
-var loginEndpoint = "https://api.monarch.com/auth/login/"
-var maxLoginResponseSize = int64(1 << 20)
-var newLoginHTTPClient = func() *http.Client {
-	return &http.Client{
+const loginEndpoint = "https://api.monarch.com/auth/login/"
+const maxLoginResponseSize = int64(1 << 20)
+
+type Credentials struct {
+	Email     string
+	Password  string
+	MFACode   string
+	MFASecret string
+}
+
+type Client struct {
+	http *http.Client
+}
+
+func NewClient(transport http.RoundTripper) *Client {
+	return &Client{http: &http.Client{
 		Timeout:       10 * time.Second,
+		Transport:     transport,
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
-	}
+	}}
 }
 
 type loginRequest struct {
@@ -38,24 +52,33 @@ type loginResponse struct {
 // Authenticate logs in through Monarch's REST endpoint, not GraphQL.
 // Monarch maps 401/403 without MFA to "MFA required" and with MFA to invalid credentials or code.
 func Authenticate(email, password, mfaCode, mfaSecret string) (*Session, error) {
-	if mfaSecret != "" {
-		code, err := totp.GenerateCode(mfaSecret, time.Now())
+	return NewClient(nil).Authenticate(context.Background(), Credentials{
+		Email:     email,
+		Password:  password,
+		MFACode:   mfaCode,
+		MFASecret: mfaSecret,
+	})
+}
+
+func (c *Client) Authenticate(ctx context.Context, credentials Credentials) (*Session, error) {
+	if credentials.MFASecret != "" {
+		code, err := totp.GenerateCode(credentials.MFASecret, time.Now())
 		if err != nil {
 			return nil, errors.New(errors.InternalError, "failed to generate MFA code", errors.CatInternal, false, err)
 		}
-		mfaCode = code
+		credentials.MFACode = code
 	}
 
 	reqBody := loginRequest{
-		Username:      email,
-		Password:      password,
+		Username:      credentials.Email,
+		Password:      credentials.Password,
 		SupportsMFA:   true,
 		TrustedDevice: true,
-		TOTP:          mfaCode,
+		TOTP:          credentials.MFACode,
 	}
 	body, _ := json.Marshal(reqBody)
 
-	req, err := http.NewRequest("POST", loginEndpoint, bytes.NewBuffer(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, loginEndpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.New(errors.InternalError, "failed to create login request", errors.CatInternal, false, err)
 	}
@@ -63,15 +86,14 @@ func Authenticate(email, password, mfaCode, mfaSecret string) (*Session, error) 
 	req.Header.Set("Client-Platform", "web")
 	req.Header.Set("User-Agent", graphql.UserAgent())
 
-	client := newLoginHTTPClient()
-	resp, err := client.Do(req)
+	resp, err := c.http.Do(req)
 	if err != nil {
 		return nil, errors.New(errors.NetworkUnreachable, "failed to reach Monarch API", errors.CatNetwork, true, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == 403 || resp.StatusCode == 401 {
-		if mfaCode == "" && mfaSecret == "" {
+		if credentials.MFACode == "" && credentials.MFASecret == "" {
 			return nil, errors.New(errors.AuthMFARequired, "MFA code required", errors.CatAuth, false, nil)
 		}
 		return nil, errors.New(errors.AuthMFAInvalid, "invalid credentials or MFA code", errors.CatAuth, false, nil)
@@ -94,7 +116,7 @@ func Authenticate(email, password, mfaCode, mfaSecret string) (*Session, error) 
 	}
 
 	return &Session{
-		Email:     email,
+		Email:     credentials.Email,
 		Token:     loginResp.Token,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),

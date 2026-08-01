@@ -54,8 +54,7 @@ type Deps struct {
 	Stdout       io.Writer
 	Stderr       io.Writer
 	Stdin        io.Reader
-	ReadPassword func(fd int) ([]byte, error)
-	IsTerminal   func(fd int) bool
+	ReadPassword func() ([]byte, error)
 	Exit         func(code int)
 }
 
@@ -67,12 +66,13 @@ func DefaultDeps() Deps {
 		WriteAudit: func(record *audit.Record) error {
 			return audit.NewLogger().Log(record)
 		},
-		Stdout:       os.Stdout,
-		Stderr:       os.Stderr,
-		Stdin:        os.Stdin,
-		ReadPassword: term.ReadPassword,
-		IsTerminal:   term.IsTerminal,
-		Exit:         os.Exit,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+		Stdin:  os.Stdin,
+		ReadPassword: func() ([]byte, error) {
+			return term.ReadPassword(int(os.Stdin.Fd()))
+		},
+		Exit: os.Exit,
 	}
 }
 
@@ -99,9 +99,6 @@ func New(deps Deps) *App {
 	}
 	if a.Deps.ReadPassword == nil {
 		a.Deps.ReadPassword = defaults.ReadPassword
-	}
-	if a.Deps.IsTerminal == nil {
-		a.Deps.IsTerminal = defaults.IsTerminal
 	}
 	if a.Deps.Exit == nil {
 		a.Deps.Exit = defaults.Exit
@@ -186,6 +183,7 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 	root.AddCommand(a.buildAnalyzeCommand())
 	root.AddCommand(a.buildCacheCommand())
 	root.AddCommand(a.buildOverviewCommand())
+	root.AddCommand(a.buildAuthCommand())
 	return root
 }
 

@@ -2,10 +2,11 @@ package cli
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
-	"errors"
+	stderrors "errors"
+	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,7 +14,9 @@ import (
 	"time"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
+	"github.com/thedavidweng/monarchmoney-cli/internal/config"
 	clierrors "github.com/thedavidweng/monarchmoney-cli/internal/errors"
+	"github.com/thedavidweng/monarchmoney-cli/internal/testutil"
 )
 
 func captureStdout(t *testing.T, fn func()) string {
@@ -25,9 +28,7 @@ func captureStdout(t *testing.T, fn func()) string {
 		t.Fatalf("os.Pipe() error = %v", err)
 	}
 	os.Stdout = writer
-	defer func() {
-		os.Stdout = original
-	}()
+	defer func() { os.Stdout = original }()
 
 	done := make(chan string, 1)
 	go func() {
@@ -37,329 +38,288 @@ func captureStdout(t *testing.T, fn func()) string {
 	}()
 
 	fn()
-
 	_ = writer.Close()
 	out := <-done
 	_ = reader.Close()
 	return out
 }
 
-func withAuthTestDefaults(t *testing.T, sessionPath string) func() {
+func newTestAuthApp(t *testing.T, sessionPath string, transport http.RoundTripper) (*App, *bytes.Buffer, *bytes.Buffer, *int) {
 	t.Helper()
 
-	oldPath := defaultSessionPath
-	oldAuthenticate := authenticateSession
-	oldReadPassword := readPassword
-	oldScanInput := scanInput
-	oldFetchIdentity := fetchIdentity
-	oldExitFunc := exitFunc
-	oldJSONMode := jsonMode
-	oldPretty := pretty
-	oldProfile := profile
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	exitCode := 0
+	app := New(Deps{
+		LoadConfig: func(string) (*config.Config, error) {
+			cfg := config.Default()
+			cfg.APIEndpoint = "https://example.invalid/graphql"
+			cfg.SessionPath = sessionPath
+			cfg.Timeout = time.Second
+			return cfg, nil
+		},
+		Getenv:        func(string) string { return "" },
+		NewRequestID:  func() string { return "request-id" },
+		HTTPTransport: transport,
+		Stdout:        &out,
+		Stderr:        &errOut,
+		Stdin:         strings.NewReader(""),
+		ReadPassword: func() ([]byte, error) {
+			return nil, stderrors.New("unexpected password prompt")
+		},
+		Exit: func(code int) { exitCode = code },
+	})
+	return app, &out, &errOut, &exitCode
+}
 
-	defaultSessionPath = func() string { return sessionPath }
-	authenticateSession = auth.Authenticate
-	readPassword = func(int) ([]byte, error) {
-		return nil, errors.New("unexpected password prompt")
-	}
-	scanInput = func(...any) (int, error) {
-		return 0, errors.New("unexpected prompt")
-	}
-	fetchIdentity = func(_ context.Context, _ string) (*identityResult, error) {
-		return &identityResult{Email: "fallback@example.com"}, nil
-	}
-	exitFunc = func(int) {}
-	jsonMode = false
-	pretty = false
-	profile = "default"
+type authGraphQLRequest struct {
+	OperationName string `json:"operationName"`
+}
 
-	return func() {
-		defaultSessionPath = oldPath
-		authenticateSession = oldAuthenticate
-		readPassword = oldReadPassword
-		scanInput = oldScanInput
-		fetchIdentity = oldFetchIdentity
-		exitFunc = oldExitFunc
-		jsonMode = oldJSONMode
-		pretty = oldPretty
-		profile = oldProfile
+func TestAppRootRegistersAuth(t *testing.T) {
+	app, _ := newTestApp(t)
+	for _, path := range [][]string{
+		{"auth", "login"},
+		{"auth", "status"},
+		{"auth", "logout"},
+		{"auth", "session", "path"},
+	} {
+		cmd, _, err := app.Root.Find(path)
+		if err != nil || cmd == nil || cmd.Name() != path[len(path)-1] {
+			t.Fatalf("Find(%v) = %#v, %v", path, cmd, err)
+		}
+	}
+	authCommand, _, _ := app.Root.Find([]string{"auth"})
+	if authCommand.GroupID != "utility" {
+		t.Fatalf("auth GroupID = %q, want utility", authCommand.GroupID)
+	}
+	loginCommand, _, _ := app.Root.Find([]string{"auth", "login"})
+	for _, flag := range []string{"email", "password", "mfa-code", "mfa-secret"} {
+		if loginCommand.Flags().Lookup(flag) == nil {
+			t.Fatalf("auth login missing --%s flag", flag)
+		}
 	}
 }
 
-func TestLoginUsesPasswordFlagWithoutPrompt(t *testing.T) {
+func TestAppAuthLoginUsesFlagsWithoutPrompt(t *testing.T) {
 	sessionPath := filepath.Join(t.TempDir(), "session.json")
-	restore := withAuthTestDefaults(t, sessionPath)
-	defer restore()
-
-	sawPasswordPrompt := false
-	readPassword = func(int) ([]byte, error) {
-		sawPasswordPrompt = true
-		return nil, errors.New("should not prompt")
-	}
-
-	called := false
-	var gotEmail, gotPassword string
-	authenticateSession = func(email, password, mfaCode, mfaSecret string) (*auth.Session, error) {
-		called = true
-		gotEmail = email
-		gotPassword = password
-		return &auth.Session{
-			Email:     email,
-			Token:     "token-123",
-			CreatedAt: time.Date(2026, 5, 9, 10, 0, 0, 0, time.UTC),
-			UpdatedAt: time.Date(2026, 5, 9, 10, 0, 0, 0, time.UTC),
-		}, nil
-	}
-
-	if err := loginCmd.Flags().Set("email", "a@example.com"); err != nil {
-		t.Fatalf("Set email flag error = %v", err)
-	}
-	if err := loginCmd.Flags().Set("password", "secret"); err != nil {
-		t.Fatalf("Set password flag error = %v", err)
-	}
-	_ = loginCmd.Flags().Set("mfa-code", "")
-	_ = loginCmd.Flags().Set("mfa-secret", "")
-
-	out := captureStdout(t, func() {
-		loginCmd.Run(loginCmd, nil)
+	transport := testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.String() != "https://api.monarch.com/auth/login/" || req.Method != http.MethodPost {
+			return nil, fmt.Errorf("login request = %s %s", req.Method, req.URL)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+			return nil, err
+		}
+		if body["username"] != "a@example.com" || body["password"] != "secret" {
+			return nil, fmt.Errorf("login body = %#v", body)
+		}
+		return testutil.JSONResponse(`{"token":"token-123"}`), nil
 	})
+	app, out, errOut, exitCode := newTestAuthApp(t, sessionPath, transport)
 
-	if !called {
-		t.Fatal("authenticateSession was not called")
+	app.Root.SetArgs([]string{"auth", "login", "--email", "a@example.com", "--password", "secret"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
 	}
-	if gotEmail != "a@example.com" || gotPassword != "secret" {
-		t.Fatalf("authenticateSession args = %q %q", gotEmail, gotPassword)
+	if *exitCode != 0 {
+		t.Fatalf("exitCode = %d; output=%q", *exitCode, out.String())
 	}
-	if sawPasswordPrompt {
-		t.Fatal("password prompt was triggered even though --password was provided")
+	if errOut.Len() != 0 {
+		t.Fatalf("stderr = %q, want no prompts", errOut.String())
 	}
-	if !strings.Contains(out, "Successfully logged in as a@example.com.") {
-		t.Fatalf("output = %q, want success message", out)
+	if !strings.Contains(out.String(), "Successfully logged in as a@example.com.") || !strings.Contains(out.String(), sessionPath) {
+		t.Fatalf("output = %q", out.String())
 	}
-	if !strings.Contains(out, "Session token saved to: "+sessionPath) {
-		t.Fatalf("output = %q, want session path", out)
+	sess, err := auth.NewStore(sessionPath).Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if sess.Email != "a@example.com" || sess.Token != "token-123" || sess.Profile != "default" {
+		t.Fatalf("session = %#v", sess)
 	}
 }
 
-func TestLoginJSONIncludesSessionDetails(t *testing.T) {
+func TestAppAuthLoginJSONUsesEnvironmentAndRequestID(t *testing.T) {
 	sessionPath := filepath.Join(t.TempDir(), "session.json")
-	restore := withAuthTestDefaults(t, sessionPath)
-	defer restore()
-
-	jsonMode = true
-	authenticateSession = func(email, password, mfaCode, mfaSecret string) (*auth.Session, error) {
-		return &auth.Session{
-			Email:     email,
-			Token:     "token-123",
-			CreatedAt: time.Date(2026, 5, 9, 10, 0, 0, 0, time.UTC),
-			UpdatedAt: time.Date(2026, 5, 9, 10, 0, 0, 0, time.UTC),
-		}, nil
+	transport := testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		var body map[string]any
+		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+			return nil, err
+		}
+		if body["username"] != "env@example.com" || body["password"] != "env-secret" {
+			return nil, fmt.Errorf("login body = %#v", body)
+		}
+		return testutil.JSONResponse(`{"token":"token-123"}`), nil
+	})
+	app, out, errOut, exitCode := newTestAuthApp(t, sessionPath, transport)
+	app.Deps.Getenv = func(key string) string {
+		return map[string]string{
+			"MONARCH_EMAIL":    "env@example.com",
+			"MONARCH_PASSWORD": "env-secret",
+		}[key]
 	}
 
-	_ = loginCmd.Flags().Set("email", "a@example.com")
-	_ = loginCmd.Flags().Set("password", "secret")
-	_ = loginCmd.Flags().Set("mfa-code", "")
-	_ = loginCmd.Flags().Set("mfa-secret", "")
-
-	out := captureStdout(t, func() {
-		loginCmd.Run(loginCmd, nil)
-	})
-
+	app.Root.SetArgs([]string{"--json", "auth", "login"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if *exitCode != 0 || errOut.Len() != 0 {
+		t.Fatalf("exitCode=%d stderr=%q", *exitCode, errOut.String())
+	}
 	var env struct {
-		OK   bool `json:"ok"`
 		Data struct {
-			Status      string    `json:"status"`
-			Email       string    `json:"email"`
-			SessionPath string    `json:"session_path"`
-			CreatedAt   time.Time `json:"created_at"`
+			Status      string `json:"status"`
+			Email       string `json:"email"`
+			SessionPath string `json:"session_path"`
 		} `json:"data"`
+		Meta struct {
+			Command   string `json:"command"`
+			RequestID string `json:"request_id"`
+		} `json:"meta"`
 	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &env); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v; output=%q", err, out)
+	if err := json.Unmarshal(bytes.TrimSpace(out.Bytes()), &env); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v; output=%q", err, out.String())
 	}
-	if !env.OK || env.Data.Status != "logged in" || env.Data.Email != "a@example.com" || env.Data.SessionPath != sessionPath {
-		t.Fatalf("login JSON = %#v", env)
+	if env.Data.Status != "logged in" || env.Data.Email != "env@example.com" || env.Data.SessionPath != sessionPath {
+		t.Fatalf("data = %#v", env.Data)
+	}
+	if env.Meta.Command != "auth.login" || env.Meta.RequestID != "request-id" {
+		t.Fatalf("metadata = %#v", env.Meta)
 	}
 }
 
-func TestAuthStatus(t *testing.T) {
-	t.Run("success", testAuthStatusSuccess)
-	t.Run("missing session", testAuthStatusMissingSession)
-	t.Run("expired session", testAuthStatusExpiredSession)
-	t.Run("network error", testAuthStatusNetworkError)
-}
-
-func testAuthStatusSuccess(t *testing.T) {
+func TestAppAuthLoginPromptsForMFA(t *testing.T) {
 	sessionPath := filepath.Join(t.TempDir(), "session.json")
-	restore := withAuthTestDefaults(t, sessionPath)
-	defer restore()
-	jsonMode = true
+	requestCount := 0
+	transport := testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requestCount++
+		var body map[string]any
+		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+			return nil, err
+		}
+		if requestCount == 1 {
+			return &http.Response{StatusCode: http.StatusUnauthorized, Body: io.NopCloser(strings.NewReader(""))}, nil
+		}
+		if body["totp"] != "123456" {
+			return nil, fmt.Errorf("MFA login body = %#v", body)
+		}
+		return testutil.JSONResponse(`{"token":"token-123"}`), nil
+	})
+	app, _, errOut, exitCode := newTestAuthApp(t, sessionPath, transport)
+	app.Deps.Stdin = strings.NewReader("123456\n")
+	app.Root.SetIn(app.Deps.Stdin)
 
-	store := auth.NewStore(sessionPath)
-	if err := store.Save(&auth.Session{
-		Profile:   "default",
-		Email:     "a@example.com",
-		Token:     "token-123",
-		CreatedAt: time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC),
-		UpdatedAt: time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC),
-	}); err != nil {
+	app.Root.SetArgs([]string{"auth", "login", "--email", "a@example.com", "--password", "secret"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if *exitCode != 0 || requestCount != 2 {
+		t.Fatalf("exitCode=%d requests=%d", *exitCode, requestCount)
+	}
+	if !strings.Contains(errOut.String(), "MFA Code:") {
+		t.Fatalf("stderr = %q, want MFA prompt", errOut.String())
+	}
+}
+
+func TestAppAuthStatusUsesConfiguredSessionAndIdentity(t *testing.T) {
+	sessionPath := filepath.Join(t.TempDir(), "session.json")
+	if err := auth.NewStore(sessionPath).Save(&auth.Session{Profile: "default", Token: "token-123", CreatedAt: time.Now(), UpdatedAt: time.Now()}); err != nil {
 		t.Fatalf("Save() error = %v", err)
 	}
-
-	gotToken := ""
-	fetchIdentity = func(_ context.Context, token string) (*identityResult, error) {
-		gotToken = token
-		return &identityResult{Email: "a@example.com"}, nil
-	}
-
-	out := captureStdout(t, func() {
-		statusCmd.Run(statusCmd, nil)
+	transport := testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.Header.Get("Authorization") != "Token token-123" {
+			return nil, fmt.Errorf("Authorization = %q", req.Header.Get("Authorization"))
+		}
+		var gqlReq authGraphQLRequest
+		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
+			return nil, err
+		}
+		if gqlReq.OperationName != "GetIdentity" {
+			return nil, fmt.Errorf("operation = %q", gqlReq.OperationName)
+		}
+		return testutil.JSONResponse(`{"data":{"me":{"email":"fallback@example.com"}}}`), nil
 	})
-
-	var env struct {
-		OK   bool `json:"ok"`
-		Data struct {
-			Authenticated bool   `json:"authenticated"`
-			SessionValid  bool   `json:"session_valid"`
-			Email         string `json:"email"`
-			SessionPath   string `json:"session_path"`
-		} `json:"data"`
+	app, out, _, exitCode := newTestAuthApp(t, sessionPath, transport)
+	app.Root.SetArgs([]string{"--json", "auth", "status"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
 	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &env); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v; output=%q", err, out)
+	if *exitCode != 0 {
+		t.Fatalf("exitCode = %d; output=%q", *exitCode, out.String())
 	}
-	if gotToken != "token-123" {
-		t.Fatalf("token = %q, want token-123", gotToken)
-	}
-	if !env.OK || !env.Data.Authenticated || !env.Data.SessionValid || env.Data.Email != "a@example.com" || env.Data.SessionPath != sessionPath {
-		t.Fatalf("status JSON = %#v", env)
+	if got := out.String(); !strings.Contains(got, `"email":"fallback@example.com"`) || !strings.Contains(got, `"session_valid":true`) || !strings.Contains(got, `"request_id":"request-id"`) {
+		t.Fatalf("output = %q", got)
 	}
 }
 
-func testAuthStatusMissingSession(t *testing.T) {
-	sessionPath := filepath.Join(t.TempDir(), "missing.json")
-	restore := withAuthTestDefaults(t, sessionPath)
-	defer restore()
-
-	jsonMode = true
-	var exitCode int
-	exitFunc = func(code int) {
-		exitCode = code
-	}
-	called := false
-	fetchIdentity = func(context.Context, string) (*identityResult, error) {
-		called = true
-		return nil, nil
-	}
-
-	out := captureStdout(t, func() {
-		statusCmd.Run(statusCmd, nil)
+func TestAppAuthStatusErrors(t *testing.T) {
+	t.Run("missing session", func(t *testing.T) {
+		sessionPath := filepath.Join(t.TempDir(), "missing.json")
+		app, out, _, exitCode := newTestAuthApp(t, sessionPath, testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+			t.Fatal("missing session should fail before a request")
+			return nil, nil
+		}))
+		app.Root.SetArgs([]string{"--json", "auth", "status"})
+		if err := app.Execute(); err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		if *exitCode != 3 || !strings.Contains(out.String(), string(clierrors.AuthRequired)) {
+			t.Fatalf("exitCode=%d output=%q", *exitCode, out.String())
+		}
 	})
 
-	var env struct {
-		OK    bool `json:"ok"`
-		Error struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &env); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v; output=%q", err, out)
-	}
-	if exitCode != 3 || env.Error.Code != string(clierrors.AuthRequired) {
-		t.Fatalf("missing session = exitCode %d, env %#v", exitCode, env)
-	}
-	if called {
-		t.Fatal("fetchIdentity should not be called when the session file is missing")
-	}
+	t.Run("expired session", func(t *testing.T) {
+		sessionPath := filepath.Join(t.TempDir(), "session.json")
+		if err := auth.NewStore(sessionPath).Save(&auth.Session{Email: "a@example.com", Token: "expired"}); err != nil {
+			t.Fatalf("Save() error = %v", err)
+		}
+		app, out, _, exitCode := newTestAuthApp(t, sessionPath, testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: http.StatusUnauthorized, Body: io.NopCloser(strings.NewReader(""))}, nil
+		}))
+		app.Root.SetArgs([]string{"--json", "auth", "status"})
+		if err := app.Execute(); err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		if *exitCode != 3 || !strings.Contains(out.String(), string(clierrors.AuthSessionExpired)) || !strings.Contains(out.String(), "a@example.com") || !strings.Contains(out.String(), sessionPath) {
+			t.Fatalf("exitCode=%d output=%q", *exitCode, out.String())
+		}
+	})
 }
 
-func testAuthStatusExpiredSession(t *testing.T) {
+func TestAppAuthLocalCommandsUseConfiguredPathDespiteConfigError(t *testing.T) {
 	sessionPath := filepath.Join(t.TempDir(), "session.json")
-	restore := withAuthTestDefaults(t, sessionPath)
-	defer restore()
-
-	store := auth.NewStore(sessionPath)
-	if err := store.Save(&auth.Session{
-		Profile:   "default",
-		Email:     "a@example.com",
-		Token:     "token-123",
-		CreatedAt: time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC),
-		UpdatedAt: time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC),
-	}); err != nil {
+	if err := auth.NewStore(sessionPath).Save(&auth.Session{Token: "token"}); err != nil {
 		t.Fatalf("Save() error = %v", err)
 	}
-
-	jsonMode = true
-	var exitCode int
-	exitFunc = func(code int) {
-		exitCode = code
+	app, out, _, exitCode := newTestAuthApp(t, sessionPath, nil)
+	app.Deps.LoadConfig = func(string) (*config.Config, error) {
+		cfg := config.Default()
+		cfg.SessionPath = sessionPath
+		return cfg, stderrors.New("malformed config")
 	}
-	fetchIdentity = func(context.Context, string) (*identityResult, error) {
-		return nil, clierrors.New(clierrors.AuthSessionExpired, "session token expired or invalid; run `monarch auth login` again", clierrors.CatAuth, true, nil)
+	app.Root.SetArgs([]string{"auth", "session", "path"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute(path) error = %v", err)
 	}
-
-	out := captureStdout(t, func() {
-		statusCmd.Run(statusCmd, nil)
-	})
-
-	var env struct {
-		OK    bool `json:"ok"`
-		Error struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &env); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v; output=%q", err, out)
-	}
-	if exitCode != 3 || env.Error.Code != string(clierrors.AuthSessionExpired) {
-		t.Fatalf("expired session = exitCode %d, env %#v", exitCode, env)
-	}
-	if !strings.Contains(env.Error.Message, "a@example.com") || !strings.Contains(env.Error.Message, sessionPath) {
-		t.Fatalf("expired session message = %q, want email and path", env.Error.Message)
-	}
-}
-
-func testAuthStatusNetworkError(t *testing.T) {
-	sessionPath := filepath.Join(t.TempDir(), "session.json")
-	restore := withAuthTestDefaults(t, sessionPath)
-	defer restore()
-
-	store := auth.NewStore(sessionPath)
-	if err := store.Save(&auth.Session{
-		Profile:   "default",
-		Email:     "a@example.com",
-		Token:     "token-123",
-		CreatedAt: time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC),
-		UpdatedAt: time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC),
-	}); err != nil {
-		t.Fatalf("Save() error = %v", err)
+	if strings.TrimSpace(out.String()) != sessionPath {
+		t.Fatalf("path output = %q, want %q", out.String(), sessionPath)
 	}
 
-	jsonMode = true
-	var exitCode int
-	exitFunc = func(code int) {
-		exitCode = code
+	app, out, _, exitCode = newTestAuthApp(t, sessionPath, nil)
+	app.Deps.LoadConfig = func(string) (*config.Config, error) {
+		cfg := config.Default()
+		cfg.SessionPath = sessionPath
+		return cfg, stderrors.New("malformed config")
 	}
-	fetchIdentity = func(context.Context, string) (*identityResult, error) {
-		return nil, clierrors.New(clierrors.NetworkUnreachable, "failed to reach Monarch API", clierrors.CatNetwork, true, nil)
+	app.Root.SetArgs([]string{"--json", "auth", "logout"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute(logout) error = %v", err)
 	}
-
-	out := captureStdout(t, func() {
-		statusCmd.Run(statusCmd, nil)
-	})
-
-	var env struct {
-		OK    bool `json:"ok"`
-		Error struct {
-			Code string `json:"code"`
-		} `json:"error"`
+	if *exitCode != 0 || !strings.Contains(out.String(), `"status":"logged out"`) {
+		t.Fatalf("exitCode=%d output=%q", *exitCode, out.String())
 	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &env); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v; output=%q", err, out)
-	}
-	if exitCode != 5 || env.Error.Code != string(clierrors.NetworkUnreachable) {
-		t.Fatalf("network error = exitCode %d, env %#v", exitCode, env)
+	if _, err := os.Stat(sessionPath); !os.IsNotExist(err) {
+		t.Fatalf("session stat error = %v, want missing", err)
 	}
 }

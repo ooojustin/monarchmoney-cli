@@ -27,7 +27,8 @@ monarch auth login --email user@example.com --password "..." --mfa-secret "YOUR_
 
 Once authenticated, a session token is stored locally. This token is used for all subsequent commands.
 
-- **Storage Path**: `~/.monarchmoney-cli/session.json`
+- **Storage Path**: platform-specific; run `monarch auth session path` to inspect it.
+- **Configuration**: set `session_path` in the selected config file or `MONARCH_SESSION_PATH` in the environment.
 - **Security**: The file is saved with `0600` permissions (read/write by owner only).
 - **Contents**: The session file stores the token, account email, timestamps, and profile metadata needed for `auth status`.
 
@@ -60,7 +61,7 @@ monarch auth logout
 
 ## Session Status and Local Commands
 
-- The session token is stored at `~/.monarchmoney-cli/session.json` by default.
+- `auth login`, `auth status`, `auth logout`, and remote commands use the same configured session path.
 - `auth status` reports the stored email, the last login time, and whether the session is still valid.
 - Cache-backed commands such as `cache stats`, `cache search`, and `networth` continue to work from local data without requiring a live session check.
 
@@ -84,6 +85,7 @@ The local cache lives at `~/.monarchmoney-cli/cache/monarch.sqlite`.
    - `MONARCH_PASSWORD`: Your account password.
    - `MONARCH_MFA_CODE`: A 6-digit MFA code (for single-use scripts).
    - `MONARCH_MFA_SECRET`: Your TOTP secret key for automatic code generation.
+   - `MONARCH_SESSION_PATH`: Override the local session file path.
    - `MONARCH_USER_AGENT`: Override the default HTTP User-Agent string.
 3. **Session Safety**: Never share your `session.json` file. It contains a long-lived token that grants access to your Monarch account.
 
