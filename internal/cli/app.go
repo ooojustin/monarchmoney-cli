@@ -118,21 +118,6 @@ func New(deps Deps) *App {
 }
 
 func (a *App) Execute() error {
-	legacy := Flags{
-		Config:    cfgFile,
-		JSONMode:  jsonMode,
-		Pretty:    pretty,
-		Events:    events,
-		ReadOnly:  readOnly,
-		DryRun:    dryRun,
-		Confirm:   confirm,
-		Timeout:   timeout,
-		Profile:   profile,
-		Verbose:   verbose,
-		RequestID: requestID,
-	}
-	defer syncLegacyGlobals(legacy)
-
 	return a.Root.Execute()
 }
 
@@ -237,7 +222,6 @@ func (a *App) prepareRuntime(cmd *cobra.Command) {
 		a.Flags.Verbose = config.ParseBool(a.Deps.Getenv("MONARCH_VERBOSE"))
 	}
 	a.Flags.RequestID = a.Deps.NewRequestID()
-	syncLegacyGlobals(a.Flags)
 }
 
 func (a *App) configPath() string {

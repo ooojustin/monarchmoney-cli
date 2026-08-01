@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"io"
-	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -12,23 +11,6 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 	"github.com/thedavidweng/monarchmoney-cli/internal/version"
 )
-
-var (
-	cfgFile   string
-	jsonMode  bool
-	pretty    bool
-	events    bool
-	readOnly  bool
-	dryRun    bool
-	confirm   bool
-	timeout   time.Duration
-	profile   string
-	verbose   bool
-	requestID string
-)
-
-var defaultApp = New(DefaultDeps())
-var RootCmd = defaultApp.Root
 
 func must(err error) {
 	if err != nil {
@@ -42,28 +24,15 @@ func persistentFlagChanged(cmd *cobra.Command, name string) bool {
 }
 
 func Execute() {
-	if err := defaultApp.Execute(); err != nil {
+	app := New(DefaultDeps())
+	if err := app.Execute(); err != nil {
+		exitCode := 1
 		if e, ok := err.(*errors.Error); ok {
-			fmt.Println(err)
-			os.Exit(e.ExitCode())
+			exitCode = e.ExitCode()
 		}
-		fmt.Println(err)
-		os.Exit(1)
+		fmt.Fprintln(app.Deps.Stderr, err)
+		app.Deps.Exit(exitCode)
 	}
-}
-
-func syncLegacyGlobals(flags Flags) {
-	cfgFile = flags.Config
-	jsonMode = flags.JSONMode
-	pretty = flags.Pretty
-	events = flags.Events
-	readOnly = flags.ReadOnly
-	dryRun = flags.DryRun
-	confirm = flags.Confirm
-	timeout = flags.Timeout
-	profile = flags.Profile
-	verbose = flags.Verbose
-	requestID = flags.RequestID
 }
 
 type versionPayload struct {

@@ -11,52 +11,6 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 )
 
-var connect bool
-
-var doctorCmd = &cobra.Command{
-	Use:     "doctor",
-	Short:   "Check local configuration and connectivity",
-	GroupID: "utility",
-	Example: "  monarch doctor",
-	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		configPath := cfgFile
-		if configPath == "" {
-			configPath = config.DefaultConfigPath()
-		}
-		cfg, cfgErr := config.Load(configPath)
-		res := doctor.Check(cmd.Context(), doctor.Options{
-			Connect:     connect,
-			ConfigPath:  configPath,
-			ConfigError: cfgErr,
-			SessionPath: cfg.SessionPath,
-			APIEndpoint: cfg.APIEndpoint,
-			Timeout:     cfg.Timeout,
-		})
-
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-
-		if jsonMode {
-			env := output.NewEnvelope("doctor", profile, output.SchemaVersion, requestID, res, time.Since(start))
-			renderer.RenderSuccess(env)
-		} else {
-			fmt.Println("Monarch Money CLI Doctor")
-			fmt.Printf("Version: %s\n", res.Version)
-			fmt.Printf("OS/Arch: %s/%s\n", res.OS, res.Arch)
-			fmt.Printf("Config Path: %s (Exists: %v)\n", res.Config.Path, res.Config.Exists)
-			fmt.Printf("Session Path: %s (Exists: %v, Auth: %v, PermOK: %v)\n", res.Session.Path, res.Session.Exists, res.Session.Authenticated, res.Session.PermissionOK)
-			if connect {
-				fmt.Printf("API Connected: %v\n", res.Network.APIReachable)
-			}
-		}
-	},
-}
-
-func init() {
-	doctorCmd.Flags().BoolVar(&connect, "connect", false, "check API connectivity (requires auth)")
-	RootCmd.AddCommand(doctorCmd)
-}
-
 func (a *App) buildDoctorCommand() *cobra.Command {
 	var checkConnectivity bool
 	command := &cobra.Command{

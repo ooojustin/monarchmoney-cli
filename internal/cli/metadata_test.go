@@ -7,15 +7,13 @@ import (
 )
 
 func TestEnvelopeWithWarningsMultiple(t *testing.T) {
-	originalProfile := profile
-	profile = "test-prof"
-	defer func() { profile = originalProfile }()
+	app := &App{Flags: Flags{Profile: "test-prof", RequestID: "request-id"}}
 
 	warnings := []string{
 		"uses legacy field",
 		"deprecated endpoint",
 	}
-	env := envelopeWithWarnings("accounts.list", map[string]int{"count": 5}, time.Now(), warnings...)
+	env := app.envelopeWithWarnings("accounts.list", map[string]int{"count": 5}, time.Now(), warnings...)
 
 	if len(env.Meta.Warnings) != 2 {
 		t.Fatalf("warnings count = %d, want 2", len(env.Meta.Warnings))
@@ -32,14 +30,14 @@ func TestEnvelopeWithWarningsMultiple(t *testing.T) {
 	if env.Meta.Profile != "test-prof" {
 		t.Fatalf("profile = %q, want test-prof", env.Meta.Profile)
 	}
+	if env.Meta.RequestID != "request-id" {
+		t.Fatalf("request ID = %q, want request-id", env.Meta.RequestID)
+	}
 }
 
 func TestEnvelopeWithWarningsNone(t *testing.T) {
-	originalProfile := profile
-	profile = "default"
-	defer func() { profile = originalProfile }()
-
-	env := envelopeWithWarnings("test.cmd", nil, time.Now())
+	app := &App{Flags: Flags{Profile: "default"}}
+	env := app.envelopeWithWarnings("test.cmd", nil, time.Now())
 	if env.Meta.Warnings != nil {
 		t.Fatalf("warnings = %v, want nil when no warnings provided", env.Meta.Warnings)
 	}
@@ -49,11 +47,8 @@ func TestEnvelopeWithWarningsNone(t *testing.T) {
 }
 
 func TestEnvelopeWithWarningsJSON(t *testing.T) {
-	originalProfile := profile
-	profile = "default"
-	defer func() { profile = originalProfile }()
-
-	env := envelopeWithWarnings("tx.search", map[string]string{"q": "Amazon"}, time.Now(), "field renamed")
+	app := &App{Flags: Flags{Profile: "default"}}
+	env := app.envelopeWithWarnings("tx.search", map[string]string{"q": "Amazon"}, time.Now(), "field renamed")
 
 	data, err := json.Marshal(env)
 	if err != nil {

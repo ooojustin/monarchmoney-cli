@@ -1,10 +1,8 @@
 package cli
 
 import (
-	"context"
 	"fmt"
 	"io"
-	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -13,33 +11,6 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 )
-
-var (
-	overviewFrom string
-	overviewTo   string
-)
-
-var overviewCmd = &cobra.Command{
-	Use:     "overview",
-	Short:   "Get a compact financial overview",
-	GroupID: "core",
-	Example: "  monarch overview\n  monarch overview --from 2026-01-01 --to 2026-01-31 --json",
-	Run: func(cmd *cobra.Command, args []string) {
-		run(cmd.Context(), "overview", "failed to get financial overview",
-			func(ctx context.Context, svc *monarch.Service) (*monarch.FinancialOverview, error) {
-				return svc.GetFinancialOverview(ctx, overviewFrom, overviewTo)
-			},
-			func(ov *monarch.FinancialOverview) {
-				renderFinancialOverview(os.Stdout, ov)
-			})
-	},
-}
-
-func init() {
-	overviewCmd.Flags().StringVar(&overviewFrom, "from", "", "start date (YYYY-MM-DD, defaults to current month)")
-	overviewCmd.Flags().StringVar(&overviewTo, "to", "", "end date (YYYY-MM-DD, defaults to current month)")
-	RootCmd.AddCommand(overviewCmd)
-}
 
 func (a *App) buildOverviewCommand() *cobra.Command {
 	var from string

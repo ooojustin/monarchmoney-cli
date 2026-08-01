@@ -4,8 +4,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var completionCmd = buildCompletionCommand()
-
 func buildCompletionCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "completion [bash|zsh|fish|powershell]",
@@ -69,8 +67,4 @@ PowerShell:
 			}
 		},
 	}
-}
-
-func init() {
-	RootCmd.AddCommand(completionCmd)
 }
