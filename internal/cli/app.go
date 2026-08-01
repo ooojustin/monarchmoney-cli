@@ -234,6 +234,7 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 	root.AddCommand(a.buildAccountsCommand())
 	root.AddCommand(a.buildNetworthCommand())
 	root.AddCommand(a.buildTransactionsCommand())
+	root.AddCommand(a.buildAnalyzeCommand())
 	return root
 }
 

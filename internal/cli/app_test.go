@@ -159,6 +159,16 @@ func TestAppRootRegistersTransactions(t *testing.T) {
 	}
 }
 
+func TestAppRootRegistersAnalyze(t *testing.T) {
+	app, _ := newTestApp(t)
+	for _, name := range []string{"anomalies", "subscriptions", "merchants", "burn-rate"} {
+		cmd, _, err := app.Root.Find([]string{"analyze", name})
+		if err != nil || cmd == nil || cmd.Name() != name {
+			t.Fatalf("Find(analyze %s) = %#v, %v", name, cmd, err)
+		}
+	}
+}
+
 func TestAppRootRegistersSimpleReadCommands(t *testing.T) {
 	app, _ := newTestApp(t)
 	tests := []struct {
