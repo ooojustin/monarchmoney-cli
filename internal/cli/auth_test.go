@@ -19,31 +19,6 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/testutil"
 )
 
-func captureStdout(t *testing.T, fn func()) string {
-	t.Helper()
-
-	original := os.Stdout
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("os.Pipe() error = %v", err)
-	}
-	os.Stdout = writer
-	defer func() { os.Stdout = original }()
-
-	done := make(chan string, 1)
-	go func() {
-		var buf bytes.Buffer
-		_, _ = io.Copy(&buf, reader)
-		done <- buf.String()
-	}()
-
-	fn()
-	_ = writer.Close()
-	out := <-done
-	_ = reader.Close()
-	return out
-}
-
 func newTestAuthApp(t *testing.T, sessionPath string, transport http.RoundTripper) (*App, *bytes.Buffer, *bytes.Buffer, *int) {
 	t.Helper()
 

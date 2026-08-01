@@ -1,8 +1,8 @@
 package cli
 
 import (
-	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -11,64 +11,21 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/testutil"
 )
 
-func withAnalyzeCommandTestDefaults(t *testing.T, sessionPath string) *int {
-	t.Helper()
-
-	oldExitFunc := exitFunc
-	oldDefaultSessionPath := defaultSessionPath
-	oldJSONMode := jsonMode
-	oldPretty := pretty
-	oldProfile := profile
-	oldTransport := http.DefaultTransport
-
-	exitCode := 0
-	exitFunc = func(code int) {
-		exitCode = code
-	}
-	defaultSessionPath = func() string { return sessionPath }
-	jsonMode = true
-	pretty = false
-	profile = "default"
-
-	analyzeAnomaliesCmd.SetContext(context.Background())
-	analyzeSubscriptionsCmd.SetContext(context.Background())
-	analyzeMerchantsCmd.SetContext(context.Background())
-	analyzeBurnRateCmd.SetContext(context.Background())
-
-	t.Cleanup(func() {
-		exitFunc = oldExitFunc
-		defaultSessionPath = oldDefaultSessionPath
-		jsonMode = oldJSONMode
-		pretty = oldPretty
-		profile = oldProfile
-		http.DefaultTransport = oldTransport
-	})
-
-	return &exitCode
-}
-
 func TestAnalyzeAnomaliesJSON(t *testing.T) {
-	dir := t.TempDir()
-	sessionPath := filepath.Join(dir, "session.json")
-	exitCode := withAnalyzeCommandTestDefaults(t, sessionPath)
-	saveTestSession(t, sessionPath)
-
-	var sawHistoryStart bool
-	http.DefaultTransport = testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+	var sawHistoryWindow bool
+	h := newJSONCommandHarness(t, testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		var gqlReq struct {
 			OperationName string         `json:"operationName"`
 			Variables     map[string]any `json:"variables"`
 		}
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
-			t.Fatalf("Decode request error = %v", err)
+			return nil, err
 		}
 		if gqlReq.OperationName != "GetTransactionsList" {
-			t.Fatalf("operation = %q, want GetTransactionsList", gqlReq.OperationName)
+			return nil, fmt.Errorf("operation = %q", gqlReq.OperationName)
 		}
 		filters, _ := gqlReq.Variables["filters"].(map[string]any)
-		if filters["startDate"] == "2025-11-01" && filters["endDate"] == "2026-05-31" {
-			sawHistoryStart = true
-		}
+		sawHistoryWindow = filters["startDate"] == "2025-11-01" && filters["endDate"] == "2026-05-31"
 		return testutil.JSONResponse(`{"data":{"allTransactions":{"results":[
 			{"id":"h1","date":"2025-11-15","amount":-100,"merchant":{"name":"Cafe"},"category":{"name":"Dining"},"account":{"id":"acc"}},
 			{"id":"h2","date":"2025-12-15","amount":-100,"merchant":{"name":"Cafe"},"category":{"name":"Dining"},"account":{"id":"acc"}},
@@ -78,126 +35,81 @@ func TestAnalyzeAnomaliesJSON(t *testing.T) {
 			{"id":"h6","date":"2026-04-15","amount":-100,"merchant":{"name":"Cafe"},"category":{"name":"Dining"},"account":{"id":"acc"}},
 			{"id":"c1","date":"2026-05-03","amount":-300,"merchant":{"name":"Restaurant"},"category":{"name":"Dining"},"account":{"id":"acc"}}
 		],"totalCount":7}}}`), nil
-	})
+	}))
 
-	_ = analyzeAnomaliesCmd.Flags().Set("month", "2026-05")
-	_ = analyzeAnomaliesCmd.Flags().Set("history-months", "6")
-	_ = analyzeAnomaliesCmd.Flags().Set("min-ratio", "1.5")
-	_ = analyzeAnomaliesCmd.Flags().Set("min-amount", "100")
-	out := captureStdout(t, func() {
-		analyzeAnomaliesCmd.Run(analyzeAnomaliesCmd, nil)
-	})
-
-	if *exitCode != 0 {
-		t.Fatalf("exitCode = %d; output=%q", *exitCode, out)
+	if err := h.execute("--json", "analyze", "anomalies", "--month", "2026-05", "--history-months", "6", "--min-ratio", "1.5", "--min-amount", "100"); err != nil {
+		t.Fatalf("Execute() error = %v", err)
 	}
-	if !sawHistoryStart {
-		t.Fatal("anomalies did not request full history/current transaction window")
+	if h.ExitCode != 0 || !sawHistoryWindow {
+		t.Fatalf("exitCode=%d historyWindow=%v output=%q", h.ExitCode, sawHistoryWindow, h.Stdout.String())
 	}
-	if !strings.Contains(out, `"command":"analyze.anomalies"`) || !strings.Contains(out, `"largest_merchant":"Restaurant"`) {
-		t.Fatalf("output = %q", out)
+	if got := h.Stdout.String(); !strings.Contains(got, `"command":"analyze.anomalies"`) || !strings.Contains(got, `"largest_merchant":"Restaurant"`) {
+		t.Fatalf("output = %q", got)
 	}
 }
 
 func TestAnalyzeMerchantsRejectsUnsupportedCompare(t *testing.T) {
-	dir := t.TempDir()
-	sessionPath := filepath.Join(dir, "session.json")
-	exitCode := withAnalyzeCommandTestDefaults(t, sessionPath)
-	saveTestSession(t, sessionPath)
-
-	_ = analyzeMerchantsCmd.Flags().Set("compare", "quarter")
-	out := captureStdout(t, func() {
-		analyzeMerchantsCmd.Run(analyzeMerchantsCmd, nil)
-	})
-
-	if *exitCode == 0 {
-		t.Fatalf("exitCode = 0, want validation failure; output=%q", out)
+	h := newAppTestHarness(t, nil)
+	if err := h.execute("--json", "analyze", "merchants", "--compare", "quarter"); err != nil {
+		t.Fatalf("Execute() error = %v", err)
 	}
-	if !strings.Contains(out, "previous-month") {
-		t.Fatalf("output = %q, want supported compare guidance", out)
+	if h.ExitCode == 0 || !strings.Contains(h.Stdout.String(), "previous-month") {
+		t.Fatalf("exitCode=%d output=%q", h.ExitCode, h.Stdout.String())
 	}
 }
 
 func TestAnalyzeBurnRateJSON(t *testing.T) {
-	dir := t.TempDir()
-	sessionPath := filepath.Join(dir, "session.json")
-	exitCode := withAnalyzeCommandTestDefaults(t, sessionPath)
-	saveTestSession(t, sessionPath)
-
-	http.DefaultTransport = testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+	h := newJSONCommandHarness(t, testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		var gqlReq struct {
 			OperationName string `json:"operationName"`
 		}
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
-			t.Fatalf("Decode request error = %v", err)
+			return nil, err
 		}
 		if gqlReq.OperationName != "Common_GetJointPlanningData" {
-			t.Fatalf("operation = %q, want Common_GetJointPlanningData", gqlReq.OperationName)
+			return nil, fmt.Errorf("operation = %q", gqlReq.OperationName)
 		}
 		return testutil.JSONResponse(`{"data":{"budgetData":{"monthlyAmountsByCategory":[{"category":{"id":"cat","name":"Dining"},"monthlyAmounts":[{"month":"2026-05","plannedCashFlowAmount":600,"actualAmount":670}]}]}}}`), nil
-	})
-
-	_ = analyzeBurnRateCmd.Flags().Set("month", "2026-05")
-	out := captureStdout(t, func() {
-		analyzeBurnRateCmd.Run(analyzeBurnRateCmd, nil)
-	})
-
-	if *exitCode != 0 {
-		t.Fatalf("exitCode = %d; output=%q", *exitCode, out)
+	}))
+	if err := h.execute("--json", "analyze", "burn-rate", "--month", "2026-05"); err != nil {
+		t.Fatalf("Execute() error = %v", err)
 	}
-	if !strings.Contains(out, `"command":"analyze.burn-rate"`) || !strings.Contains(out, `"status":"overspending"`) {
-		t.Fatalf("output = %q", out)
+	if h.ExitCode != 0 || !strings.Contains(h.Stdout.String(), `"status":"overspending"`) {
+		t.Fatalf("exitCode=%d output=%q", h.ExitCode, h.Stdout.String())
 	}
 }
 
 func TestAnalyzeSubscriptionsJSON(t *testing.T) {
-	dir := t.TempDir()
-	sessionPath := filepath.Join(dir, "session.json")
-	exitCode := withAnalyzeCommandTestDefaults(t, sessionPath)
-	saveTestSession(t, sessionPath)
-
-	http.DefaultTransport = testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+	h := newJSONCommandHarness(t, testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		var gqlReq struct {
 			OperationName string         `json:"operationName"`
 			Variables     map[string]any `json:"variables"`
 		}
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
-			t.Fatalf("Decode request error = %v", err)
+			return nil, err
 		}
-		if gqlReq.OperationName != "Web_GetUpcomingRecurringTransactionItems" {
-			t.Fatalf("operation = %q, want recurring items", gqlReq.OperationName)
-		}
-		if gqlReq.Variables["startDate"] == "" || gqlReq.Variables["endDate"] == "" {
-			t.Fatalf("variables = %#v, want start/end dates", gqlReq.Variables)
+		if gqlReq.OperationName != "Web_GetUpcomingRecurringTransactionItems" || gqlReq.Variables["startDate"] == "" || gqlReq.Variables["endDate"] == "" {
+			return nil, fmt.Errorf("recurring request = %#v", gqlReq)
 		}
 		return testutil.JSONResponse(`{"data":{"recurringTransactionItems":[{"stream":{"id":"netflix","frequency":"monthly","amount":15.49,"isApproximate":false,"merchant":{"name":"Netflix"}},"date":"2026-05-01","isPast":false,"transactionId":"","amount":15.49,"amountDiff":0,"category":{"id":"cat","name":"Entertainment"},"account":{"id":"acc","displayName":"Checking"}}]}}`), nil
-	})
-
-	out := captureStdout(t, func() {
-		analyzeSubscriptionsCmd.Run(analyzeSubscriptionsCmd, nil)
-	})
-
-	if *exitCode != 0 {
-		t.Fatalf("exitCode = %d; output=%q", *exitCode, out)
+	}))
+	if err := h.execute("--json", "analyze", "subscriptions"); err != nil {
+		t.Fatalf("Execute() error = %v", err)
 	}
-	if !strings.Contains(out, `"command":"analyze.subscriptions"`) || !strings.Contains(out, `"annual":185.88`) {
-		t.Fatalf("output = %q", out)
+	if h.ExitCode != 0 || !strings.Contains(h.Stdout.String(), `"annual":185.88`) {
+		t.Fatalf("exitCode=%d output=%q", h.ExitCode, h.Stdout.String())
 	}
 }
 
 func TestAnalyzeAnomaliesRequiresAuth(t *testing.T) {
-	dir := t.TempDir()
-	sessionPath := filepath.Join(dir, "missing.json")
-	exitCode := withAnalyzeCommandTestDefaults(t, sessionPath)
-
-	out := captureStdout(t, func() {
-		analyzeAnomaliesCmd.Run(analyzeAnomaliesCmd, nil)
+	sessionPath := filepath.Join(t.TempDir(), "missing.json")
+	h := newAppTestHarness(t, func(deps *Deps) {
+		deps.LoadConfig = testConfigLoader(sessionPath, "")
 	})
-
-	if *exitCode != 3 {
-		t.Fatalf("exitCode = %d, want auth failure; output=%q", *exitCode, out)
+	if err := h.execute("--json", "analyze", "anomalies"); err != nil {
+		t.Fatalf("Execute() error = %v", err)
 	}
-	if !strings.Contains(out, "AUTH_REQUIRED") {
-		t.Fatalf("output = %q", out)
+	if h.ExitCode != 3 || !strings.Contains(h.Stdout.String(), "AUTH_REQUIRED") {
+		t.Fatalf("exitCode=%d output=%q", h.ExitCode, h.Stdout.String())
 	}
 }
