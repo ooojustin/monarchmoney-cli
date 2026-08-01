@@ -103,6 +103,24 @@ func TestAppRootRegistersMixedCommandFamilies(t *testing.T) {
 	}
 }
 
+func TestAppRootRegistersRulesAndBudgets(t *testing.T) {
+	app, _ := newTestApp(t)
+	for _, path := range [][]string{
+		{"rules", "list"},
+		{"rules", "create"},
+		{"rules", "update"},
+		{"rules", "delete"},
+		{"budgets", "list"},
+		{"budgets", "flexible", "set"},
+		{"budgets", "flex-rollover", "set"},
+	} {
+		cmd, _, err := app.Root.Find(path)
+		if err != nil || cmd == nil || cmd.Name() != path[len(path)-1] {
+			t.Fatalf("Find(%v) = %#v, %v", path, cmd, err)
+		}
+	}
+}
+
 func TestAppRootRegistersSimpleReadCommands(t *testing.T) {
 	app, _ := newTestApp(t)
 	tests := []struct {
