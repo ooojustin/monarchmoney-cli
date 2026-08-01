@@ -17,3 +17,12 @@ func TestLoadDefaults(t *testing.T) {
 		t.Errorf("APIEndpoint = %q, want %q", cfg.APIEndpoint, want)
 	}
 }
+
+func TestDefaultReturnsIndependentConfigs(t *testing.T) {
+	first := Default()
+	second := Default()
+	first.Profile = "changed"
+	if second.Profile == "changed" {
+		t.Fatal("Default returned shared config state")
+	}
+}

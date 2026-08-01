@@ -232,7 +232,7 @@ func (a *App) buildRulesListCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "rules.list", wrapError(err, "failed to load service"), start)
 				return
@@ -293,7 +293,7 @@ func (a *App) buildRulesCreateCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "rules.create", wrapError(err, "failed to load service"), start)
 				return
@@ -342,7 +342,7 @@ func (a *App) buildRulesUpdateCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "rules.update", wrapError(err, "failed to load service"), start)
 				return
@@ -388,7 +388,7 @@ func (a *App) buildRulesDeleteCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "rules.delete", wrapError(err, "failed to load service"), start)
 				return

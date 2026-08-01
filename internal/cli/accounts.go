@@ -468,7 +468,7 @@ func (a *App) buildAccountsListCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.list", wrapError(err, "failed to load service"), start)
 				return
@@ -503,7 +503,7 @@ func (a *App) buildAccountsHoldingsCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.holdings", wrapError(err, "failed to load service"), start)
 				return
@@ -550,7 +550,7 @@ func (a *App) buildAccountsBalanceAtCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.balance-at", wrapError(err, "failed to load service"), start)
 				return
@@ -594,7 +594,7 @@ func (a *App) buildAccountsHistoryCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.history", wrapError(err, "failed to load service"), start)
 				return
@@ -644,7 +644,7 @@ func (a *App) buildAccountsRefreshCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.refresh", wrapError(err, "failed to load service"), start)
 				return
@@ -742,7 +742,7 @@ func (a *App) buildAccountsUpdateCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.update", wrapError(err, "failed to load service"), start)
 				return
@@ -791,7 +791,7 @@ func (a *App) buildAccountsDeleteCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.delete", wrapError(err, "failed to load service"), start)
 				return
@@ -839,7 +839,7 @@ func (a *App) buildAccountsCreateManualCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.create-manual", wrapError(err, "failed to load service"), start)
 				return
@@ -902,7 +902,7 @@ func (a *App) buildAccountsUploadHistoryCommand() *cobra.Command {
 				}
 			}()
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.upload-history", wrapError(err, "failed to load service"), start)
 				return
@@ -934,7 +934,7 @@ func (a *App) buildAccountsShowCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.show", wrapError(err, "failed to load service"), start)
 				return
@@ -969,7 +969,7 @@ func (a *App) buildAccountsTypesCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.types", wrapError(err, "failed to load service"), start)
 				return
@@ -1002,7 +1002,7 @@ func (a *App) buildAccountsRefreshStatusCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.refresh-status", wrapError(err, "failed to load service"), start)
 				return
@@ -1043,7 +1043,7 @@ func (a *App) buildAccountsRecentBalancesCommand() *cobra.Command {
 				effectiveFrom = time.Now().AddDate(0, 0, -31).Format("2006-01-02")
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.recent-balances", wrapError(err, "failed to load service"), start)
 				return
@@ -1086,7 +1086,7 @@ func (a *App) buildAccountsSnapshotsCommand() *cobra.Command {
 				effectiveFrom = time.Now().AddDate(-1, 0, 0).Format("2006-01-02")
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.snapshots", wrapError(err, "failed to load service"), start)
 				return
@@ -1126,7 +1126,7 @@ func (a *App) buildAccountsAggregateSnapshotsCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.aggregate-snapshots", wrapError(err, "failed to load service"), start)
 				return
@@ -1167,7 +1167,7 @@ func (a *App) buildNetworthCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "networth", wrapError(err, "failed to load service"), start)
 				return

@@ -310,7 +310,7 @@ locally so agents do not need to group transactions themselves.`,
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "analyze.anomalies", wrapError(err, "failed to load service"), start)
 				return
@@ -373,7 +373,7 @@ the services are wasteful.`,
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "analyze.subscriptions", wrapError(err, "failed to load service"), start)
 				return
@@ -427,7 +427,7 @@ expense_previous, change_pct, and direction with stable semantics for agents.`,
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "analyze.merchants", wrapError(err, "failed to load service"), start)
 				return
@@ -484,7 +484,7 @@ math. It does not re-sum transactions or make subjective budget advice.`,
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "analyze.burn-rate", wrapError(err, "failed to load service"), start)
 				return

@@ -90,7 +90,7 @@ func (a *App) buildGoalsListCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "goals.list", wrapError(err, "failed to load service"), start)
 				return
@@ -124,7 +124,7 @@ func (a *App) buildGoalsBudgetsCommand() *cobra.Command {
 		Run: func(cmd *cobra.Command, _ []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "goals.budgets", wrapError(err, "failed to load service"), start)
 				return

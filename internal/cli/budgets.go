@@ -313,7 +313,7 @@ func (a *App) buildBudgetsListCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "budgets.list", wrapError(err, "failed to load service"), start)
 				return
@@ -379,7 +379,7 @@ func (a *App) buildBudgetsSetCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "budgets.set", wrapError(err, "failed to load service"), start)
 				return
@@ -439,7 +439,7 @@ func (a *App) buildBudgetsResetCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "budgets.reset", wrapError(err, "failed to load service"), start)
 				return
@@ -483,7 +483,7 @@ func (a *App) buildBudgetsShowCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "budgets.show", wrapError(err, "failed to load service"), start)
 				return
@@ -523,7 +523,7 @@ func (a *App) buildBudgetsExportCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), true, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "budgets.export", wrapError(err, "failed to load service"), start)
 				return
@@ -589,7 +589,7 @@ func (a *App) buildBudgetsFlexibleSetCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "budgets.flexible.set", wrapError(err, "failed to load service"), start)
 				return
@@ -649,7 +649,7 @@ func (a *App) buildBudgetsFlexRolloverSetCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "budgets.flex-rollover.set", wrapError(err, "failed to load service"), start)
 				return

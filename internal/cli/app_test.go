@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	stderrors "errors"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -46,6 +47,7 @@ func TestNewBuildsIndependentRoots(t *testing.T) {
 func TestAppConfigPrecedence(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	app, _ := newTestApp(t)
+	loadCalls := 0
 	app.Deps.Getenv = func(key string) string {
 		if key == "MONARCH_CONFIG" {
 			return configPath
@@ -53,6 +55,7 @@ func TestAppConfigPrecedence(t *testing.T) {
 		return ""
 	}
 	app.Deps.LoadConfig = func(path string) (*config.Config, error) {
+		loadCalls++
 		if path != configPath {
 			t.Fatalf("LoadConfig(%q), want %q", path, configPath)
 		}
@@ -65,8 +68,39 @@ func TestAppConfigPrecedence(t *testing.T) {
 	if app.Flags.Profile != "config-profile" || app.Flags.Timeout != time.Minute || !app.Flags.ReadOnly {
 		t.Fatalf("Flags = %#v", app.Flags)
 	}
-	if app.Deps.SessionPath() != "/tmp/session.json" {
-		t.Fatalf("SessionPath() = %q", app.Deps.SessionPath())
+	if loadCalls != 1 {
+		t.Fatalf("LoadConfig calls = %d, want 1", loadCalls)
+	}
+	if app.sessionPath() != "/tmp/session.json" {
+		t.Fatalf("sessionPath() = %q", app.sessionPath())
+	}
+}
+
+func TestAppConfigFlagOverridesEnvironment(t *testing.T) {
+	flagPath := filepath.Join(t.TempDir(), "flag.yaml")
+	envPath := filepath.Join(t.TempDir(), "env.yaml")
+	app, _ := newTestApp(t)
+	app.Deps.Getenv = func(key string) string {
+		if key == "MONARCH_CONFIG" {
+			return envPath
+		}
+		return ""
+	}
+	loadCalls := 0
+	app.Deps.LoadConfig = func(path string) (*config.Config, error) {
+		loadCalls++
+		if path != flagPath {
+			t.Fatalf("LoadConfig(%q), want %q", path, flagPath)
+		}
+		return config.Default(), nil
+	}
+
+	app.Root.SetArgs([]string{"--config", flagPath, "version"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if loadCalls != 1 {
+		t.Fatalf("LoadConfig calls = %d, want 1", loadCalls)
 	}
 }
 
@@ -81,6 +115,36 @@ func TestAppFlagsOverrideConfig(t *testing.T) {
 	}
 	if app.Flags.Profile != "flag-profile" || app.Flags.Timeout != 2*time.Minute || app.Flags.ReadOnly {
 		t.Fatalf("Flags = %#v", app.Flags)
+	}
+}
+
+func TestAppRemoteCommandRejectsConfigError(t *testing.T) {
+	var out bytes.Buffer
+	exitCode := 0
+	app := New(Deps{
+		LoadConfig: func(string) (*config.Config, error) {
+			return config.Default(), stderrors.New("malformed config")
+		},
+		Getenv:       func(string) string { return "" },
+		NewRequestID: func() string { return "request-id" },
+		Stdout:       &out,
+		Stderr:       io.Discard,
+		Exit:         func(code int) { exitCode = code },
+		HTTPTransport: testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+			t.Fatal("remote command should fail before making a request")
+			return nil, nil
+		}),
+	})
+
+	app.Root.SetArgs([]string{"--json", "credit", "history"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if exitCode == 0 {
+		t.Fatalf("exitCode = 0; output=%q", out.String())
+	}
+	if got := out.String(); !strings.Contains(got, `"command":"credit.history"`) || !strings.Contains(got, "failed to load config") {
+		t.Fatalf("output = %q, want config error envelope", got)
 	}
 }
 

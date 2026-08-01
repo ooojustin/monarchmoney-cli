@@ -292,7 +292,7 @@ func (a *App) buildCacheSyncCommand() *cobra.Command {
 				}
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "cache.sync", wrapError(err, "failed to load service"), start)
 				return

@@ -940,7 +940,7 @@ func (a *App) buildTransactionsListCommand(startDate, endDate *string) *cobra.Co
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.list", wrapError(err, "failed to load service"), start)
 				return
@@ -985,7 +985,7 @@ func (a *App) buildTransactionsSearchCommand(startDate, endDate *string) *cobra.
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.search", wrapError(err, "failed to load service"), start)
 				return
@@ -1030,7 +1030,7 @@ func (a *App) buildTransactionsDuplicatesCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.duplicates", wrapError(err, "failed to load service"), start)
 				return
@@ -1069,7 +1069,7 @@ func (a *App) buildTransactionsSplitsCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.splits", wrapError(err, "failed to load service"), start)
 				return
@@ -1119,7 +1119,7 @@ func (a *App) buildTransactionsUpdateCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.update", wrapError(err, "failed to load service"), start)
 				return
@@ -1167,7 +1167,7 @@ func (a *App) buildTransactionsDeleteCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.delete", wrapError(err, "failed to load service"), start)
 				return
@@ -1215,7 +1215,7 @@ func (a *App) buildTransactionsCreateCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.create", wrapError(err, "failed to load service"), start)
 				return
@@ -1277,7 +1277,7 @@ func (a *App) buildTransactionsSplitCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.split", wrapError(err, "failed to load service"), start)
 				return
@@ -1313,7 +1313,7 @@ func (a *App) buildTransactionsExportCommand(startDate, endDate *string) *cobra.
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.export", wrapError(err, "failed to load service"), start)
 				return
@@ -1391,7 +1391,7 @@ func (a *App) buildTransactionsTagsSetCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.tags.set", wrapError(err, "failed to load service"), start)
 				return
@@ -1437,7 +1437,7 @@ func (a *App) buildTransactionsAttachmentsListCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.attachments.list", wrapError(err, "failed to load service"), start)
 				return
@@ -1486,7 +1486,7 @@ func (a *App) buildTransactionsAttachmentsDownloadCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.attachments.download", wrapError(err, "failed to load service"), start)
 				return
@@ -1555,7 +1555,7 @@ func (a *App) buildTransactionsShowCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.show", wrapError(err, "failed to load service"), start)
 				return
@@ -1591,7 +1591,7 @@ func (a *App) buildTransactionsSummaryCommand(startDate, endDate *string) *cobra
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.summary", wrapError(err, "failed to load service"), start)
 				return
@@ -1635,7 +1635,7 @@ func (a *App) buildTransactionsTagsClearCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.tags.clear", wrapError(err, "failed to load service"), start)
 				return
@@ -1679,7 +1679,7 @@ func (a *App) buildTransactionsTagsAddCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.tags.add", wrapError(err, "failed to load service"), start)
 				return
@@ -1766,7 +1766,7 @@ func (a *App) buildTransactionsBulkCategorizeCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.bulk-categorize", wrapError(err, "failed to load service"), start)
 				return

@@ -34,6 +34,11 @@ func defaults() *Config {
 	}
 }
 
+// Default returns a new Config populated with built-in defaults.
+func Default() *Config {
+	return defaults()
+}
+
 func Load(path string) (*Config, error) {
 	cfg := defaults()
 

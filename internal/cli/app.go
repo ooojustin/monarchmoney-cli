@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,12 +20,6 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/version"
 	"golang.org/x/term"
 )
-
-type GraphQLClient interface {
-	Do(context.Context, *graphql.Request, any) error
-	DoMutation(context.Context, *graphql.Request, any) error
-	TokenValue() string
-}
 
 type App struct {
 	Deps      Deps
@@ -57,14 +49,7 @@ type Deps struct {
 	NewRequestID  func() string
 	HTTPTransport http.RoundTripper
 
-	ConfigPath   func() string
-	SessionPath  func() string
-	NewStore     func(path string) *auth.Store
-	Authenticate func(email, password, mfaCode, mfaSecret string) (*auth.Session, error)
-	NewClient    func(endpoint, token string, timeout time.Duration) *graphql.Client
-	NewService   func(client GraphQLClient) *monarch.Service
-	LoadService  func() (*monarch.Service, *auth.Session, error)
-	WriteAudit   func(record *audit.Record) error
+	WriteAudit func(record *audit.Record) error
 
 	Stdout       io.Writer
 	Stderr       io.Writer
@@ -72,8 +57,6 @@ type Deps struct {
 	ReadPassword func(fd int) ([]byte, error)
 	IsTerminal   func(fd int) bool
 	Exit         func(code int)
-
-	JSONUnmarshal func([]byte, any) error
 }
 
 func DefaultDeps() Deps {
@@ -81,18 +64,15 @@ func DefaultDeps() Deps {
 		LoadConfig:   config.Load,
 		Getenv:       os.Getenv,
 		NewRequestID: uuid.NewString,
-		NewStore:     auth.NewStore,
-		Authenticate: auth.Authenticate,
 		WriteAudit: func(record *audit.Record) error {
 			return audit.NewLogger().Log(record)
 		},
-		Stdout:        os.Stdout,
-		Stderr:        os.Stderr,
-		Stdin:         os.Stdin,
-		ReadPassword:  term.ReadPassword,
-		IsTerminal:    term.IsTerminal,
-		Exit:          os.Exit,
-		JSONUnmarshal: json.Unmarshal,
+		Stdout:       os.Stdout,
+		Stderr:       os.Stderr,
+		Stdin:        os.Stdin,
+		ReadPassword: term.ReadPassword,
+		IsTerminal:   term.IsTerminal,
+		Exit:         os.Exit,
 	}
 }
 
@@ -107,12 +87,6 @@ func New(deps Deps) *App {
 	}
 	if a.Deps.NewRequestID == nil {
 		a.Deps.NewRequestID = defaults.NewRequestID
-	}
-	if a.Deps.NewStore == nil {
-		a.Deps.NewStore = defaults.NewStore
-	}
-	if a.Deps.Authenticate == nil {
-		a.Deps.Authenticate = defaults.Authenticate
 	}
 	if a.Deps.Stdout == nil {
 		a.Deps.Stdout = defaults.Stdout
@@ -135,46 +109,6 @@ func New(deps Deps) *App {
 	if a.Deps.WriteAudit == nil {
 		a.Deps.WriteAudit = defaults.WriteAudit
 	}
-	if a.Deps.JSONUnmarshal == nil {
-		a.Deps.JSONUnmarshal = defaults.JSONUnmarshal
-	}
-	if a.Deps.ConfigPath == nil {
-		a.Deps.ConfigPath = func() string {
-			if a.Flags.Config != "" {
-				return a.Flags.Config
-			}
-			if path := a.Deps.Getenv("MONARCH_CONFIG"); path != "" {
-				return path
-			}
-			return config.DefaultConfigPath()
-		}
-	}
-	if a.Deps.SessionPath == nil {
-		a.Deps.SessionPath = func() string {
-			if a.Config != nil && a.Config.SessionPath != "" {
-				return a.Config.SessionPath
-			}
-			cfg, _ := a.Deps.LoadConfig(a.Deps.ConfigPath())
-			if cfg != nil && cfg.SessionPath != "" {
-				return cfg.SessionPath
-			}
-			return config.DefaultSessionPath()
-		}
-	}
-	if a.Deps.NewClient == nil {
-		a.Deps.NewClient = func(endpoint, token string, timeout time.Duration) *graphql.Client {
-			return graphql.NewClient(endpoint, token, timeout, graphql.WithHTTPTransport(a.Deps.HTTPTransport))
-		}
-	}
-	if a.Deps.NewService == nil {
-		a.Deps.NewService = func(client GraphQLClient) *monarch.Service {
-			return monarch.NewService(client, monarch.WithHTTPTransport(a.Deps.HTTPTransport))
-		}
-	}
-	if a.Deps.LoadService == nil {
-		a.Deps.LoadService = a.loadService
-	}
-
 	a.Root = a.buildRoot()
 	return a
 }
@@ -259,9 +193,13 @@ func (a *App) prepareRuntime(cmd *cobra.Command) {
 	if !persistentFlagChanged(cmd, "config") {
 		a.Flags.Config = a.Deps.Getenv("MONARCH_CONFIG")
 	}
-	a.Config, a.ConfigErr = a.Deps.LoadConfig(a.Deps.ConfigPath())
+	a.Flags.Config = a.configPath()
+	a.Config, a.ConfigErr = a.Deps.LoadConfig(a.Flags.Config)
 	if a.Config == nil {
-		a.Config, _ = config.Load("")
+		a.Config = config.Default()
+		if a.ConfigErr == nil {
+			a.ConfigErr = fmt.Errorf("config loader returned nil config")
+		}
 	}
 	if !persistentFlagChanged(cmd, "profile") {
 		a.Flags.Profile = a.Config.Profile
@@ -294,6 +232,20 @@ func (a *App) prepareRuntime(cmd *cobra.Command) {
 	syncLegacyGlobals(a.Flags)
 }
 
+func (a *App) configPath() string {
+	if a.Flags.Config != "" {
+		return a.Flags.Config
+	}
+	return config.DefaultConfigPath()
+}
+
+func (a *App) sessionPath() string {
+	if a.Config != nil && a.Config.SessionPath != "" {
+		return a.Config.SessionPath
+	}
+	return config.DefaultSessionPath()
+}
+
 func (a *App) buildVersion() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
@@ -313,19 +265,19 @@ func (a *App) loadService() (*monarch.Service, *auth.Session, error) {
 	if a.Config == nil {
 		return nil, nil, clierrors.New(clierrors.InternalError, "configuration not initialized", clierrors.CatInternal, false, nil)
 	}
-	store := a.Deps.NewStore(a.Deps.SessionPath())
+	store := auth.NewStore(a.sessionPath())
 	sess, err := store.Load()
 	if err != nil {
 		return nil, nil, clierrors.New(clierrors.AuthRequired, "not logged in", clierrors.CatAuth, false, err)
 	}
-	client := a.Deps.NewClient(a.Config.APIEndpoint, sess.Token, a.Config.Timeout)
-	return a.Deps.NewService(client), sess, nil
+	client := graphql.NewClient(a.Config.APIEndpoint, sess.Token, a.Flags.Timeout, graphql.WithHTTPTransport(a.Deps.HTTPTransport))
+	return monarch.NewService(client, monarch.WithHTTPTransport(a.Deps.HTTPTransport)), sess, nil
 }
 
 func (a *App) handleError(renderer *output.Renderer, command string, err *clierrors.Error, start time.Time) {
 	if err != nil && err.Code == clierrors.AuthSessionExpired {
-		path := a.Deps.SessionPath()
-		if sess, loadErr := a.Deps.NewStore(path).Load(); loadErr == nil {
+		path := a.sessionPath()
+		if sess, loadErr := auth.NewStore(path).Load(); loadErr == nil {
 			message := fmt.Sprintf("session token stored at %s expired or invalid; run `monarch auth login` again", path)
 			if sess.Email != "" {
 				message = fmt.Sprintf("session token for %s stored at %s expired or invalid; run `monarch auth login` again", sess.Email, path)

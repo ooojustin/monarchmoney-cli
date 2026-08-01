@@ -4,10 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/thedavidweng/monarchmoney-cli/internal/config"
 	clierrors "github.com/thedavidweng/monarchmoney-cli/internal/errors"
+	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 )
 
@@ -212,20 +215,30 @@ func trimNewline(s string) string {
 	return s
 }
 
-func TestDefaultDepsComposesInjectedTransport(t *testing.T) {
+func TestAppLoadServiceComposesInjectedTransport(t *testing.T) {
 	transport := &http.Transport{}
-	deps := DefaultDeps()
-	deps.HTTPTransport = transport
-	app := New(deps)
-
-	client := app.Deps.NewClient("https://example.com/graphql", "token", time.Second)
-	if client.HTTP.Transport != transport {
-		t.Fatal("default GraphQL client did not use injected transport")
+	sessionPath := filepath.Join(t.TempDir(), "session.json")
+	saveTestSession(t, sessionPath)
+	app := New(Deps{HTTPTransport: transport})
+	app.Config = &config.Config{
+		APIEndpoint: "https://example.com/graphql",
+		SessionPath: sessionPath,
 	}
+	app.Flags.Timeout = time.Second
 
-	service := app.Deps.NewService(client)
+	service, _, err := app.loadService()
+	if err != nil {
+		t.Fatalf("loadService() error = %v", err)
+	}
+	client, ok := service.Client.(*graphql.Client)
+	if !ok {
+		t.Fatalf("service client type = %T", service.Client)
+	}
+	if client.HTTP.Transport != transport {
+		t.Fatal("GraphQL client did not use injected transport")
+	}
 	if service.HTTPClient.Transport != transport {
-		t.Fatal("default service HTTP client did not use injected transport")
+		t.Fatal("service HTTP client did not use injected transport")
 	}
 	if service.AttachmentHTTPClient.Transport != transport {
 		t.Fatal("default attachment client did not use injected transport")

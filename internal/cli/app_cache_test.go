@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	stderrors "errors"
 	"io"
 	"net/http"
 	"os"
@@ -16,14 +17,18 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/testutil"
 )
 
-func newTestCacheApp(t *testing.T, cachePath string, transport http.RoundTripper, exitCode *int) (*App, *bytes.Buffer, *bytes.Buffer) {
+func newTestCacheApp(t *testing.T, cachePath string, transport http.RoundTripper, exitCode *int, sessionPaths ...string) (*App, *bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
+	sessionPath := config.DefaultSessionPath()
+	if len(sessionPaths) > 0 {
+		sessionPath = sessionPaths[0]
+	}
 
 	var out bytes.Buffer
 	var errOut bytes.Buffer
 	app := New(Deps{
 		LoadConfig: func(string) (*config.Config, error) {
-			return &config.Config{Profile: "default", APIEndpoint: "https://example.invalid/graphql", Timeout: time.Second, SessionPath: config.DefaultSessionPath(), CachePath: cachePath, AuditLog: true}, nil
+			return &config.Config{Profile: "default", APIEndpoint: "https://example.invalid/graphql", Timeout: time.Second, SessionPath: sessionPath, CachePath: cachePath, AuditLog: true}, nil
 		},
 		Getenv:        func(string) string { return "" },
 		NewRequestID:  func() string { return "request-id" },
@@ -131,8 +136,7 @@ func TestAppCacheSyncUsesInjectedDepsAndConfiguredCache(t *testing.T) {
 			t.Fatalf("unexpected operation %q", gqlReq.OperationName)
 		}
 		return nil, nil
-	}), &exitCode)
-	app.Deps.SessionPath = func() string { return sessionPath }
+	}), &exitCode, sessionPath)
 
 	app.Root.SetArgs([]string{"--json", "cache", "sync", "--from", "2026-01-01", "--limit", "2"})
 	if err := app.Execute(); err != nil {
@@ -200,8 +204,7 @@ func TestAppCacheSyncAllPaginates(t *testing.T) {
 			t.Fatalf("unexpected operation %q", gqlReq.OperationName)
 		}
 		return nil, nil
-	}), &exitCode)
-	app.Deps.SessionPath = func() string { return sessionPath }
+	}), &exitCode, sessionPath)
 
 	app.Root.SetArgs([]string{"--json", "cache", "sync", "--all", "--limit", "1"})
 	if err := app.Execute(); err != nil {
@@ -281,7 +284,6 @@ func TestAppCacheValidationBeforeSideEffects(t *testing.T) {
 		t.Fatal("cache sync should validate --from before API requests")
 		return nil, nil
 	}), &exitCode)
-	app.Deps.SessionPath = func() string { return filepath.Join(dir, "missing-session.json") }
 	app.Root.SetArgs([]string{"--json", "cache", "sync", "--from", "01-01-2026"})
 	if err := app.Execute(); err != nil {
 		t.Fatalf("Execute(sync) error = %v", err)
@@ -332,8 +334,7 @@ func TestAppCacheSyncFailsWhenTransactionsAPIFails(t *testing.T) {
 			t.Fatalf("unexpected operation %q", gqlReq.OperationName)
 		}
 		return nil, nil
-	}), &exitCode)
-	app.Deps.SessionPath = func() string { return sessionPath }
+	}), &exitCode, sessionPath)
 
 	app.Root.SetArgs([]string{"--json", "cache", "sync"})
 	if err := app.Execute(); err != nil {
@@ -383,5 +384,34 @@ func TestAppCacheStatsJSONShape(t *testing.T) {
 	}
 	if !env.OK || env.Meta.Command != "cache.stats" || env.Data["transactions"] != float64(1) {
 		t.Fatalf("stats envelope = %#v", env)
+	}
+}
+
+func TestAppCacheLocalCommandUsesConfigDespiteLoadError(t *testing.T) {
+	cachePath := filepath.Join(t.TempDir(), "cache.sqlite")
+	store, err := cache.NewStore(cachePath)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	exitCode := 0
+	app, out, _ := newTestCacheApp(t, cachePath, nil, &exitCode)
+	app.Deps.LoadConfig = func(string) (*config.Config, error) {
+		cfg := config.Default()
+		cfg.CachePath = cachePath
+		return cfg, stderrors.New("malformed config")
+	}
+	app.Root.SetArgs([]string{"--json", "cache", "stats"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d; output=%q", exitCode, out.String())
+	}
+	if !strings.Contains(out.String(), `"command":"cache.stats"`) {
+		t.Fatalf("output = %q, want cache stats envelope", out.String())
 	}
 }

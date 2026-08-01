@@ -121,7 +121,7 @@ func (a *App) buildInvestmentsPortfolioCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "investments.portfolio", wrapError(err, "failed to load service"), start)
 				return
@@ -184,7 +184,7 @@ func (a *App) buildInvestmentsPerformanceCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "investments.performance", wrapError(err, "failed to load service"), start)
 				return

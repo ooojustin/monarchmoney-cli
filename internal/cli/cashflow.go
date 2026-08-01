@@ -218,7 +218,7 @@ func (a *App) buildCashflowSummaryCommand(startDate, endDate *string) *cobra.Com
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "cashflow.summary", wrapError(err, "failed to load service"), start)
 				return
@@ -254,7 +254,7 @@ func (a *App) buildCashflowCategoriesCommand(startDate, endDate *string) *cobra.
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "cashflow.categories", wrapError(err, "failed to load service"), start)
 				return
@@ -289,7 +289,7 @@ func (a *App) buildCashflowMerchantsCommand(startDate, endDate *string) *cobra.C
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "cashflow.merchants", wrapError(err, "failed to load service"), start)
 				return
@@ -348,7 +348,7 @@ func (a *App) buildCashflowTrendsCommand(startDate, endDate, groupBy, period *st
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "cashflow.trends", wrapError(err, "failed to load service"), start)
 				return
@@ -393,7 +393,7 @@ func (a *App) buildCashflowListCommand(startDate, endDate *string) *cobra.Comman
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "cashflow.list", wrapError(err, "failed to load service"), start)
 				return
@@ -495,7 +495,7 @@ func (a *App) buildCashflowSpendingCommand(startDate, endDate *string) *cobra.Co
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "cashflow.spending", wrapError(err, "failed to load service"), start)
 				return

@@ -288,7 +288,7 @@ func (a *App) buildCategoriesListCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "categories.list", wrapError(err, "failed to load service"), start)
 				return
@@ -322,7 +322,7 @@ func (a *App) buildCategoriesGroupsCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "categories.groups", wrapError(err, "failed to load service"), start)
 				return
@@ -387,7 +387,7 @@ func (a *App) buildCategoriesUpdateCommand() *cobra.Command {
 				a.renderPlan(renderer, "categories.update", plan, start)
 				return
 			}
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "categories.update", wrapError(err, "failed to load service"), start)
 				return
@@ -421,7 +421,7 @@ func (a *App) buildCategoriesRolloverCommand() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "categories.rollover", wrapError(err, "failed to load service"), start)
 				return
@@ -493,7 +493,7 @@ func (a *App) buildCategoriesGroupUpdateCommand() *cobra.Command {
 				a.renderPlan(renderer, "categories.groups.update", plan, start)
 				return
 			}
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "categories.groups.update", wrapError(err, "failed to load service"), start)
 				return
@@ -545,7 +545,7 @@ func (a *App) buildCategoriesCreateCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "categories.create", wrapError(err, "failed to load service"), start)
 				return
@@ -596,7 +596,7 @@ func (a *App) buildCategoriesDeleteCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "categories.delete", wrapError(err, "failed to load service"), start)
 				return
@@ -665,7 +665,7 @@ func (a *App) buildCategoriesDeleteManyCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "categories.delete-many", wrapError(err, "failed to load service"), start)
 				return

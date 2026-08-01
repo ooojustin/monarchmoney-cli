@@ -84,7 +84,7 @@ func (a *App) buildTagsListCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "tags.list", wrapError(err, "failed to load service"), start)
 				return
@@ -134,7 +134,7 @@ func (a *App) buildTagsCreateCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.Deps.LoadService()
+			svc, _, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "tags.create", wrapError(err, "failed to load service"), start)
 				return
