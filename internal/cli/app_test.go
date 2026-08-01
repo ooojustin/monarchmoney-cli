@@ -84,6 +84,25 @@ func TestAppFlagsOverrideConfig(t *testing.T) {
 	}
 }
 
+func TestAppRootRegistersMixedCommandFamilies(t *testing.T) {
+	app, _ := newTestApp(t)
+	for _, path := range [][]string{
+		{"categories", "list"},
+		{"categories", "update"},
+		{"categories", "rollover"},
+		{"categories", "groups", "update"},
+		{"recurring", "list"},
+		{"recurring", "update"},
+		{"tags", "list"},
+		{"tags", "create"},
+	} {
+		cmd, _, err := app.Root.Find(path)
+		if err != nil || cmd == nil || cmd.Name() != path[len(path)-1] {
+			t.Fatalf("Find(%v) = %#v, %v", path, cmd, err)
+		}
+	}
+}
+
 func TestAppRootRegistersSimpleReadCommands(t *testing.T) {
 	app, _ := newTestApp(t)
 	tests := []struct {

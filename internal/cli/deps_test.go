@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
 	"testing"
 	"time"
 
@@ -209,4 +210,24 @@ func trimNewline(s string) string {
 		s = s[:len(s)-1]
 	}
 	return s
+}
+
+func TestDefaultDepsComposesInjectedTransport(t *testing.T) {
+	transport := &http.Transport{}
+	deps := DefaultDeps()
+	deps.HTTPTransport = transport
+	app := New(deps)
+
+	client := app.Deps.NewClient("https://example.com/graphql", "token", time.Second)
+	if client.HTTP.Transport != transport {
+		t.Fatal("default GraphQL client did not use injected transport")
+	}
+
+	service := app.Deps.NewService(client)
+	if service.HTTPClient.Transport != transport {
+		t.Fatal("default service HTTP client did not use injected transport")
+	}
+	if service.AttachmentHTTPClient.Transport != transport {
+		t.Fatal("default attachment client did not use injected transport")
+	}
 }
