@@ -37,7 +37,7 @@ func saveTestSession(t *testing.T, sessionPath string) {
 func TestWriteVersion(t *testing.T) {
 	t.Run("plain text", func(t *testing.T) {
 		var buf bytes.Buffer
-		if err := writeVersion(&buf, "default", false, false, time.Second); err != nil {
+		if err := writeVersion(&buf, "default", false, false, "request-id", time.Second); err != nil {
 			t.Fatalf("writeVersion() error = %v", err)
 		}
 		got := buf.String()
@@ -48,7 +48,7 @@ func TestWriteVersion(t *testing.T) {
 
 	t.Run("compact json", func(t *testing.T) {
 		var buf bytes.Buffer
-		if err := writeVersion(&buf, "default", true, false, time.Second); err != nil {
+		if err := writeVersion(&buf, "default", true, false, "request-id", time.Second); err != nil {
 			t.Fatalf("writeVersion() error = %v", err)
 		}
 		var got struct {
@@ -74,7 +74,7 @@ func TestWriteVersion(t *testing.T) {
 
 	t.Run("pretty json", func(t *testing.T) {
 		var buf bytes.Buffer
-		if err := writeVersion(&buf, "default", true, true, time.Second); err != nil {
+		if err := writeVersion(&buf, "default", true, true, "request-id", time.Second); err != nil {
 			t.Fatalf("writeVersion() error = %v", err)
 		}
 		got := buf.String()

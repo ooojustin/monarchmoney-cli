@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
@@ -62,8 +61,7 @@ func (s *Service) DownloadAttachment(ctx context.Context, url string, w io.Write
 		return errors.New(errors.InternalError, "failed to create download request", errors.CatInternal, false, err)
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := s.attachmentHTTPClient().Do(req)
 	if err != nil {
 		return errors.New(errors.NetworkUnreachable, "failed to reach attachment URL", errors.CatNetwork, true, err)
 	}

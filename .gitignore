@@ -38,6 +38,7 @@ Thumbs.db
 .idea/
 .cursor/
 .claude/
+.tools/
 MEMORY.md
 
 # Project Specific
@@ -58,4 +59,3 @@ build/
 out/
 /output/
 coverage/
-

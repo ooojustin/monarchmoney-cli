@@ -42,16 +42,38 @@ type Client struct {
 	HTTP     *http.Client
 }
 
+type clientOptions struct {
+	transport http.RoundTripper
+}
+
+type ClientOption func(*clientOptions)
+
+func WithHTTPTransport(transport http.RoundTripper) ClientOption {
+	return func(options *clientOptions) {
+		if transport != nil {
+			options.transport = transport
+		}
+	}
+}
+
 func (c *Client) TokenValue() string {
 	return c.Token
 }
 
-func NewClient(endpoint, token string, timeout time.Duration) *Client {
+func NewClient(endpoint, token string, timeout time.Duration, opts ...ClientOption) *Client {
+	options := clientOptions{}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&options)
+		}
+	}
 	httpClient := &http.Client{
 		Timeout:       timeout,
 		CheckRedirect: rejectRedirects,
 	}
-	if transport, ok := http.DefaultTransport.(*http.Transport); ok {
+	if options.transport != nil {
+		httpClient.Transport = options.transport
+	} else if transport, ok := http.DefaultTransport.(*http.Transport); ok {
 		cloned := transport.Clone()
 		cloned.MaxIdleConns = 16
 		cloned.MaxIdleConnsPerHost = 8

@@ -29,7 +29,7 @@ func TestBannerLineCount(t *testing.T) {
 func TestBannerUsedInVersionOutput(t *testing.T) {
 	// Verify that writeVersion includes the banner in plain text mode.
 	var buf bytes.Buffer
-	if err := writeVersion(&buf, "default", false, false, 0); err != nil {
+	if err := writeVersion(&buf, "default", false, false, "request-id", 0); err != nil {
 		t.Fatalf("writeVersion() error = %v", err)
 	}
 	got := buf.String()

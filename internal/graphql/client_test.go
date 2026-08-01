@@ -24,6 +24,19 @@ func TestNewClient(t *testing.T) {
 	}
 }
 
+func TestNewClientUsesInjectedTransport(t *testing.T) {
+	transport := testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, errors.New("unused")
+	})
+	client := NewClient("https://example.invalid/graphql", "token", time.Second, WithHTTPTransport(transport))
+	if client.HTTP.Transport == nil {
+		t.Fatal("NewClient() HTTP.Transport is nil")
+	}
+	if client.HTTP.CheckRedirect == nil {
+		t.Fatal("NewClient() HTTP.CheckRedirect is nil")
+	}
+}
+
 func TestTokenValue(t *testing.T) {
 	client := NewClient("https://example.invalid/graphql", "token", time.Second)
 	if got := client.TokenValue(); got != "token" {

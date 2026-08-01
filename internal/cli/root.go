@@ -6,10 +6,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
-	"github.com/thedavidweng/monarchmoney-cli/internal/config"
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 	"github.com/thedavidweng/monarchmoney-cli/internal/version"
@@ -29,53 +27,13 @@ var (
 	requestID string
 )
 
-var RootCmd = &cobra.Command{
-	Use:     "monarch",
-	Short:   "A local, agent-friendly CLI for Monarch Money",
-	Version: version.GetVersion(),
-	Long: `monarchmoney-cli is a single-binary command line tool for working with
-Monarch Money data from your terminal, scripts, and local agents.`,
-	Example: `  monarch accounts list --json
-  monarch transactions search "Amazon" --from 2024-01-01
-  monarch transactions update tx_123 --category cat_food --dry-run
-  monarch cashflow spending --from 2024-01-01 --to 2024-01-31
-  monarch rules list --json`,
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		requestID = uuid.NewString()
-
-		if cfgFile == "" {
-			cfgFile = os.Getenv("MONARCH_CONFIG")
-		}
-
-		cfg, _ := config.Load(cfgFile)
-
-		jsonMode = jsonMode || envBool("MONARCH_JSON")
-		pretty = pretty || envBool("MONARCH_PRETTY")
-		events = events || envBool("MONARCH_EVENTS")
-		readOnly = readOnly || envBool("MONARCH_READONLY") || envBool("MONARCH_READ_ONLY")
-		dryRun = dryRun || envBool("MONARCH_DRY_RUN")
-		confirm = confirm || envBool("MONARCH_CONFIRM")
-		verbose = verbose || envBool("MONARCH_VERBOSE")
-
-		if !persistentFlagChanged(cmd, "profile") {
-			profile = cfg.Profile
-		}
-		if !persistentFlagChanged(cmd, "timeout") {
-			timeout = cfg.Timeout
-		}
-	},
-}
+var defaultApp = New(DefaultDeps())
+var RootCmd = defaultApp.Root
 
 func must(err error) {
 	if err != nil {
 		panic(err)
 	}
-}
-
-func envBool(key string) bool {
-	return config.ParseBool(os.Getenv(key))
 }
 
 func persistentFlagChanged(cmd *cobra.Command, name string) bool {
@@ -84,7 +42,7 @@ func persistentFlagChanged(cmd *cobra.Command, name string) bool {
 }
 
 func Execute() {
-	if err := RootCmd.Execute(); err != nil {
+	if err := defaultApp.Execute(); err != nil {
 		if e, ok := err.(*errors.Error); ok {
 			fmt.Println(err)
 			os.Exit(e.ExitCode())
@@ -94,34 +52,18 @@ func Execute() {
 	}
 }
 
-func init() {
-	RootCmd.AddGroup(&cobra.Group{ID: "core", Title: "Core Commands"})
-	RootCmd.AddGroup(&cobra.Group{ID: "analysis", Title: "Analysis & Insights"})
-	RootCmd.AddGroup(&cobra.Group{ID: "utility", Title: "Utilities"})
-
-	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.monarchmoney-cli/config.yaml)")
-	RootCmd.PersistentFlags().BoolVar(&jsonMode, "json", false, "emit machine-readable JSON")
-	RootCmd.PersistentFlags().BoolVar(&pretty, "pretty", false, "pretty-print JSON output")
-	RootCmd.PersistentFlags().BoolVar(&events, "events", false, "emit NDJSON progress events (accounts refresh --wait)")
-	RootCmd.PersistentFlags().BoolVar(&readOnly, "read-only", false, "block remote writes")
-	RootCmd.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "preview a remote write without executing it")
-	RootCmd.PersistentFlags().BoolVar(&confirm, "confirm", false, "explicitly execute a remote write")
-	RootCmd.PersistentFlags().DurationVar(&timeout, "timeout", 30*time.Second, "set command timeout")
-	RootCmd.PersistentFlags().StringVar(&profile, "profile", "default", "use a named profile")
-	RootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "print more diagnostics to stderr")
-
-	RootCmd.AddCommand(versionCmd)
-}
-
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "Print the version number of monarch",
-	Run: func(cmd *cobra.Command, args []string) {
-		if err := writeVersion(cmd.OutOrStdout(), profile, jsonMode, pretty, time.Duration(0)); err != nil {
-			fmt.Fprintln(cmd.ErrOrStderr(), err)
-			os.Exit(1)
-		}
-	},
+func syncLegacyGlobals(flags Flags) {
+	cfgFile = flags.Config
+	jsonMode = flags.JSONMode
+	pretty = flags.Pretty
+	events = flags.Events
+	readOnly = flags.ReadOnly
+	dryRun = flags.DryRun
+	confirm = flags.Confirm
+	timeout = flags.Timeout
+	profile = flags.Profile
+	verbose = flags.Verbose
+	requestID = flags.RequestID
 }
 
 type versionPayload struct {
@@ -131,7 +73,7 @@ type versionPayload struct {
 	BuiltBy string `json:"built_by"`
 }
 
-func writeVersion(out io.Writer, profileName string, jsonOut, prettyOut bool, duration time.Duration) error {
+func writeVersion(out io.Writer, profileName string, jsonOut, prettyOut bool, requestID string, duration time.Duration) error {
 	if jsonOut {
 		renderer := output.NewRenderer(out, nil, true, prettyOut)
 		env := output.NewEnvelope("version", profileName, output.SchemaVersion, requestID, versionPayload{
