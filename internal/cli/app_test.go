@@ -140,6 +140,25 @@ func TestAppRootRegistersAccounts(t *testing.T) {
 	}
 }
 
+func TestAppRootRegistersTransactions(t *testing.T) {
+	app, _ := newTestApp(t)
+	for _, path := range [][]string{
+		{"transactions", "list"},
+		{"transactions", "summary"},
+		{"transactions", "bulk-categorize"},
+		{"transactions", "tags", "add"},
+		{"transactions", "tags", "clear"},
+		{"transactions", "attachments", "list"},
+		{"transactions", "attachments", "download"},
+		{"transactions", "attachments", "upload"},
+	} {
+		cmd, _, err := app.Root.Find(path)
+		if err != nil || cmd == nil || cmd.Name() != path[len(path)-1] {
+			t.Fatalf("Find(%v) = %#v, %v", path, cmd, err)
+		}
+	}
+}
+
 func TestAppRootRegistersSimpleReadCommands(t *testing.T) {
 	app, _ := newTestApp(t)
 	tests := []struct {
