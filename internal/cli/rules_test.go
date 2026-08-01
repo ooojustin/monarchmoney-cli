@@ -21,12 +21,19 @@ func TestRulesUpdateJSON(t *testing.T) {
 		if gqlReq.OperationName != "Common_UpdateTransactionRuleMutationV2" {
 			t.Fatalf("operation = %q, want Common_UpdateTransactionRuleMutationV2", gqlReq.OperationName)
 		}
-		input := gqlReq.Variables["input"].(map[string]any)
+		input, ok := gqlReq.Variables["input"].(map[string]any)
+		if !ok {
+			t.Fatalf("input = %#v, want object", gqlReq.Variables["input"])
+		}
 		if input["id"] != "rule-1" || input["setCategoryAction"] != "cat-transport" {
 			t.Fatalf("input = %#v, want rule-1 and cat-transport", input)
 		}
-		criteria := input["merchantNameCriteria"].([]any)
-		if len(criteria) != 1 || criteria[0].(map[string]any)["value"] != "Lyft" {
+		criteria, ok := input["merchantNameCriteria"].([]any)
+		if !ok || len(criteria) != 1 {
+			t.Fatalf("merchant criteria = %#v, want one criterion", input["merchantNameCriteria"])
+		}
+		criterion, ok := criteria[0].(map[string]any)
+		if !ok || criterion["value"] != "Lyft" {
 			t.Fatalf("merchant criteria = %#v, want Lyft", criteria)
 		}
 		return testutil.JSONResponse(`{"data":{"updateTransactionRuleV2":{}}}`), nil

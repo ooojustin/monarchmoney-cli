@@ -228,7 +228,10 @@ func TestTransactionsCreateJSON(t *testing.T) {
 		if gqlReq.OperationName != "Common_CreateTransactionMutation" {
 			t.Fatalf("operation = %q, want Common_CreateTransactionMutation", gqlReq.OperationName)
 		}
-		input := gqlReq.Variables["input"].(map[string]any)
+		input, ok := gqlReq.Variables["input"].(map[string]any)
+		if !ok {
+			t.Fatalf("input = %#v, want object", gqlReq.Variables["input"])
+		}
 		if input["amount"] != float64(-25.50) {
 			t.Fatalf("input amount = %v, want -25.50", input["amount"])
 		}
@@ -275,7 +278,10 @@ func TestTransactionsUpdateJSON(t *testing.T) {
 		if gqlReq.OperationName != "Web_TransactionDrawerUpdateTransaction" {
 			t.Fatalf("operation = %q, want Web_TransactionDrawerUpdateTransaction", gqlReq.OperationName)
 		}
-		input := gqlReq.Variables["input"].(map[string]any)
+		input, ok := gqlReq.Variables["input"].(map[string]any)
+		if !ok {
+			t.Fatalf("input = %#v, want object", gqlReq.Variables["input"])
+		}
 		if input["id"] != "tx-100" {
 			t.Fatalf("input id = %v, want tx-100", input["id"])
 		}
@@ -359,7 +365,10 @@ func TestBudgetsSetJSON(t *testing.T) {
 		if gqlReq.OperationName != "Common_UpdateBudgetItem" {
 			t.Fatalf("operation = %q, want SetBudget", gqlReq.OperationName)
 		}
-		input := gqlReq.Variables["input"].(map[string]any)
+		input, ok := gqlReq.Variables["input"].(map[string]any)
+		if !ok {
+			t.Fatalf("input = %#v, want object", gqlReq.Variables["input"])
+		}
 		if input["categoryId"] != "cat-dining" {
 			t.Fatalf("input categoryId = %v, want cat-dining", input["categoryId"])
 		}
@@ -400,12 +409,21 @@ func TestRulesCreateJSON(t *testing.T) {
 		if gqlReq.OperationName != "Common_CreateTransactionRuleMutationV2" {
 			t.Fatalf("operation = %q, want Common_CreateTransactionRuleMutationV2", gqlReq.OperationName)
 		}
-		input := gqlReq.Variables["input"].(map[string]any)
-		criteria := input["merchantNameCriteria"].([]interface{})
+		input, ok := gqlReq.Variables["input"].(map[string]any)
+		if !ok {
+			t.Fatalf("input = %#v, want object", gqlReq.Variables["input"])
+		}
+		criteria, ok := input["merchantNameCriteria"].([]any)
+		if !ok {
+			t.Fatalf("merchantNameCriteria = %#v, want array", input["merchantNameCriteria"])
+		}
 		if len(criteria) == 0 {
 			t.Fatalf("input merchantNameCriteria is empty")
 		}
-		first := criteria[0].(map[string]interface{})
+		first, ok := criteria[0].(map[string]any)
+		if !ok {
+			t.Fatalf("first merchant criterion = %#v, want object", criteria[0])
+		}
 		if first["value"] != "Uber" {
 			t.Fatalf("input merchantNameCriteria value = %v, want Uber", first["value"])
 		}
@@ -443,7 +461,10 @@ func TestTransactionsListPassesExtendedFilters(t *testing.T) {
 		if gqlReq.OperationName != "GetTransactionsList" {
 			t.Fatalf("operation = %q, want transactions", gqlReq.OperationName)
 		}
-		filters := gqlReq.Variables["filters"].(map[string]any)
+		filters, ok := gqlReq.Variables["filters"].(map[string]any)
+		if !ok {
+			t.Fatalf("filters = %#v, want object", gqlReq.Variables["filters"])
+		}
 		if filters["isPending"] != true || filters["hideFromReports"] != false {
 			t.Fatalf("filters = %#v, want pending/hide-from-reports", filters)
 		}

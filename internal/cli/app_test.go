@@ -47,11 +47,26 @@ func TestNewBuildsIndependentRoots(t *testing.T) {
 	}
 }
 
+func TestAppRejectsRepeatedExecution(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Root.SetArgs([]string{"version"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("first Execute() error = %v", err)
+	}
+
+	app.Root.SetArgs([]string{"--confirm", "version"})
+	err := app.Execute()
+	if err == nil || !strings.Contains(err.Error(), "cannot be executed more than once") {
+		t.Fatalf("second Execute() error = %v, want single-use failure", err)
+	}
+}
+
 func TestAppCommandTreeTopology(t *testing.T) {
 	app, _ := newTestApp(t)
 
-	var topLevel []string
-	for _, cmd := range app.Root.Commands() {
+	commands := app.Root.Commands()
+	topLevel := make([]string, 0, len(commands))
+	for _, cmd := range commands {
 		topLevel = append(topLevel, cmd.Name())
 	}
 	slices.Sort(topLevel)
@@ -437,7 +452,10 @@ func TestAppCashflowSummaryUsesInjectedServiceDeps(t *testing.T) {
 			if gqlReq.OperationName != "GetCashflowSummary" {
 				t.Fatalf("operation = %q, want GetCashflowSummary", gqlReq.OperationName)
 			}
-			filters := gqlReq.Variables["filters"].(map[string]any)
+			filters, ok := gqlReq.Variables["filters"].(map[string]any)
+			if !ok {
+				t.Fatalf("filters = %#v, want object", gqlReq.Variables["filters"])
+			}
 			gotStartDate, _ = filters["startDate"].(string)
 			gotEndDate, _ = filters["endDate"].(string)
 			return testutil.JSONResponse(`{"data":{"aggregates":[{"summary":{"sumIncome":8500,"sumExpense":6200,"savings":2300,"savingsRate":0.2706}}]}}`), nil
@@ -516,8 +534,14 @@ func TestAppInvestmentsPerformanceUsesInjectedServiceDeps(t *testing.T) {
 			if gqlReq.OperationName != "Web_GetSecuritiesHistoricalPerformance" {
 				t.Fatalf("operation = %q, want Web_GetSecuritiesHistoricalPerformance", gqlReq.OperationName)
 			}
-			input := gqlReq.Variables["input"].(map[string]any)
-			securityIDs := input["securityIds"].([]any)
+			input, ok := gqlReq.Variables["input"].(map[string]any)
+			if !ok {
+				t.Fatalf("input = %#v, want object", gqlReq.Variables["input"])
+			}
+			securityIDs, ok := input["securityIds"].([]any)
+			if !ok || len(securityIDs) == 0 {
+				t.Fatalf("securityIds = %#v, want non-empty array", input["securityIds"])
+			}
 			gotSecurityID, _ = securityIDs[0].(string)
 			gotStartDate, _ = input["startDate"].(string)
 			gotEndDate, _ = input["endDate"].(string)

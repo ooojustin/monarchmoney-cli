@@ -19,7 +19,7 @@ func (a *App) checkSafety(renderer *output.Renderer, command string, tier safety
 
 func (a *App) renderPlan(renderer *output.Renderer, command string, plan *safety.Plan, start time.Time) {
 	env := output.NewEnvelope(command, a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, plan, time.Since(start))
-	renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+	renderer.RenderSuccess(env)
 }
 
 func (a *App) mutate(renderer *output.Renderer, command, resourceID string, start time.Time, fn func() (any, error), failMsg string) (any, error) {

@@ -55,7 +55,7 @@ func (a *App) buildAuthCommand() *cobra.Command {
 			resolvedMFASecret := firstNonEmpty(loginMFASecret, a.Deps.Getenv("MONARCH_MFA_SECRET"))
 
 			if resolvedEmail == "" {
-				fmt.Fprint(cmd.ErrOrStderr(), "Email: ") //nolint:errcheck // best-effort prompt
+				fmt.Fprint(cmd.ErrOrStderr(), "Email: ")
 				if _, err := fmt.Fscan(cmd.InOrStdin(), &resolvedEmail); err != nil {
 					a.handleError(renderer, "auth.login", errors.New(errors.InvalidArguments, "failed to read email", errors.CatValidation, false, err), start)
 					return
@@ -63,9 +63,9 @@ func (a *App) buildAuthCommand() *cobra.Command {
 			}
 
 			if resolvedPassword == "" {
-				fmt.Fprint(cmd.ErrOrStderr(), "Password: ") //nolint:errcheck // best-effort prompt
+				fmt.Fprint(cmd.ErrOrStderr(), "Password: ")
 				passwordBytes, err := a.Deps.ReadPassword()
-				fmt.Fprintln(cmd.ErrOrStderr()) //nolint:errcheck // prompt newline
+				fmt.Fprintln(cmd.ErrOrStderr())
 				if err != nil {
 					a.handleError(renderer, "auth.login", errors.New(errors.InternalError, "failed to read password", errors.CatInternal, false, err), start)
 					return
@@ -82,7 +82,7 @@ func (a *App) buildAuthCommand() *cobra.Command {
 			}
 			sess, err := client.Authenticate(cmd.Context(), credentials)
 			if cliErr, ok := err.(*errors.Error); ok && cliErr.Code == errors.AuthMFARequired && !a.Flags.JSONMode {
-				fmt.Fprint(cmd.ErrOrStderr(), "MFA Code: ") //nolint:errcheck // best-effort prompt
+				fmt.Fprint(cmd.ErrOrStderr(), "MFA Code: ")
 				if _, scanErr := fmt.Fscan(cmd.InOrStdin(), &credentials.MFACode); scanErr != nil {
 					a.handleError(renderer, "auth.login", errors.New(errors.InvalidArguments, "failed to read MFA code", errors.CatValidation, false, scanErr), start)
 					return
@@ -113,13 +113,13 @@ func (a *App) buildAuthCommand() *cobra.Command {
 					"updated_at":   sess.UpdatedAt,
 					"session_path": a.sessionPath(),
 				}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully logged in as %s.\n", sess.Email)             //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Logged in at: %s\n", sess.CreatedAt.Format(time.RFC3339)) //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Session token saved to: %s\n", a.sessionPath())           //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully logged in as %s.\n", sess.Email)
+			fmt.Fprintf(cmd.OutOrStdout(), "Logged in at: %s\n", sess.CreatedAt.Format(time.RFC3339))
+			fmt.Fprintf(cmd.OutOrStdout(), "Session token saved to: %s\n", a.sessionPath())
 		},
 	}
 	loginCommand.Flags().StringVar(&loginEmail, "email", "", "email address")
@@ -164,16 +164,16 @@ func (a *App) buildAuthCommand() *cobra.Command {
 			}
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("auth.status", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, data, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintln(cmd.OutOrStdout(), "Authenticated: yes")                                     //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Email: %s\n", displayEmail)                               //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Profile: %s\n", sess.Profile)                             //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Logged in at: %s\n", sess.CreatedAt.Format(time.RFC3339)) //nolint:errcheck // best-effort output
-			fmt.Fprintln(cmd.OutOrStdout(), "Session valid: yes")                                     //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Session path: %s\n", a.sessionPath())                     //nolint:errcheck // best-effort output
+			fmt.Fprintln(cmd.OutOrStdout(), "Authenticated: yes")
+			fmt.Fprintf(cmd.OutOrStdout(), "Email: %s\n", displayEmail)
+			fmt.Fprintf(cmd.OutOrStdout(), "Profile: %s\n", sess.Profile)
+			fmt.Fprintf(cmd.OutOrStdout(), "Logged in at: %s\n", sess.CreatedAt.Format(time.RFC3339))
+			fmt.Fprintln(cmd.OutOrStdout(), "Session valid: yes")
+			fmt.Fprintf(cmd.OutOrStdout(), "Session path: %s\n", a.sessionPath())
 		},
 	}
 
@@ -189,10 +189,10 @@ func (a *App) buildAuthCommand() *cobra.Command {
 			}
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("auth.logout", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]string{"status": "logged out"}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), "Successfully logged out.") //nolint:errcheck // best-effort output
+			fmt.Fprintln(cmd.OutOrStdout(), "Successfully logged out.")
 		},
 	}
 
@@ -201,7 +201,7 @@ func (a *App) buildAuthCommand() *cobra.Command {
 		Use:   "path",
 		Short: "Print the path to the session file",
 		Run: func(cmd *cobra.Command, _ []string) {
-			fmt.Fprintln(cmd.OutOrStdout(), a.sessionPath()) //nolint:errcheck // best-effort output
+			fmt.Fprintln(cmd.OutOrStdout(), a.sessionPath())
 		},
 	}
 	sessionCommand.AddCommand(sessionPathCommand)

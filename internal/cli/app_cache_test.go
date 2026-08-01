@@ -17,7 +17,7 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/testutil"
 )
 
-func newTestCacheApp(t *testing.T, cachePath string, transport http.RoundTripper, exitCode *int, sessionPaths ...string) (*App, *bytes.Buffer, *bytes.Buffer) {
+func newTestCacheApp(t *testing.T, cachePath string, transport http.RoundTripper, exitCode *int, sessionPaths ...string) (*App, *bytes.Buffer) {
 	t.Helper()
 	sessionPath := config.DefaultSessionPath()
 	if len(sessionPaths) > 0 {
@@ -37,7 +37,7 @@ func newTestCacheApp(t *testing.T, cachePath string, transport http.RoundTripper
 		Exit:          func(code int) { *exitCode = code },
 		HTTPTransport: transport,
 	})
-	return app, &out, &errOut
+	return app, &out
 }
 
 type appGraphQLRequest struct {
@@ -121,7 +121,7 @@ func TestAppCacheSyncUsesInjectedDepsAndConfiguredCache(t *testing.T) {
 	var gotAuth string
 	var gotStartDate string
 	var gotLimit float64
-	app, out, _ := newTestCacheApp(t, cachePath, testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+	app, out := newTestCacheApp(t, cachePath, testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		gotAuth = req.Header.Get("Authorization")
 		gqlReq := decodeGraphQLRequest(t, req)
 		switch gqlReq.OperationName {
@@ -129,7 +129,10 @@ func TestAppCacheSyncUsesInjectedDepsAndConfiguredCache(t *testing.T) {
 			return testutil.JSONResponse(`{"data":{"accounts":[{"id":"acc_1","displayName":"Checking","type":{"name":"cash"},"subtype":{"name":"checking"},"displayBalance":1250.5,"updatedAt":"2026-05-09T10:00:00Z"}]}}`), nil
 		case "GetTransactionsList":
 			gotLimit, _ = gqlReq.Variables["limit"].(float64)
-			filters := gqlReq.Variables["filters"].(map[string]any)
+			filters, ok := gqlReq.Variables["filters"].(map[string]any)
+			if !ok {
+				t.Fatalf("filters = %#v, want object", gqlReq.Variables["filters"])
+			}
 			gotStartDate, _ = filters["startDate"].(string)
 			return testutil.JSONResponse(`{"data":{"allTransactions":{"results":[{"id":"tx_1","date":"2026-05-09","amount":-12.34,"merchant":{"name":"Cafe"},"category":{"name":"Dining"},"account":{"id":"acc_1"},"notes":"latte"}],"totalCount":1}}}`), nil
 		default:
@@ -159,7 +162,7 @@ func TestAppCacheSyncUsesInjectedDepsAndConfiguredCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
-	defer store.Close() //nolint:errcheck // test cleanup
+	defer store.Close()
 	txs, err := store.SearchTransactions("Cafe")
 	if err != nil {
 		t.Fatalf("SearchTransactions() error = %v", err)
@@ -184,7 +187,7 @@ func TestAppCacheSyncAllPaginates(t *testing.T) {
 
 	exitCode := 0
 	var offsets []float64
-	app, _, _ := newTestCacheApp(t, cachePath, testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+	app, _ := newTestCacheApp(t, cachePath, testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		gqlReq := decodeGraphQLRequest(t, req)
 		switch gqlReq.OperationName {
 		case "GetAccounts":
@@ -239,7 +242,7 @@ func TestAppCacheLocalCommandsUseConfiguredCacheWithoutSession(t *testing.T) {
 	}
 
 	exitCode := 0
-	app, out, _ := newTestCacheApp(t, cachePath, testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+	app, out := newTestCacheApp(t, cachePath, testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 		t.Fatal("local cache command should not make API requests")
 		return nil, nil
 	}), &exitCode)
@@ -255,7 +258,7 @@ func TestAppCacheLocalCommandsUseConfiguredCacheWithoutSession(t *testing.T) {
 	}
 
 	exitCode = 0
-	app, out, _ = newTestCacheApp(t, cachePath, nil, &exitCode)
+	app, out = newTestCacheApp(t, cachePath, nil, &exitCode)
 	app.Root.SetArgs([]string{"--json", "cache", "stats"})
 	if err := app.Execute(); err != nil {
 		t.Fatalf("Execute(stats) error = %v", err)
@@ -265,7 +268,7 @@ func TestAppCacheLocalCommandsUseConfiguredCacheWithoutSession(t *testing.T) {
 	}
 
 	exitCode = 0
-	app, out, _ = newTestCacheApp(t, cachePath, nil, &exitCode)
+	app, out = newTestCacheApp(t, cachePath, nil, &exitCode)
 	app.Root.SetArgs([]string{"--json", "cache", "cleanup", "--before", "2026-01-01"})
 	if err := app.Execute(); err != nil {
 		t.Fatalf("Execute(cleanup) error = %v", err)
@@ -280,7 +283,7 @@ func TestAppCacheValidationBeforeSideEffects(t *testing.T) {
 	cachePath := filepath.Join(dir, "cache.sqlite")
 
 	exitCode := 0
-	app, out, _ := newTestCacheApp(t, cachePath, testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+	app, out := newTestCacheApp(t, cachePath, testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 		t.Fatal("cache sync should validate --from before API requests")
 		return nil, nil
 	}), &exitCode)
@@ -296,7 +299,7 @@ func TestAppCacheValidationBeforeSideEffects(t *testing.T) {
 	}
 
 	exitCode = 0
-	app, out, _ = newTestCacheApp(t, cachePath, nil, &exitCode)
+	app, out = newTestCacheApp(t, cachePath, nil, &exitCode)
 	app.Root.SetArgs([]string{"--json", "cache", "cleanup", "--before", "not-a-date"})
 	if err := app.Execute(); err != nil {
 		t.Fatalf("Execute(cleanup) error = %v", err)
@@ -320,7 +323,7 @@ func TestAppCacheSyncFailsWhenTransactionsAPIFails(t *testing.T) {
 	saveTestSession(t, sessionPath)
 
 	exitCode := 0
-	app, out, _ := newTestCacheApp(t, cachePath, testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+	app, out := newTestCacheApp(t, cachePath, testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		gqlReq := decodeGraphQLRequest(t, req)
 		switch gqlReq.OperationName {
 		case "GetAccounts":
@@ -363,7 +366,7 @@ func TestAppCacheStatsJSONShape(t *testing.T) {
 	}
 
 	exitCode := 0
-	app, out, _ := newTestCacheApp(t, cachePath, nil, &exitCode)
+	app, out := newTestCacheApp(t, cachePath, nil, &exitCode)
 	app.Root.SetArgs([]string{"--json", "cache", "stats"})
 	if err := app.Execute(); err != nil {
 		t.Fatalf("Execute() error = %v", err)
@@ -398,7 +401,7 @@ func TestAppCacheLocalCommandUsesConfigDespiteLoadError(t *testing.T) {
 	}
 
 	exitCode := 0
-	app, out, _ := newTestCacheApp(t, cachePath, nil, &exitCode)
+	app, out := newTestCacheApp(t, cachePath, nil, &exitCode)
 	app.Deps.LoadConfig = func(string) (*config.Config, error) {
 		cfg := config.Default()
 		cfg.CachePath = cachePath

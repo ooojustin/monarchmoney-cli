@@ -28,7 +28,7 @@ func (a *App) buildSubscriptionShowCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "subscription.show", wrapError(err, "failed to load service"), start)
 				return
@@ -42,15 +42,15 @@ func (a *App) buildSubscriptionShowCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := a.envelopeWithWarnings("subscription.show", sub, start, "uses legacy Monarch GraphQL root field: subscription")
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "ID:                      %s\n", sub.ID)                    //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Payment Source:          %s\n", sub.PaymentSource)         //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Referral Code:           %s\n", sub.ReferralCode)          //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "On Free Trial:           %v\n", sub.IsOnFreeTrial)         //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Has Premium Entitlement: %v\n", sub.HasPremiumEntitlement) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "ID:                      %s\n", sub.ID)
+			fmt.Fprintf(cmd.OutOrStdout(), "Payment Source:          %s\n", sub.PaymentSource)
+			fmt.Fprintf(cmd.OutOrStdout(), "Referral Code:           %s\n", sub.ReferralCode)
+			fmt.Fprintf(cmd.OutOrStdout(), "On Free Trial:           %v\n", sub.IsOnFreeTrial)
+			fmt.Fprintf(cmd.OutOrStdout(), "Has Premium Entitlement: %v\n", sub.HasPremiumEntitlement)
 		},
 	}
 }

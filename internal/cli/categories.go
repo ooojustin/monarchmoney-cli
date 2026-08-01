@@ -40,7 +40,7 @@ func (a *App) buildCategoriesListCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "categories.list", wrapError(err, "failed to load service"), start)
 				return
@@ -54,13 +54,13 @@ func (a *App) buildCategoriesListCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("categories.list", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, cats, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-30s %s\n", "ID", "NAME", "GROUP") //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-30s %s\n", "ID", "NAME", "GROUP")
 			for _, c := range cats {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-30s %s\n", c.ID, c.Name, c.GroupName) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-30s %s\n", c.ID, c.Name, c.GroupName)
 			}
 		},
 	}
@@ -74,7 +74,7 @@ func (a *App) buildCategoriesGroupsCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "categories.groups", wrapError(err, "failed to load service"), start)
 				return
@@ -88,13 +88,13 @@ func (a *App) buildCategoriesGroupsCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("categories.groups", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, groups, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-30s %s\n", "ID", "NAME", "TYPE") //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-30s %s\n", "ID", "NAME", "TYPE")
 			for _, g := range groups {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-30s %s\n", g.ID, g.Name, g.Type) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-30s %s\n", g.ID, g.Name, g.Type)
 			}
 		},
 	}
@@ -139,7 +139,7 @@ func (a *App) buildCategoriesUpdateCommand() *cobra.Command {
 				a.renderPlan(renderer, "categories.update", plan, start)
 				return
 			}
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "categories.update", wrapError(err, "failed to load service"), start)
 				return
@@ -150,12 +150,16 @@ func (a *App) buildCategoriesUpdateCommand() *cobra.Command {
 			if err != nil {
 				return
 			}
-			category := result.(*monarch.Category)
+			category, ok := result.(*monarch.Category)
+			if !ok || category == nil {
+				a.handleError(renderer, "categories.update", errors.New(errors.InternalError, "unexpected category update result", errors.CatInternal, false, nil), start)
+				return
+			}
 			if a.Flags.JSONMode {
 				renderer.RenderSuccess(output.NewEnvelope("categories.update", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, category, time.Since(start)))
 				return
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully updated category %s (%s).\n", category.Name, category.ID) //nolint:errcheck
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully updated category %s (%s).\n", category.Name, category.ID)
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "new category name")
@@ -173,7 +177,7 @@ func (a *App) buildCategoriesRolloverCommand() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "categories.rollover", wrapError(err, "failed to load service"), start)
 				return
@@ -187,14 +191,14 @@ func (a *App) buildCategoriesRolloverCommand() *cobra.Command {
 				renderer.RenderSuccess(output.NewEnvelope("categories.rollover", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, rollover, time.Since(start)))
 				return
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Category:  %s\n", rollover.Name) //nolint:errcheck
+			fmt.Fprintf(cmd.OutOrStdout(), "Category:  %s\n", rollover.Name)
 			if rollover.StartMonth == "" {
-				fmt.Fprintln(cmd.OutOrStdout(), "Rollover:  not enabled") //nolint:errcheck
+				fmt.Fprintln(cmd.OutOrStdout(), "Rollover:  not enabled")
 				return
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Start Month:      %s\nStarting Balance: %.2f\nType:             %s\nFrequency:        %s\n", rollover.StartMonth, rollover.StartingBalance, rollover.Type, rollover.Frequency) //nolint:errcheck
+			fmt.Fprintf(cmd.OutOrStdout(), "Start Month:      %s\nStarting Balance: %.2f\nType:             %s\nFrequency:        %s\n", rollover.StartMonth, rollover.StartingBalance, rollover.Type, rollover.Frequency)
 			if rollover.TargetAmount > 0 {
-				fmt.Fprintf(cmd.OutOrStdout(), "Target Amount:    %.2f\n", rollover.TargetAmount) //nolint:errcheck
+				fmt.Fprintf(cmd.OutOrStdout(), "Target Amount:    %.2f\n", rollover.TargetAmount)
 			}
 		},
 	}
@@ -245,7 +249,7 @@ func (a *App) buildCategoriesGroupUpdateCommand() *cobra.Command {
 				a.renderPlan(renderer, "categories.groups.update", plan, start)
 				return
 			}
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "categories.groups.update", wrapError(err, "failed to load service"), start)
 				return
@@ -256,12 +260,16 @@ func (a *App) buildCategoriesGroupUpdateCommand() *cobra.Command {
 			if err != nil {
 				return
 			}
-			group := result.(*monarch.CategoryGroup)
+			group, ok := result.(*monarch.CategoryGroup)
+			if !ok || group == nil {
+				a.handleError(renderer, "categories.groups.update", errors.New(errors.InternalError, "unexpected category group update result", errors.CatInternal, false, nil), start)
+				return
+			}
 			if a.Flags.JSONMode {
 				renderer.RenderSuccess(output.NewEnvelope("categories.groups.update", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, group, time.Since(start)))
 				return
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully updated category group %s (%s).\n", group.Name, group.ID) //nolint:errcheck
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully updated category group %s (%s).\n", group.Name, group.ID)
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "new group name")
@@ -297,7 +305,7 @@ func (a *App) buildCategoriesCreateCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "categories.create", wrapError(err, "failed to load service"), start)
 				return
@@ -309,15 +317,19 @@ func (a *App) buildCategoriesCreateCommand() *cobra.Command {
 			if err != nil {
 				return
 			}
-			cat := result.(*monarch.Category)
-
-			if a.Flags.JSONMode {
-				env := output.NewEnvelope("categories.create", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, cat, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			cat, ok := result.(*monarch.Category)
+			if !ok || cat == nil {
+				a.handleError(renderer, "categories.create", errors.New(errors.InternalError, "unexpected category creation result", errors.CatInternal, false, nil), start)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully created category %s (%s).\n", cat.Name, cat.ID) //nolint:errcheck // best-effort output
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("categories.create", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, cat, time.Since(start))
+				renderer.RenderSuccess(env)
+				return
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully created category %s (%s).\n", cat.Name, cat.ID)
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "category name")
@@ -348,7 +360,7 @@ func (a *App) buildCategoriesDeleteCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "categories.delete", wrapError(err, "failed to load service"), start)
 				return
@@ -362,11 +374,11 @@ func (a *App) buildCategoriesDeleteCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("categories.delete", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]string{"status": "deleted"}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully deleted category %s.\n", id) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully deleted category %s.\n", id)
 		},
 	}
 }
@@ -397,7 +409,7 @@ func (a *App) buildCategoriesDeleteManyCommand() *cobra.Command {
 			}
 			defer func() {
 				if cerr := f.Close(); cerr != nil {
-					fmt.Fprintf(cmd.ErrOrStderr(), "warning: failed to close file: %v\n", cerr) //nolint:errcheck // best-effort warning
+					fmt.Fprintf(cmd.ErrOrStderr(), "warning: failed to close file: %v\n", cerr)
 				}
 			}()
 
@@ -417,7 +429,7 @@ func (a *App) buildCategoriesDeleteManyCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "categories.delete-many", wrapError(err, "failed to load service"), start)
 				return
@@ -431,11 +443,11 @@ func (a *App) buildCategoriesDeleteManyCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("categories.delete-many", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]string{"status": "categories deleted"}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully deleted %d categories.\n", len(ids)) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully deleted %d categories.\n", len(ids))
 		},
 	}
 	cmd.Flags().StringVar(&file, "file", "", "file with category IDs (one per line)")

@@ -46,7 +46,7 @@ func (a *App) buildInvestmentsPortfolioCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "investments.portfolio", wrapError(err, "failed to load service"), start)
 				return
@@ -64,14 +64,14 @@ func (a *App) buildInvestmentsPortfolioCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("investments.portfolio", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, portfolio, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Total Value: %.2f\n", portfolio.Performance.TotalValue) //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-10s %12s\n", "SECURITY", "TICKER", "VALUE")     //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Total Value: %.2f\n", portfolio.Performance.TotalValue)
+			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-10s %12s\n", "SECURITY", "TICKER", "VALUE")
 			for _, holding := range portfolio.Holdings {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-10s %12.2f\n", holding.Security.Name, holding.Security.Ticker, holding.TotalValue) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-10s %12.2f\n", holding.Security.Name, holding.Security.Ticker, holding.TotalValue)
 			}
 		},
 	}
@@ -109,7 +109,7 @@ func (a *App) buildInvestmentsPerformanceCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "investments.performance", wrapError(err, "failed to load service"), start)
 				return
@@ -128,13 +128,13 @@ func (a *App) buildInvestmentsPerformanceCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("investments.performance", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, performance, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-10s %6s\n", "SECURITY", "TICKER", "POINTS") //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-10s %6s\n", "SECURITY", "TICKER", "POINTS")
 			for _, item := range performance {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-10s %6d\n", item.Security.Name, item.Security.Ticker, len(item.HistoricalChart)) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-10s %6d\n", item.Security.Name, item.Security.Ticker, len(item.HistoricalChart))
 			}
 		},
 	}

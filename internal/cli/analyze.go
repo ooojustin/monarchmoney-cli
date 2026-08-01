@@ -107,7 +107,7 @@ locally so agents do not need to group transactions themselves.`,
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "analyze.anomalies", wrapError(err, "failed to load service"), start)
 				return
@@ -136,12 +136,12 @@ locally so agents do not need to group transactions themselves.`,
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("analyze.anomalies", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]any{"period": map[string]string{"start_date": currentStart, "end_date": currentEnd}, "anomalies": result}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%-30s %12s %12s %8s %-8s %-20s %12s\n", "CATEGORY", "CURRENT", "AVG", "RATIO", "SEVERITY", "LARGEST MERCHANT", "AMOUNT") //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-30s %12s %12s %8s %-8s %-20s %12s\n", "CATEGORY", "CURRENT", "AVG", "RATIO", "SEVERITY", "LARGEST MERCHANT", "AMOUNT")
 			for _, anomaly := range result {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-30s %12.2f %12.2f %8.2f %-8s %-20s %12.2f\n", anomaly.Category, anomaly.CurrentMonth, anomaly.AvgHistory, anomaly.Ratio, anomaly.Severity, anomaly.LargestMerchant, anomaly.LargestAmount) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-30s %12.2f %12.2f %8.2f %-8s %-20s %12.2f\n", anomaly.Category, anomaly.CurrentMonth, anomaly.AvgHistory, anomaly.Ratio, anomaly.Severity, anomaly.LargestMerchant, anomaly.LargestAmount)
 			}
 		},
 	}
@@ -170,7 +170,7 @@ the services are wasteful.`,
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "analyze.subscriptions", wrapError(err, "failed to load service"), start)
 				return
@@ -185,12 +185,12 @@ the services are wasteful.`,
 			result := analyze.BuildSubscriptions(items)
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("analyze.subscriptions", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, result, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%-24s %10s %10s %-12s %-12s %-12s %s\n", "MERCHANT", "MONTHLY", "ANNUAL", "FREQUENCY", "LAST", "NEXT", "CATEGORY") //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-24s %10s %10s %-12s %-12s %-12s %s\n", "MERCHANT", "MONTHLY", "ANNUAL", "FREQUENCY", "LAST", "NEXT", "CATEGORY")
 			for _, sub := range result.Subscriptions {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-24s %10.2f %10.2f %-12s %-12s %-12s %s\n", sub.Merchant, sub.Monthly, sub.Annual, sub.Frequency, sub.LastCharge, sub.NextCharge, sub.Category) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-24s %10.2f %10.2f %-12s %-12s %-12s %s\n", sub.Merchant, sub.Monthly, sub.Annual, sub.Frequency, sub.LastCharge, sub.NextCharge, sub.Category)
 			}
 		},
 	}
@@ -224,7 +224,7 @@ expense_previous, change_pct, and direction with stable semantics for agents.`,
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "analyze.merchants", wrapError(err, "failed to load service"), start)
 				return
@@ -242,16 +242,16 @@ expense_previous, change_pct, and direction with stable semantics for agents.`,
 			result := analyze.BuildMerchantComparison(currentRecords, previousRecords, flags.limit)
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("analyze.merchants", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]any{"period": current, "previous_period": previous, "comparison": result}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%-24s %12s %12s %12s %s\n", "MERCHANT", "CURRENT", "PREVIOUS", "CHANGE %", "DIRECTION") //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-24s %12s %12s %12s %s\n", "MERCHANT", "CURRENT", "PREVIOUS", "CHANGE %", "DIRECTION")
 			for _, row := range result {
 				change := "null"
 				if row.ChangePct != nil {
 					change = fmt.Sprintf("%.2f", *row.ChangePct)
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%-24s %12.2f %12.2f %12s %s\n", row.Merchant, row.ExpenseCurrent, row.ExpensePrevious, change, row.Direction) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-24s %12.2f %12.2f %12s %s\n", row.Merchant, row.ExpenseCurrent, row.ExpensePrevious, change, row.Direction)
 			}
 		},
 	}
@@ -281,7 +281,7 @@ math. It does not re-sum transactions or make subjective budget advice.`,
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "analyze.burn-rate", wrapError(err, "failed to load service"), start)
 				return
@@ -303,12 +303,12 @@ math. It does not re-sum transactions or make subjective budget advice.`,
 			}
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("analyze.burn-rate", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]any{"period": map[string]string{"start_date": monthStart, "end_date": monthEnd}, "budgets": result}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10s %10s %10s %8s %8s %s\n", "CATEGORY", "BUDGETED", "SPENT", "REMAINING", "BURN %", "TIME %", "STATUS") //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10s %10s %10s %8s %8s %s\n", "CATEGORY", "BUDGETED", "SPENT", "REMAINING", "BURN %", "TIME %", "STATUS")
 			for _, budget := range result {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10.2f %10.2f %10.2f %8.2f %8.2f %s\n", budget.Category, budget.Budgeted, budget.Spent, budget.Remaining, budget.BurnPct, budget.TimePct, budget.Status) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10.2f %10.2f %10.2f %8.2f %8.2f %s\n", budget.Category, budget.Budgeted, budget.Spent, budget.Remaining, budget.BurnPct, budget.TimePct, budget.Status)
 			}
 		},
 	}

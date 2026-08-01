@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 	"github.com/thedavidweng/monarchmoney-cli/internal/safety"
@@ -31,7 +32,7 @@ func (a *App) buildRecurringListCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "recurring.list", wrapError(err, "failed to load service"), start)
 				return
@@ -49,13 +50,13 @@ func (a *App) buildRecurringListCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("recurring.list", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, recurring, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %10s %-12s %-12s %s\n", "MERCHANT", "AMOUNT", "FREQUENCY", "NEXT DATE", "STATUS") //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %10s %-12s %-12s %s\n", "MERCHANT", "AMOUNT", "FREQUENCY", "NEXT DATE", "STATUS")
 			for _, r := range recurring {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %10.2f %-12s %-12s %s\n", r.Merchant, r.Amount, r.Frequency, r.NextDate, r.Status) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %10.2f %-12s %-12s %s\n", r.Merchant, r.Amount, r.Frequency, r.NextDate, r.Status)
 			}
 		},
 	}
@@ -84,7 +85,7 @@ func (a *App) buildRecurringUpdateCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "recurring.update", wrapError(err, "failed to load service"), start)
 				return
@@ -96,15 +97,19 @@ func (a *App) buildRecurringUpdateCommand() *cobra.Command {
 			if err != nil {
 				return
 			}
-			r := result.(*monarch.RecurringTransaction)
-
-			if a.Flags.JSONMode {
-				env := output.NewEnvelope("recurring.update", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, r, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			r, ok := result.(*monarch.RecurringTransaction)
+			if !ok || r == nil {
+				a.handleError(renderer, "recurring.update", errors.New(errors.InternalError, "unexpected recurring update result", errors.CatInternal, false, nil), start)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully updated recurring transaction %s.\n", r.ID) //nolint:errcheck // best-effort output
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("recurring.update", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, r, time.Since(start))
+				renderer.RenderSuccess(env)
+				return
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully updated recurring transaction %s.\n", r.ID)
 		},
 	}
 	cmd.Flags().Float64Var(&amount, "amount", 0, "new recurring amount")

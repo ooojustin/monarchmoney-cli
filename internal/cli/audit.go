@@ -36,10 +36,10 @@ func (a *App) buildAuditCommand() *cobra.Command {
 			}
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("audit.cleanup", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]any{"removed": removed, "older_than_days": olderThanDays}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Removed %d audit log file(s) older than %d days.\n", removed, olderThanDays) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Removed %d audit log file(s) older than %d days.\n", removed, olderThanDays)
 		},
 	}
 	cleanupCommand.Flags().IntVar(&olderThanDays, "older-than", 30, "remove logs older than N days (default 30)")

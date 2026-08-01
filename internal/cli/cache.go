@@ -52,7 +52,7 @@ func (a *App) buildCacheSyncCommand() *cobra.Command {
 				}
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "cache.sync", wrapError(err, "failed to load service"), start)
 				return
@@ -62,7 +62,7 @@ func (a *App) buildCacheSyncCommand() *cobra.Command {
 			if !ok {
 				return
 			}
-			defer cacheStore.Close() //nolint:errcheck // best-effort close
+			defer cacheStore.Close()
 
 			renderer.PrintDiagnostic("Syncing accounts...")
 			accounts, err := svc.ListAccounts(cmd.Context())
@@ -71,7 +71,8 @@ func (a *App) buildCacheSyncCommand() *cobra.Command {
 				return
 			}
 			cacheAccs := make([]cache.Account, 0, len(accounts))
-			for _, account := range accounts {
+			for i := range accounts {
+				account := &accounts[i]
 				updatedAt, err := parseCacheDate(account.UpdatedAt)
 				if err != nil {
 					a.handleError(renderer, "cache.sync", errors.New(errors.APISchemaChanged, "failed to parse account updated_at", errors.CatAPI, false, err), start)
@@ -106,7 +107,8 @@ func (a *App) buildCacheSyncCommand() *cobra.Command {
 				return
 			}
 			cacheTxs := make([]cache.Transaction, 0, len(txs))
-			for _, tx := range txs {
+			for i := range txs {
+				tx := &txs[i]
 				date, err := time.Parse("2006-01-02", tx.Date)
 				if err != nil {
 					a.handleError(renderer, "cache.sync", errors.New(errors.APISchemaChanged, "failed to parse transaction date", errors.CatAPI, false, err), start)
@@ -131,10 +133,10 @@ func (a *App) buildCacheSyncCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("cache.sync", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]any{"status": "sync complete", "accounts": len(cacheAccs), "transactions": len(cacheTxs)}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Sync complete. %d accounts, %d transactions.\n", len(cacheAccs), len(cacheTxs)) //nolint:errcheck // best-effort stdout
+			fmt.Fprintf(cmd.OutOrStdout(), "Sync complete. %d accounts, %d transactions.\n", len(cacheAccs), len(cacheTxs))
 		},
 	}
 
@@ -157,7 +159,7 @@ func (a *App) buildCacheSearchCommand() *cobra.Command {
 			if !ok {
 				return
 			}
-			defer cacheStore.Close() //nolint:errcheck // best-effort close
+			defer cacheStore.Close()
 
 			txs, err := cacheStore.SearchTransactions(args[0])
 			if err != nil {
@@ -167,14 +169,14 @@ func (a *App) buildCacheSearchCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("cache.search", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, txs, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES") //nolint:errcheck // best-effort stdout
+			fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES")
 			for _, tx := range txs {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-20s %-15s %10.2f %s\n", tx.Date.Format("2006-01-02"), tx.Merchant, tx.Category, tx.Amount, tx.Notes) //nolint:errcheck // best-effort stdout
+				fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-20s %-15s %10.2f %s\n", tx.Date.Format("2006-01-02"), tx.Merchant, tx.Category, tx.Amount, tx.Notes)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "\nTotal matches: %d\n", len(txs)) //nolint:errcheck // best-effort stdout
+			fmt.Fprintf(cmd.OutOrStdout(), "\nTotal matches: %d\n", len(txs))
 		},
 	}
 }
@@ -191,24 +193,24 @@ func (a *App) buildCacheStatsCommand() *cobra.Command {
 			if !ok {
 				return
 			}
-			defer cacheStore.Close() //nolint:errcheck // best-effort close
+			defer cacheStore.Close()
 
 			stats, _ := cacheStore.GetStats()
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("cache.stats", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, stats, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), "Cache Statistics") //nolint:errcheck // best-effort stdout
+			fmt.Fprintln(cmd.OutOrStdout(), "Cache Statistics")
 			for key, value := range stats {
 				switch val := value.(type) {
 				case int64:
-					fmt.Fprintf(cmd.OutOrStdout(), "%s: %d\n", key, val) //nolint:errcheck // best-effort stdout
+					fmt.Fprintf(cmd.OutOrStdout(), "%s: %d\n", key, val)
 				case string:
-					fmt.Fprintf(cmd.OutOrStdout(), "%s: %s\n", key, val) //nolint:errcheck // best-effort stdout
+					fmt.Fprintf(cmd.OutOrStdout(), "%s: %s\n", key, val)
 				default:
-					fmt.Fprintf(cmd.OutOrStdout(), "%s: %v\n", key, val) //nolint:errcheck // best-effort stdout
+					fmt.Fprintf(cmd.OutOrStdout(), "%s: %v\n", key, val)
 				}
 			}
 		},
@@ -237,7 +239,7 @@ func (a *App) buildCacheCleanupCommand() *cobra.Command {
 			if !ok {
 				return
 			}
-			defer cacheStore.Close() //nolint:errcheck // best-effort close
+			defer cacheStore.Close()
 
 			affected, err := cacheStore.Cleanup(before)
 			if err != nil {
@@ -247,10 +249,10 @@ func (a *App) buildCacheCleanupCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("cache.cleanup", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]int64{"deleted": affected}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Deleted %d transactions from cache.\n", affected) //nolint:errcheck // best-effort stdout
+			fmt.Fprintf(cmd.OutOrStdout(), "Deleted %d transactions from cache.\n", affected)
 		},
 	}
 

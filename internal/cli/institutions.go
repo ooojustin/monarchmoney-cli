@@ -28,7 +28,7 @@ func (a *App) buildInstitutionsListCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "institutions.list", wrapError(err, "failed to load service"), start)
 				return
@@ -42,13 +42,13 @@ func (a *App) buildInstitutionsListCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("institutions.list", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, insts, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-30s %s\n", "ID", "NAME", "URL") //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-30s %s\n", "ID", "NAME", "URL")
 			for _, inst := range insts {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-30s %s\n", inst.ID, inst.Name, inst.URL) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-30s %s\n", inst.ID, inst.Name, inst.URL)
 			}
 		},
 	}

@@ -46,7 +46,7 @@ func (a *App) buildAccountsListCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.list", wrapError(err, "failed to load service"), start)
 				return
@@ -60,13 +60,14 @@ func (a *App) buildAccountsListCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("accounts.list", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, accounts, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-15s %-15s %s\n", "ID", "NAME", "TYPE", "BALANCE") //nolint:errcheck // best-effort output
-			for _, account := range accounts {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-15s %-15s %.2f\n", account.ID, account.DisplayName, account.AccountType, account.DisplayBalance) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-15s %-15s %s\n", "ID", "NAME", "TYPE", "BALANCE")
+			for i := range accounts {
+				account := &accounts[i]
+				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-15s %-15s %.2f\n", account.ID, account.DisplayName, account.AccountType, account.DisplayBalance)
 			}
 		},
 	}
@@ -81,7 +82,7 @@ func (a *App) buildAccountsHoldingsCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.holdings", wrapError(err, "failed to load service"), start)
 				return
@@ -95,13 +96,13 @@ func (a *App) buildAccountsHoldingsCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("accounts.holdings", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, holdings, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %12s %12s %12s\n", "ID", "QUANTITY", "BASIS", "TOTAL VALUE") //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %12s %12s %12s\n", "ID", "QUANTITY", "BASIS", "TOTAL VALUE")
 			for _, h := range holdings {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %12.2f %12.2f %12.2f\n", h.ID, h.Quantity, h.Basis, h.TotalValue) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %12.2f %12.2f %12.2f\n", h.ID, h.Quantity, h.Basis, h.TotalValue)
 			}
 		},
 	}
@@ -128,7 +129,7 @@ func (a *App) buildAccountsBalanceAtCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.balance-at", wrapError(err, "failed to load service"), start)
 				return
@@ -142,13 +143,13 @@ func (a *App) buildAccountsBalanceAtCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("accounts.balance-at", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, balances, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-30s %-15s %12s\n", "ID", "NAME", "TYPE", "BALANCE") //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-30s %-15s %12s\n", "ID", "NAME", "TYPE", "BALANCE")
 			for _, balance := range balances {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-30s %-15s %12.2f\n", balance.ID, balance.DisplayName, balance.AccountType, balance.DisplayBalance) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-30s %-15s %12.2f\n", balance.ID, balance.DisplayName, balance.AccountType, balance.DisplayBalance)
 			}
 		},
 	}
@@ -172,7 +173,7 @@ func (a *App) buildAccountsHistoryCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.history", wrapError(err, "failed to load service"), start)
 				return
@@ -186,13 +187,13 @@ func (a *App) buildAccountsHistoryCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := a.envelopeWithWarnings("accounts.history", history, start, "uses aggregateSnapshots for account history; per-account snapshots are not currently available")
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-12s %10s\n", "DATE", "AMOUNT") //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-12s %10s\n", "DATE", "AMOUNT")
 			for _, r := range history {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-12s %10.2f\n", r.Date, r.Amount) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-12s %10.2f\n", r.Date, r.Amount)
 			}
 		},
 	}
@@ -222,7 +223,7 @@ func (a *App) buildAccountsRefreshCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.refresh", wrapError(err, "failed to load service"), start)
 				return
@@ -242,7 +243,7 @@ func (a *App) buildAccountsRefreshCommand() *cobra.Command {
 				for {
 					select {
 					case <-cmd.Context().Done():
-						a.handleError(renderer, "accounts.refresh", errors.New(errors.InternalError, "context cancelled", errors.CatInternal, false, cmd.Context().Err()), start)
+						a.handleError(renderer, "accounts.refresh", errors.New(errors.InternalError, "context canceled", errors.CatInternal, false, cmd.Context().Err()), start)
 						return
 					case <-ticker.C:
 						status, err := svc.GetAccountsRefreshStatus(cmd.Context())
@@ -253,10 +254,15 @@ func (a *App) buildAccountsRefreshCommand() *cobra.Command {
 
 						if a.Flags.Events {
 							env := output.NewEnvelope("accounts.refresh.progress", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, status, time.Since(start))
-							renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+							renderer.RenderSuccess(env)
 						}
 
-						if status["is_complete"].(bool) {
+						complete, ok := status["is_complete"].(bool)
+						if !ok {
+							a.handleError(renderer, "accounts.refresh", errors.New(errors.APISchemaChanged, "refresh status is missing boolean is_complete", errors.CatAPI, false, nil), start)
+							return
+						}
+						if complete {
 							goto complete
 						}
 					}
@@ -270,14 +276,14 @@ func (a *App) buildAccountsRefreshCommand() *cobra.Command {
 					status = "refresh complete"
 				}
 				env := output.NewEnvelope("accounts.refresh", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]string{"status": status}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
 			if wait {
-				fmt.Fprintln(cmd.OutOrStdout(), "Refresh complete.") //nolint:errcheck // best-effort output
+				fmt.Fprintln(cmd.OutOrStdout(), "Refresh complete.")
 			} else {
-				fmt.Fprintln(cmd.OutOrStdout(), "Refresh requested successfully.") //nolint:errcheck // best-effort output
+				fmt.Fprintln(cmd.OutOrStdout(), "Refresh requested successfully.")
 			}
 		},
 	}
@@ -320,7 +326,7 @@ func (a *App) buildAccountsUpdateCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.update", wrapError(err, "failed to load service"), start)
 				return
@@ -332,15 +338,19 @@ func (a *App) buildAccountsUpdateCommand() *cobra.Command {
 			if err != nil {
 				return
 			}
-			acc := result.(*monarch.Account)
-
-			if a.Flags.JSONMode {
-				env := output.NewEnvelope("accounts.update", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, acc, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			acc, ok := result.(*monarch.Account)
+			if !ok || acc == nil {
+				a.handleError(renderer, "accounts.update", errors.New(errors.InternalError, "unexpected account update result", errors.CatInternal, false, nil), start)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully updated account %s.\n", acc.ID) //nolint:errcheck // best-effort output
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("accounts.update", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, acc, time.Since(start))
+				renderer.RenderSuccess(env)
+				return
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully updated account %s.\n", acc.ID)
 		},
 	}
 	cmd.Flags().StringVar(&nameValue, "name", "", "new account name")
@@ -369,7 +379,7 @@ func (a *App) buildAccountsDeleteCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.delete", wrapError(err, "failed to load service"), start)
 				return
@@ -383,11 +393,11 @@ func (a *App) buildAccountsDeleteCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("accounts.delete", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]string{"status": "deleted"}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully deleted account %s.\n", id) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully deleted account %s.\n", id)
 		},
 	}
 }
@@ -417,7 +427,7 @@ func (a *App) buildAccountsCreateManualCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.create-manual", wrapError(err, "failed to load service"), start)
 				return
@@ -429,15 +439,19 @@ func (a *App) buildAccountsCreateManualCommand() *cobra.Command {
 			if err != nil {
 				return
 			}
-			acc := result.(*monarch.Account)
-
-			if a.Flags.JSONMode {
-				env := output.NewEnvelope("accounts.create-manual", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, acc, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			acc, ok := result.(*monarch.Account)
+			if !ok || acc == nil {
+				a.handleError(renderer, "accounts.create-manual", errors.New(errors.InternalError, "unexpected account creation result", errors.CatInternal, false, nil), start)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully created manual account %s (%s).\n", acc.DisplayName, acc.ID) //nolint:errcheck // best-effort output
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("accounts.create-manual", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, acc, time.Since(start))
+				renderer.RenderSuccess(env)
+				return
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully created manual account %s (%s).\n", acc.DisplayName, acc.ID)
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "account name")
@@ -476,11 +490,11 @@ func (a *App) buildAccountsUploadHistoryCommand() *cobra.Command {
 			}
 			defer func() {
 				if cerr := f.Close(); cerr != nil {
-					fmt.Fprintf(cmd.ErrOrStderr(), "warning: failed to close file: %v\n", cerr) //nolint:errcheck // best-effort warning
+					fmt.Fprintf(cmd.ErrOrStderr(), "warning: failed to close file: %v\n", cerr)
 				}
 			}()
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.upload-history", wrapError(err, "failed to load service"), start)
 				return
@@ -494,11 +508,11 @@ func (a *App) buildAccountsUploadHistoryCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("accounts.upload-history", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]string{"status": "uploaded"}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully uploaded history for account %s.\n", id) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully uploaded history for account %s.\n", id)
 		},
 	}
 }
@@ -512,7 +526,7 @@ func (a *App) buildAccountsShowCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.show", wrapError(err, "failed to load service"), start)
 				return
@@ -526,15 +540,15 @@ func (a *App) buildAccountsShowCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("accounts.show", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, acc, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "ID:       %s\n", acc.ID)               //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Name:     %s\n", acc.DisplayName)      //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Type:     %s\n", acc.AccountType)      //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Balance:  %.2f\n", acc.DisplayBalance) //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Updated:  %s\n", acc.UpdatedAt)        //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "ID:       %s\n", acc.ID)
+			fmt.Fprintf(cmd.OutOrStdout(), "Name:     %s\n", acc.DisplayName)
+			fmt.Fprintf(cmd.OutOrStdout(), "Type:     %s\n", acc.AccountType)
+			fmt.Fprintf(cmd.OutOrStdout(), "Balance:  %.2f\n", acc.DisplayBalance)
+			fmt.Fprintf(cmd.OutOrStdout(), "Updated:  %s\n", acc.UpdatedAt)
 		},
 	}
 }
@@ -547,7 +561,7 @@ func (a *App) buildAccountsTypesCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.types", wrapError(err, "failed to load service"), start)
 				return
@@ -561,12 +575,12 @@ func (a *App) buildAccountsTypesCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("accounts.types", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, types, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
 			for _, accountType := range types {
-				fmt.Fprintln(cmd.OutOrStdout(), accountType) //nolint:errcheck // best-effort output
+				fmt.Fprintln(cmd.OutOrStdout(), accountType)
 			}
 		},
 	}
@@ -580,7 +594,7 @@ func (a *App) buildAccountsRefreshStatusCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.refresh-status", wrapError(err, "failed to load service"), start)
 				return
@@ -594,14 +608,14 @@ func (a *App) buildAccountsRefreshStatusCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("accounts.refresh-status", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, status, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Complete:   %v\n", status["is_complete"]) //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Status:     %s\n", status["status"])      //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Start Time: %s\n", status["start_time"])  //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "End Time:   %s\n", status["end_time"])    //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Complete:   %v\n", status["is_complete"])
+			fmt.Fprintf(cmd.OutOrStdout(), "Status:     %s\n", status["status"])
+			fmt.Fprintf(cmd.OutOrStdout(), "Start Time: %s\n", status["start_time"])
+			fmt.Fprintf(cmd.OutOrStdout(), "End Time:   %s\n", status["end_time"])
 		},
 	}
 }
@@ -621,7 +635,7 @@ func (a *App) buildAccountsRecentBalancesCommand() *cobra.Command {
 				effectiveFrom = time.Now().AddDate(0, 0, -31).Format("2006-01-02")
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.recent-balances", wrapError(err, "failed to load service"), start)
 				return
@@ -635,11 +649,11 @@ func (a *App) buildAccountsRecentBalancesCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("accounts.recent-balances", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, res, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintln(cmd.OutOrStdout(), "Recent daily balances fetched.") //nolint:errcheck // best-effort output
+			fmt.Fprintln(cmd.OutOrStdout(), "Recent daily balances fetched.")
 		},
 	}
 	cmd.Flags().StringVar(&from, "from", "", "start date (YYYY-MM-DD)")
@@ -664,7 +678,7 @@ func (a *App) buildAccountsSnapshotsCommand() *cobra.Command {
 				effectiveFrom = time.Now().AddDate(-1, 0, 0).Format("2006-01-02")
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.snapshots", wrapError(err, "failed to load service"), start)
 				return
@@ -678,11 +692,11 @@ func (a *App) buildAccountsSnapshotsCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("accounts.snapshots", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, res, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintln(cmd.OutOrStdout(), "Account type snapshots fetched.") //nolint:errcheck // best-effort output
+			fmt.Fprintln(cmd.OutOrStdout(), "Account type snapshots fetched.")
 		},
 	}
 	cmd.Flags().StringVar(&from, "from", "", "start date (YYYY-MM-DD)")
@@ -704,7 +718,7 @@ func (a *App) buildAccountsAggregateSnapshotsCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.aggregate-snapshots", wrapError(err, "failed to load service"), start)
 				return
@@ -718,11 +732,11 @@ func (a *App) buildAccountsAggregateSnapshotsCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("accounts.aggregate-snapshots", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, res, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintln(cmd.OutOrStdout(), "Aggregate snapshots fetched.") //nolint:errcheck // best-effort output
+			fmt.Fprintln(cmd.OutOrStdout(), "Aggregate snapshots fetched.")
 		},
 	}
 	cmd.Flags().StringVar(&from, "from", "", "start date (YYYY-MM-DD)")
@@ -745,7 +759,7 @@ func (a *App) buildNetworthCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "networth", wrapError(err, "failed to load service"), start)
 				return
@@ -759,11 +773,11 @@ func (a *App) buildNetworthCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("networth", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, res, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintln(cmd.OutOrStdout(), "Net worth snapshots fetched.") //nolint:errcheck // best-effort output
+			fmt.Fprintln(cmd.OutOrStdout(), "Net worth snapshots fetched.")
 		},
 	}
 	cmd.Flags().StringVar(&from, "from", "", "start date (YYYY-MM-DD)")

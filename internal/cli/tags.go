@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 	"github.com/thedavidweng/monarchmoney-cli/internal/safety"
@@ -31,7 +32,7 @@ func (a *App) buildTagsListCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "tags.list", wrapError(err, "failed to load service"), start)
 				return
@@ -45,13 +46,13 @@ func (a *App) buildTagsListCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("tags.list", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, tags, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-20s %s\n", "ID", "NAME", "COLOR") //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-20s %s\n", "ID", "NAME", "COLOR")
 			for _, t := range tags {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-20s %s\n", t.ID, t.Name, t.Color) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-20s %s\n", t.ID, t.Name, t.Color)
 			}
 		},
 	}
@@ -81,7 +82,7 @@ func (a *App) buildTagsCreateCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "tags.create", wrapError(err, "failed to load service"), start)
 				return
@@ -93,15 +94,19 @@ func (a *App) buildTagsCreateCommand() *cobra.Command {
 			if err != nil {
 				return
 			}
-			tag := result.(*monarch.Tag)
-
-			if a.Flags.JSONMode {
-				env := output.NewEnvelope("tags.create", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, tag, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			tag, ok := result.(*monarch.Tag)
+			if !ok || tag == nil {
+				a.handleError(renderer, "tags.create", errors.New(errors.InternalError, "unexpected tag creation result", errors.CatInternal, false, nil), start)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully created tag %s (%s).\n", tag.Name, tag.ID) //nolint:errcheck // best-effort output
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("tags.create", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, tag, time.Since(start))
+				renderer.RenderSuccess(env)
+				return
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully created tag %s (%s).\n", tag.Name, tag.ID)
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "tag name")

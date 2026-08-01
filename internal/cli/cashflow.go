@@ -11,7 +11,7 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 )
 
-func resolveCashflowDates(startDate, endDate string, now time.Time) (string, string) {
+func resolveCashflowDates(startDate, endDate string, now time.Time) (resolvedStartDate, resolvedEndDate string) {
 	if startDate == "" {
 		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).Format("2006-01-02")
 	}
@@ -71,7 +71,7 @@ func (a *App) buildCashflowSummaryCommand(startDate, endDate *string) *cobra.Com
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "cashflow.summary", wrapError(err, "failed to load service"), start)
 				return
@@ -86,15 +86,15 @@ func (a *App) buildCashflowSummaryCommand(startDate, endDate *string) *cobra.Com
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("cashflow.summary", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, summary, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Cashflow Summary (%s to %s):\n", resolvedStart, resolvedEnd) //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Income:       %.2f\n", summary.Income)                       //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Expense:      %.2f\n", summary.Expense)                      //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Savings:      %.2f\n", summary.Savings)                      //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Savings Rate: %.2f%%\n", summary.SavingsRate*100)            //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Cashflow Summary (%s to %s):\n", resolvedStart, resolvedEnd)
+			fmt.Fprintf(cmd.OutOrStdout(), "Income:       %.2f\n", summary.Income)
+			fmt.Fprintf(cmd.OutOrStdout(), "Expense:      %.2f\n", summary.Expense)
+			fmt.Fprintf(cmd.OutOrStdout(), "Savings:      %.2f\n", summary.Savings)
+			fmt.Fprintf(cmd.OutOrStdout(), "Savings Rate: %.2f%%\n", summary.SavingsRate*100)
 		},
 	}
 }
@@ -107,7 +107,7 @@ func (a *App) buildCashflowCategoriesCommand(startDate, endDate *string) *cobra.
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "cashflow.categories", wrapError(err, "failed to load service"), start)
 				return
@@ -122,13 +122,13 @@ func (a *App) buildCashflowCategoriesCommand(startDate, endDate *string) *cobra.
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("cashflow.categories", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, records, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10s\n", "CATEGORY", "AMOUNT") //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10s\n", "CATEGORY", "AMOUNT")
 			for _, r := range records {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10.2f\n", r.Name, r.Amount) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10.2f\n", r.Name, r.Amount)
 			}
 		},
 	}
@@ -142,7 +142,7 @@ func (a *App) buildCashflowMerchantsCommand(startDate, endDate *string) *cobra.C
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "cashflow.merchants", wrapError(err, "failed to load service"), start)
 				return
@@ -157,13 +157,13 @@ func (a *App) buildCashflowMerchantsCommand(startDate, endDate *string) *cobra.C
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("cashflow.merchants", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, records, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10s\n", "MERCHANT", "AMOUNT") //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10s\n", "MERCHANT", "AMOUNT")
 			for _, r := range records {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10.2f\n", r.Name, r.Amount) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10.2f\n", r.Name, r.Amount)
 			}
 		},
 	}
@@ -201,7 +201,7 @@ func (a *App) buildCashflowTrendsCommand(startDate, endDate, groupBy, period *st
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "cashflow.trends", wrapError(err, "failed to load service"), start)
 				return
@@ -222,17 +222,17 @@ func (a *App) buildCashflowTrendsCommand(startDate, endDate, groupBy, period *st
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("cashflow.trends", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, rows, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-30s %12s %12s %12s\n", "PERIOD", "GROUP", "SUM", "INCOME", "EXPENSE") //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-30s %12s %12s %12s\n", "PERIOD", "GROUP", "SUM", "INCOME", "EXPENSE")
 			for _, row := range rows {
 				group := row.GroupName
 				if group == "" {
 					group = row.GroupID
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-30s %12.2f %12.2f %12.2f\n", row.Period, group, row.Sum, row.SumIncome, row.SumExpense) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-30s %12.2f %12.2f %12.2f\n", row.Period, group, row.Sum, row.SumIncome, row.SumExpense)
 			}
 		},
 	}
@@ -246,7 +246,7 @@ func (a *App) buildCashflowListCommand(startDate, endDate *string) *cobra.Comman
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "cashflow.list", wrapError(err, "failed to load service"), start)
 				return
@@ -261,13 +261,13 @@ func (a *App) buildCashflowListCommand(startDate, endDate *string) *cobra.Comman
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("cashflow.list", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, records, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-12s %10s %10s %10s\n", "PERIOD", "INCOME", "EXPENSE", "SAVINGS") //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-12s %10s %10s %10s\n", "PERIOD", "INCOME", "EXPENSE", "SAVINGS")
 			for _, r := range records {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-12s %10.2f %10.2f %10.2f\n", r.Period, r.Income, r.Expense, r.Savings) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-12s %10.2f %10.2f %10.2f\n", r.Period, r.Income, r.Expense, r.Savings)
 			}
 		},
 	}
@@ -281,7 +281,7 @@ func (a *App) buildCashflowSpendingCommand(startDate, endDate *string) *cobra.Co
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "cashflow.spending", wrapError(err, "failed to load service"), start)
 				return
@@ -312,18 +312,18 @@ func (a *App) buildCashflowSpendingCommand(startDate, endDate *string) *cobra.Co
 					"by_category":    records,
 				}
 				env := output.NewEnvelope("cashflow.spending", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, data, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Spending Summary (%s to %s):\n\n", resolvedStart, resolvedEnd) //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10s\n", "CATEGORY", "AMOUNT")                           //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Spending Summary (%s to %s):\n\n", resolvedStart, resolvedEnd)
+			fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10s\n", "CATEGORY", "AMOUNT")
 			for _, r := range records {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10.2f\n", r.Name, r.Amount) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10.2f\n", r.Name, r.Amount)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "\n%-30s %10.2f\n", "Total Income:", totalIncome)    //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10.2f\n", "Total Expenses:", totalExpenses)  //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10.2f\n", "Net:", totalIncome-totalExpenses) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "\n%-30s %10.2f\n", "Total Income:", totalIncome)
+			fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10.2f\n", "Total Expenses:", totalExpenses)
+			fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10.2f\n", "Net:", totalIncome-totalExpenses)
 		},
 	}
 }

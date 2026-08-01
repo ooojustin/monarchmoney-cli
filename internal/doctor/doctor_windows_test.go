@@ -20,7 +20,7 @@ import (
 
 func TestCheckWithoutLocalState(t *testing.T) {
 	dir := t.TempDir()
-	res := Check(context.Background(), Options{
+	res := Check(context.Background(), &Options{
 		ConfigPath:  filepath.Join(dir, "config.yaml"),
 		SessionPath: filepath.Join(dir, "session.json"),
 	})
@@ -59,7 +59,7 @@ func TestCheckWithSessionAndConnectivity(t *testing.T) {
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString(`{"data":{"identity":{"id":"me"}}}`))}, nil
 	})
 
-	res := Check(context.Background(), Options{
+	res := Check(context.Background(), &Options{
 		Connect:       true,
 		ConfigPath:    configPath,
 		SessionPath:   sessionPath,
@@ -79,7 +79,7 @@ func TestCheckReportsMalformedConfig(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
-	res := Check(context.Background(), Options{
+	res := Check(context.Background(), &Options{
 		ConfigPath:  configPath,
 		ConfigError: errors.New("parse config"),
 		SessionPath: filepath.Join(dir, "session.json"),

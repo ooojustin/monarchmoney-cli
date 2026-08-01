@@ -46,7 +46,7 @@ type Options struct {
 	HTTPTransport http.RoundTripper
 }
 
-func Check(ctx context.Context, options Options) *Result {
+func Check(ctx context.Context, options *Options) *Result {
 	res := &Result{
 		Version: version.GetVersion(),
 		OS:      runtime.GOOS,

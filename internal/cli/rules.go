@@ -35,7 +35,7 @@ func (f *appRuleFlags) bind(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&f.applyToExisting, "apply-to-existing", false, "apply rule to existing transactions")
 }
 
-func (f appRuleFlags) createInput(cmd *cobra.Command) monarch.CreateRuleInput {
+func (f *appRuleFlags) createInput(cmd *cobra.Command) monarch.CreateRuleInput {
 	input := monarch.CreateRuleInput{
 		MerchantOperator: f.merchantOperator,
 		MerchantValue:    f.merchantValue,
@@ -52,7 +52,7 @@ func (f appRuleFlags) createInput(cmd *cobra.Command) monarch.CreateRuleInput {
 	return input
 }
 
-func (f appRuleFlags) updateInput(cmd *cobra.Command, id string) monarch.UpdateRuleInput {
+func (f *appRuleFlags) updateInput(cmd *cobra.Command, id string) monarch.UpdateRuleInput {
 	input := monarch.UpdateRuleInput{
 		ID:               id,
 		MerchantOperator: f.merchantOperator,
@@ -92,7 +92,7 @@ func (a *App) buildRulesListCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "rules.list", wrapError(err, "failed to load service"), start)
 				return
@@ -106,12 +106,13 @@ func (a *App) buildRulesListCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("rules.list", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, rules, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-36s %-12s %-20s %s\n", "ID", "OPERATOR", "MATCH", "ACTION") //nolint:errcheck // best-effort output
-			for _, r := range rules {
+			fmt.Fprintf(cmd.OutOrStdout(), "%-36s %-12s %-20s %s\n", "ID", "OPERATOR", "MATCH", "ACTION")
+			for i := range rules {
+				r := &rules[i]
 				match := ""
 				if len(r.MerchantNameCriteria) > 0 {
 					match = r.MerchantNameCriteria[0].Value
@@ -124,9 +125,9 @@ func (a *App) buildRulesListCommand() *cobra.Command {
 				if len(r.MerchantNameCriteria) > 0 {
 					operator = r.MerchantNameCriteria[0].Operator
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%-36s %-12s %-20s %s\n", r.ID, operator, match, action) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-36s %-12s %-20s %s\n", r.ID, operator, match, action)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "\nTotal rules: %d\n", len(rules)) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "\nTotal rules: %d\n", len(rules))
 		},
 	}
 }
@@ -153,7 +154,7 @@ func (a *App) buildRulesCreateCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "rules.create", wrapError(err, "failed to load service"), start)
 				return
@@ -167,11 +168,11 @@ func (a *App) buildRulesCreateCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("rules.create", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]string{"status": "created"}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintln(cmd.OutOrStdout(), "Successfully created rule.") //nolint:errcheck // best-effort output
+			fmt.Fprintln(cmd.OutOrStdout(), "Successfully created rule.")
 		},
 	}
 	flags.bind(cmd)
@@ -202,7 +203,7 @@ func (a *App) buildRulesUpdateCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "rules.update", wrapError(err, "failed to load service"), start)
 				return
@@ -216,11 +217,11 @@ func (a *App) buildRulesUpdateCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("rules.update", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]string{"status": "updated"}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully updated rule %s.\n", id) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully updated rule %s.\n", id)
 		},
 	}
 	flags.bind(cmd)
@@ -248,7 +249,7 @@ func (a *App) buildRulesDeleteCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "rules.delete", wrapError(err, "failed to load service"), start)
 				return
@@ -262,11 +263,11 @@ func (a *App) buildRulesDeleteCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("rules.delete", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]string{"status": "deleted"}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully deleted rule %s.\n", id) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully deleted rule %s.\n", id)
 		},
 	}
 }

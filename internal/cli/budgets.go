@@ -14,7 +14,7 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/safety"
 )
 
-func appBudgetMonth(month string, now time.Time) (int, int, *errors.Error) {
+func appBudgetMonth(month string, now time.Time) (year, monthNumber int, err *errors.Error) {
 	if month == "" {
 		return now.Year(), int(now.Month()), nil
 	}
@@ -68,7 +68,7 @@ func (a *App) buildBudgetsListCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "budgets.list", wrapError(err, "failed to load service"), start)
 				return
@@ -88,13 +88,13 @@ func (a *App) buildBudgetsListCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("budgets.list", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, budgets, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10s %10s %10s\n", "CATEGORY", "PLANNED", "ACTUAL", "REMAINING") //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10s %10s %10s\n", "CATEGORY", "PLANNED", "ACTUAL", "REMAINING")
 			for _, b := range budgets {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10.2f %10.2f %10.2f\n", b.CategoryName, b.Planned, b.Actual, b.Planned-b.Actual) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-30s %10.2f %10.2f %10.2f\n", b.CategoryName, b.Planned, b.Actual, b.Planned-b.Actual)
 			}
 		},
 	}
@@ -134,7 +134,7 @@ func (a *App) buildBudgetsSetCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "budgets.set", wrapError(err, "failed to load service"), start)
 				return
@@ -146,15 +146,19 @@ func (a *App) buildBudgetsSetCommand() *cobra.Command {
 			if err != nil {
 				return
 			}
-			budget := result.(*monarch.Budget)
-
-			if a.Flags.JSONMode {
-				env := output.NewEnvelope("budgets.set", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, budget, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			budget, ok := result.(*monarch.Budget)
+			if !ok || budget == nil {
+				a.handleError(renderer, "budgets.set", errors.New(errors.InternalError, "unexpected budget update result", errors.CatInternal, false, nil), start)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully set budget for %s to %.2f.\n", budget.CategoryName, budget.Planned) //nolint:errcheck // best-effort output
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("budgets.set", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, budget, time.Since(start))
+				renderer.RenderSuccess(env)
+				return
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully set budget for %s to %.2f.\n", budget.CategoryName, budget.Planned)
 		},
 	}
 	cmd.Flags().StringVar(&month, "month", "", "month in YYYY-MM format")
@@ -194,7 +198,7 @@ func (a *App) buildBudgetsResetCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "budgets.reset", wrapError(err, "failed to load service"), start)
 				return
@@ -208,11 +212,11 @@ func (a *App) buildBudgetsResetCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("budgets.reset", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]string{"status": "budget reset"}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully reset budget for %d-%02d.\n", y, m) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully reset budget for %d-%02d.\n", y, m)
 		},
 	}
 	cmd.Flags().StringVar(&month, "month", "", "month in YYYY-MM format")
@@ -238,7 +242,7 @@ func (a *App) buildBudgetsShowCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "budgets.show", wrapError(err, "failed to load service"), start)
 				return
@@ -254,14 +258,14 @@ func (a *App) buildBudgetsShowCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("budgets.show", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, budget, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Category:  %s\n", budget.CategoryName)            //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Planned:   %.2f\n", budget.Planned)               //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Actual:    %.2f\n", budget.Actual)                //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Remaining: %.2f\n", budget.Planned-budget.Actual) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Category:  %s\n", budget.CategoryName)
+			fmt.Fprintf(cmd.OutOrStdout(), "Planned:   %.2f\n", budget.Planned)
+			fmt.Fprintf(cmd.OutOrStdout(), "Actual:    %.2f\n", budget.Actual)
+			fmt.Fprintf(cmd.OutOrStdout(), "Remaining: %.2f\n", budget.Planned-budget.Actual)
 		},
 	}
 	cmd.Flags().StringVar(&month, "month", "", "month in YYYY-MM format")
@@ -278,7 +282,7 @@ func (a *App) buildBudgetsExportCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), true, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "budgets.export", wrapError(err, "failed to load service"), start)
 				return
@@ -297,7 +301,7 @@ func (a *App) buildBudgetsExportCommand() *cobra.Command {
 			}
 
 			env := output.NewEnvelope("budgets.export", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, budgets, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			renderer.RenderSuccess(env)
 		},
 	}
 	cmd.Flags().StringVar(&month, "month", "", "month in YYYY-MM format")
@@ -344,7 +348,7 @@ func (a *App) buildBudgetsFlexibleSetCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "budgets.flexible.set", wrapError(err, "failed to load service"), start)
 				return
@@ -358,11 +362,11 @@ func (a *App) buildBudgetsFlexibleSetCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("budgets.flexible.set", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]string{"status": "budget set"}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully set flexible budget for %d-%02d to %.2f.\n", y, m, amount) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully set flexible budget for %d-%02d to %.2f.\n", y, m, amount)
 		},
 	}
 	cmd.Flags().StringVar(&month, "month", "", "month in YYYY-MM format")
@@ -404,7 +408,7 @@ func (a *App) buildBudgetsFlexRolloverSetCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "budgets.flex-rollover.set", wrapError(err, "failed to load service"), start)
 				return
@@ -418,11 +422,11 @@ func (a *App) buildBudgetsFlexRolloverSetCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("budgets.flex-rollover.set", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]string{"status": "rollover set"}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully set flex rollover starting %s with balance %.2f.\n", month, amount) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully set flex rollover starting %s with balance %.2f.\n", month, amount)
 		},
 	}
 	cmd.Flags().StringVar(&month, "month", "", "start month in YYYY-MM-DD format")

@@ -26,7 +26,11 @@ func TestTransactionsDuplicatesJSON(t *testing.T) {
 		if gqlReq.OperationName != "GetTransactionsList" {
 			t.Fatalf("operation = %q, want GetTransactionsList", gqlReq.OperationName)
 		}
-		filters = gqlReq.Variables["filters"].(map[string]any)
+		var ok bool
+		filters, ok = gqlReq.Variables["filters"].(map[string]any)
+		if !ok {
+			t.Fatalf("filters = %#v, want object", gqlReq.Variables["filters"])
+		}
 		if gqlReq.Variables["offset"] != float64(0) || gqlReq.Variables["limit"] != float64(1000) {
 			t.Fatalf("variables = %#v, want first 1000-item page", gqlReq.Variables)
 		}
@@ -93,7 +97,10 @@ func TestTransactionsDeleteJSON(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
 			t.Fatalf("Decode request error = %v", err)
 		}
-		input := gqlReq.Variables["input"].(map[string]any)
+		input, ok := gqlReq.Variables["input"].(map[string]any)
+		if !ok {
+			t.Fatalf("input = %#v, want object", gqlReq.Variables["input"])
+		}
 		if gqlReq.OperationName != "Common_DeleteTransactionMutation" || input["transactionId"] != "tx-1" {
 			t.Fatalf("request = %#v, want Common_DeleteTransactionMutation tx-1", gqlReq)
 		}
@@ -150,7 +157,10 @@ func TestTransactionsTagsClearJSON(t *testing.T) {
 		if gqlReq.OperationName != "Web_SetTransactionTags" {
 			t.Fatalf("operation = %q, want Web_SetTransactionTags", gqlReq.OperationName)
 		}
-		input := gqlReq.Variables["input"].(map[string]any)
+		input, ok := gqlReq.Variables["input"].(map[string]any)
+		if !ok {
+			t.Fatalf("input = %#v, want object", gqlReq.Variables["input"])
+		}
 		tagIDs, ok := input["tagIds"].([]any)
 		if !ok || len(tagIDs) != 0 {
 			t.Fatalf("tagIds = %#v, want empty list", input["tagIds"])
@@ -190,8 +200,14 @@ func TestTransactionsTagsAddJSON(t *testing.T) {
 		if gqlReq.OperationName != "Web_SetTransactionTags" {
 			t.Fatalf("call 2 operation = %q, want Web_SetTransactionTags", gqlReq.OperationName)
 		}
-		input := gqlReq.Variables["input"].(map[string]any)
-		tagIDs := input["tagIds"].([]any)
+		input, ok := gqlReq.Variables["input"].(map[string]any)
+		if !ok {
+			t.Fatalf("input = %#v, want object", gqlReq.Variables["input"])
+		}
+		tagIDs, ok := input["tagIds"].([]any)
+		if !ok {
+			t.Fatalf("tagIds = %#v, want array", input["tagIds"])
+		}
 		if len(tagIDs) != 2 || tagIDs[0] != "tag-old" || tagIDs[1] != "tag-new" {
 			t.Fatalf("tagIds = %#v, want existing and new tags", tagIDs)
 		}
@@ -274,7 +290,10 @@ func TestTransactionsSearchJSON(t *testing.T) {
 		if gqlReq.OperationName != "GetTransactionsList" {
 			t.Fatalf("operation = %q, want GetTransactionsList", gqlReq.OperationName)
 		}
-		filters := gqlReq.Variables["filters"].(map[string]any)
+		filters, ok := gqlReq.Variables["filters"].(map[string]any)
+		if !ok {
+			t.Fatalf("filters = %#v, want object", gqlReq.Variables["filters"])
+		}
 		if filters["search"] != "Amazon" {
 			t.Fatalf("search = %v, want Amazon", filters["search"])
 		}

@@ -45,7 +45,7 @@ func (f *appTransactionListFlags) bind(cmd *cobra.Command) {
 	cmd.Flags().StringSliceVar(&f.goalIDs, "goal-id", nil, "filter by goal ID (repeatable)")
 }
 
-func (f appTransactionListFlags) options(cmd *cobra.Command, startDate, endDate string) monarch.ListTransactionsOptions {
+func (f *appTransactionListFlags) options(cmd *cobra.Command, startDate, endDate string) monarch.ListTransactionsOptions {
 	opts := monarch.ListTransactionsOptions{
 		Limit:       f.limit,
 		Offset:      f.offset,
@@ -100,7 +100,7 @@ func (f *appTransactionExportFlags) bind(cmd *cobra.Command) {
 	cmd.Flags().StringSliceVar(&f.goalIDs, "goal-id", nil, "filter by goal ID (repeatable)")
 }
 
-func (f appTransactionExportFlags) options(cmd *cobra.Command, startDate, endDate string) monarch.ListTransactionsOptions {
+func (f *appTransactionExportFlags) options(cmd *cobra.Command, startDate, endDate string) monarch.ListTransactionsOptions {
 	opts := monarch.ListTransactionsOptions{
 		Limit:     f.limit,
 		Offset:    f.offset,
@@ -128,6 +128,16 @@ type appTransactionUpdateFlags struct {
 	markReviewed    bool
 }
 
+type appTransactionUpdateValues struct {
+	notes           *string
+	categoryID      *string
+	amount          *float64
+	date            *string
+	merchant        *string
+	hideFromReports *bool
+	needsReview     *bool
+}
+
 func (f *appTransactionUpdateFlags) bind(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.notes, "notes", "", "transaction notes")
 	cmd.Flags().StringVar(&f.categoryID, "category", "", "transaction category ID")
@@ -139,40 +149,34 @@ func (f *appTransactionUpdateFlags) bind(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&f.markReviewed, "mark-reviewed", false, "mark transaction as reviewed (shortcut for --needs-review=false)")
 }
 
-func (f appTransactionUpdateFlags) values(cmd *cobra.Command) (*string, *string, *float64, *string, *string, *bool, *bool) {
-	var notes *string
+func (f *appTransactionUpdateFlags) values(cmd *cobra.Command) appTransactionUpdateValues {
+	var values appTransactionUpdateValues
 	if cmd.Flags().Changed("notes") {
-		notes = &f.notes
+		values.notes = &f.notes
 	}
-	var categoryID *string
 	if cmd.Flags().Changed("category") {
-		categoryID = &f.categoryID
+		values.categoryID = &f.categoryID
 	}
-	var amount *float64
 	if cmd.Flags().Changed("amount") {
-		amount = &f.amount
+		values.amount = &f.amount
 	}
-	var date *string
 	if cmd.Flags().Changed("date") {
-		date = &f.date
+		values.date = &f.date
 	}
-	var merchant *string
 	if cmd.Flags().Changed("merchant") {
-		merchant = &f.merchant
+		values.merchant = &f.merchant
 	}
-	var hideFromReports *bool
 	if cmd.Flags().Changed("hide-from-reports") {
-		hideFromReports = &f.hideFromReports
+		values.hideFromReports = &f.hideFromReports
 	}
-	var needsReview *bool
 	if cmd.Flags().Changed("needs-review") {
-		needsReview = &f.needsReview
+		values.needsReview = &f.needsReview
 	}
 	if f.markReviewed {
 		reviewed := false
-		needsReview = &reviewed
+		values.needsReview = &reviewed
 	}
-	return notes, categoryID, amount, date, merchant, hideFromReports, needsReview
+	return values
 }
 
 type appTransactionCreateFlags struct {
@@ -238,7 +242,7 @@ func (a *App) buildTransactionsListCommand(startDate, endDate *string) *cobra.Co
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.list", wrapError(err, "failed to load service"), start)
 				return
@@ -254,15 +258,16 @@ func (a *App) buildTransactionsListCommand(startDate, endDate *string) *cobra.Co
 			if a.Flags.JSONMode {
 				data := map[string]any{"transactions": txs, "total": total}
 				env := a.envelopeWithWarnings("transactions.list", data, start, "uses legacy Monarch GraphQL root field: allTransactions")
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES") //nolint:errcheck // best-effort output
-			for _, t := range txs {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-20s %-15s %10.2f %s\n", t.Date, t.Merchant, t.Category, t.Amount, t.Notes) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES")
+			for i := range txs {
+				t := &txs[i]
+				fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-20s %-15s %10.2f %s\n", t.Date, t.Merchant, t.Category, t.Amount, t.Notes)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "\nTotal transactions: %d\n", total) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "\nTotal transactions: %d\n", total)
 		},
 	}
 	flags.bind(cmd)
@@ -283,7 +288,7 @@ func (a *App) buildTransactionsSearchCommand(startDate, endDate *string) *cobra.
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.search", wrapError(err, "failed to load service"), start)
 				return
@@ -304,15 +309,16 @@ func (a *App) buildTransactionsSearchCommand(startDate, endDate *string) *cobra.
 			if a.Flags.JSONMode {
 				data := map[string]any{"transactions": txs, "total": total}
 				env := a.envelopeWithWarnings("transactions.search", data, start, "uses legacy Monarch GraphQL root field: allTransactions")
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES") //nolint:errcheck // best-effort output
-			for _, t := range txs {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-20s %-15s %10.2f %s\n", t.Date, t.Merchant, t.Category, t.Amount, t.Notes) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-20s %-15s %10s %s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT", "NOTES")
+			for i := range txs {
+				t := &txs[i]
+				fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-20s %-15s %10.2f %s\n", t.Date, t.Merchant, t.Category, t.Amount, t.Notes)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "\nTotal matches: %d\n", total) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "\nTotal matches: %d\n", total)
 		},
 	}
 	cmd.Flags().IntVar(&limitValue, "limit", 100, "maximum number of transactions to return")
@@ -328,7 +334,7 @@ func (a *App) buildTransactionsDuplicatesCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.duplicates", wrapError(err, "failed to load service"), start)
 				return
@@ -346,13 +352,14 @@ func (a *App) buildTransactionsDuplicatesCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := a.envelopeWithWarnings("transactions.duplicates", txs, start, "uses legacy Monarch GraphQL root field: allTransactions")
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-20s %10s %s\n", "DATE", "MERCHANT", "AMOUNT", "ID") //nolint:errcheck // best-effort output
-			for _, t := range txs {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-20s %10.2f %s\n", t.Date, t.Merchant, t.Amount, t.ID) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-20s %10s %s\n", "DATE", "MERCHANT", "AMOUNT", "ID")
+			for i := range txs {
+				t := &txs[i]
+				fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-20s %10.2f %s\n", t.Date, t.Merchant, t.Amount, t.ID)
 			}
 		},
 	}
@@ -367,7 +374,7 @@ func (a *App) buildTransactionsSplitsCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.splits", wrapError(err, "failed to load service"), start)
 				return
@@ -381,13 +388,13 @@ func (a *App) buildTransactionsSplitsCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.splits", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, splits, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %10s %s\n", "CATEGORY", "AMOUNT", "NOTES") //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %10s %s\n", "CATEGORY", "AMOUNT", "NOTES")
 			for _, s := range splits {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %10.2f %s\n", s.Category, s.Amount, s.Notes) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %10.2f %s\n", s.Category, s.Amount, s.Notes)
 			}
 		},
 	}
@@ -409,35 +416,39 @@ func (a *App) buildTransactionsUpdateCommand() *cobra.Command {
 				return
 			}
 
-			notes, categoryID, amount, date, merchant, hideFromReports, needsReview := flags.values(cmd)
+			values := flags.values(cmd)
 			if a.Flags.DryRun {
 				plan := safety.NewPlan()
-				plan.Add("transactions.update", id, nil, map[string]any{"notes": notes, "categoryId": categoryID, "amount": amount, "date": date, "merchant": merchant, "hideFromReports": hideFromReports, "needsReview": needsReview})
+				plan.Add("transactions.update", id, nil, map[string]any{"notes": values.notes, "categoryId": values.categoryID, "amount": values.amount, "date": values.date, "merchant": values.merchant, "hideFromReports": values.hideFromReports, "needsReview": values.needsReview})
 				a.renderPlan(renderer, "transactions.update", plan, start)
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.update", wrapError(err, "failed to load service"), start)
 				return
 			}
 
 			result, err := a.mutate(renderer, "transactions.update", id, start, func() (any, error) {
-				return svc.UpdateTransaction(cmd.Context(), id, notes, categoryID, amount, date, merchant, hideFromReports, needsReview)
+				return svc.UpdateTransaction(cmd.Context(), id, values.notes, values.categoryID, values.amount, values.date, values.merchant, values.hideFromReports, values.needsReview)
 			}, "failed to update transaction")
 			if err != nil {
 				return
 			}
-			tx := result.(*monarch.Transaction)
-
-			if a.Flags.JSONMode {
-				env := output.NewEnvelope("transactions.update", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, tx, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			tx, ok := result.(*monarch.Transaction)
+			if !ok || tx == nil {
+				a.handleError(renderer, "transactions.update", errors.New(errors.InternalError, "unexpected transaction update result", errors.CatInternal, false, nil), start)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully updated transaction %s.\n", tx.ID) //nolint:errcheck // best-effort output
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("transactions.update", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, tx, time.Since(start))
+				renderer.RenderSuccess(env)
+				return
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully updated transaction %s.\n", tx.ID)
 		},
 	}
 	flags.bind(cmd)
@@ -465,7 +476,7 @@ func (a *App) buildTransactionsDeleteCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.delete", wrapError(err, "failed to load service"), start)
 				return
@@ -479,11 +490,11 @@ func (a *App) buildTransactionsDeleteCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.delete", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]string{"status": "deleted"}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully deleted transaction %s.\n", id) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully deleted transaction %s.\n", id)
 		},
 	}
 }
@@ -513,7 +524,7 @@ func (a *App) buildTransactionsCreateCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.create", wrapError(err, "failed to load service"), start)
 				return
@@ -525,15 +536,19 @@ func (a *App) buildTransactionsCreateCommand() *cobra.Command {
 			if err != nil {
 				return
 			}
-			tx := result.(*monarch.Transaction)
-
-			if a.Flags.JSONMode {
-				env := output.NewEnvelope("transactions.create", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, tx, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			tx, ok := result.(*monarch.Transaction)
+			if !ok || tx == nil {
+				a.handleError(renderer, "transactions.create", errors.New(errors.InternalError, "unexpected transaction create result", errors.CatInternal, false, nil), start)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully created transaction %s.\n", tx.ID) //nolint:errcheck // best-effort output
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("transactions.create", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, tx, time.Since(start))
+				renderer.RenderSuccess(env)
+				return
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully created transaction %s.\n", tx.ID)
 		},
 	}
 	flags.bind(cmd)
@@ -575,7 +590,7 @@ func (a *App) buildTransactionsSplitCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.split", wrapError(err, "failed to load service"), start)
 				return
@@ -589,11 +604,11 @@ func (a *App) buildTransactionsSplitCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.split", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]string{"status": "split updated"}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully split transaction %s.\n", id) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully split transaction %s.\n", id)
 		},
 	}
 	cmd.Flags().StringVar(&file, "file", "", "JSON file with split data")
@@ -611,7 +626,7 @@ func (a *App) buildTransactionsExportCommand(startDate, endDate *string) *cobra.
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.export", wrapError(err, "failed to load service"), start)
 				return
@@ -633,7 +648,7 @@ func (a *App) buildTransactionsExportCommand(startDate, endDate *string) *cobra.
 				}
 				defer func() {
 					if cerr := f.Close(); cerr != nil {
-						fmt.Fprintf(cmd.ErrOrStderr(), "warning: failed to close file: %v\n", cerr) //nolint:errcheck // best-effort warning
+						fmt.Fprintf(cmd.ErrOrStderr(), "warning: failed to close file: %v\n", cerr)
 					}
 				}()
 				out = f
@@ -648,7 +663,7 @@ func (a *App) buildTransactionsExportCommand(startDate, endDate *string) *cobra.
 			}
 
 			env := output.NewEnvelope("transactions.export", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, txs, time.Since(start))
-			renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+			renderer.RenderSuccess(env)
 		},
 	}
 	flags.bind(cmd)
@@ -689,7 +704,7 @@ func (a *App) buildTransactionsTagsSetCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.tags.set", wrapError(err, "failed to load service"), start)
 				return
@@ -703,11 +718,11 @@ func (a *App) buildTransactionsTagsSetCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.tags.set", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]string{"status": "tags set"}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully set tags for transaction %s.\n", id) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully set tags for transaction %s.\n", id)
 		},
 	}
 	cmd.Flags().StringSliceVar(&tags, "tag", []string{}, "tag IDs to set")
@@ -735,7 +750,7 @@ func (a *App) buildTransactionsAttachmentsListCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.attachments.list", wrapError(err, "failed to load service"), start)
 				return
@@ -749,17 +764,17 @@ func (a *App) buildTransactionsAttachmentsListCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.attachments.list", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, attachments, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
 			if len(attachments) == 0 {
-				fmt.Fprintln(cmd.OutOrStdout(), "No attachments found.") //nolint:errcheck // best-effort output
+				fmt.Fprintln(cmd.OutOrStdout(), "No attachments found.")
 				return
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%-36s %-20s %s\n", "ID", "FILENAME", "SIZE") //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-36s %-20s %s\n", "ID", "FILENAME", "SIZE")
 			for _, attachment := range attachments {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-36s %-20s %d bytes\n", attachment.ID, attachment.Filename, attachment.SizeBytes) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-36s %-20s %d bytes\n", attachment.ID, attachment.Filename, attachment.SizeBytes)
 			}
 		},
 	}
@@ -784,7 +799,7 @@ func (a *App) buildTransactionsAttachmentsDownloadCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.attachments.download", wrapError(err, "failed to load service"), start)
 				return
@@ -821,7 +836,7 @@ func (a *App) buildTransactionsAttachmentsDownloadCommand() *cobra.Command {
 			}
 			defer func() {
 				if cerr := f.Close(); cerr != nil {
-					fmt.Fprintf(cmd.ErrOrStderr(), "warning: failed to close file: %v\n", cerr) //nolint:errcheck // best-effort warning
+					fmt.Fprintf(cmd.ErrOrStderr(), "warning: failed to close file: %v\n", cerr)
 				}
 			}()
 
@@ -832,11 +847,11 @@ func (a *App) buildTransactionsAttachmentsDownloadCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.attachments.download", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]string{"status": "downloaded", "path": outPath}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Downloaded attachment to %s\n", outPath) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Downloaded attachment to %s\n", outPath)
 		},
 	}
 	cmd.Flags().StringVar(&id, "id", "", "attachment ID")
@@ -853,7 +868,7 @@ func (a *App) buildTransactionsShowCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.show", wrapError(err, "failed to load service"), start)
 				return
@@ -867,16 +882,16 @@ func (a *App) buildTransactionsShowCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.show", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, tx, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "ID:       %s\n", tx.ID)       //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Date:     %s\n", tx.Date)     //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Merchant: %s\n", tx.Merchant) //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Category: %s\n", tx.Category) //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Amount:   %.2f\n", tx.Amount) //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Notes:    %s\n", tx.Notes)    //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "ID:       %s\n", tx.ID)
+			fmt.Fprintf(cmd.OutOrStdout(), "Date:     %s\n", tx.Date)
+			fmt.Fprintf(cmd.OutOrStdout(), "Merchant: %s\n", tx.Merchant)
+			fmt.Fprintf(cmd.OutOrStdout(), "Category: %s\n", tx.Category)
+			fmt.Fprintf(cmd.OutOrStdout(), "Amount:   %.2f\n", tx.Amount)
+			fmt.Fprintf(cmd.OutOrStdout(), "Notes:    %s\n", tx.Notes)
 		},
 	}
 }
@@ -889,7 +904,7 @@ func (a *App) buildTransactionsSummaryCommand(startDate, endDate *string) *cobra
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.summary", wrapError(err, "failed to load service"), start)
 				return
@@ -903,11 +918,11 @@ func (a *App) buildTransactionsSummaryCommand(startDate, endDate *string) *cobra
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.summary", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, summary, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintln(cmd.OutOrStdout(), "Transaction Summary") //nolint:errcheck // best-effort output
+			fmt.Fprintln(cmd.OutOrStdout(), "Transaction Summary")
 		},
 	}
 }
@@ -933,7 +948,7 @@ func (a *App) buildTransactionsTagsClearCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.tags.clear", wrapError(err, "failed to load service"), start)
 				return
@@ -947,11 +962,11 @@ func (a *App) buildTransactionsTagsClearCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.tags.clear", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]string{"status": "tags cleared"}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully cleared tags for transaction %s.\n", id) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully cleared tags for transaction %s.\n", id)
 		},
 	}
 }
@@ -977,7 +992,7 @@ func (a *App) buildTransactionsTagsAddCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.tags.add", wrapError(err, "failed to load service"), start)
 				return
@@ -1016,11 +1031,11 @@ func (a *App) buildTransactionsTagsAddCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("transactions.tags.add", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]string{"status": "tags added"}, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully added tags to transaction %s.\n", id) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully added tags to transaction %s.\n", id)
 		},
 	}
 	cmd.Flags().StringSliceVar(&tags, "tag", []string{}, "tag IDs to add")
@@ -1064,7 +1079,7 @@ func (a *App) buildTransactionsBulkCategorizeCommand() *cobra.Command {
 				return
 			}
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.bulk-categorize", wrapError(err, "failed to load service"), start)
 				return
@@ -1098,13 +1113,13 @@ func (a *App) buildTransactionsBulkCategorizeCommand() *cobra.Command {
 			if a.Flags.JSONMode {
 				data := map[string]any{"total": len(ids), "successful": successes, "failed": len(failures), "errors": failures}
 				env := output.NewEnvelope("transactions.bulk-categorize", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, data, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Bulk categorize: %d/%d successful.\n", successes, len(ids)) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "Bulk categorize: %d/%d successful.\n", successes, len(ids))
 			for _, failure := range failures {
-				fmt.Fprintf(cmd.OutOrStdout(), "  FAILED: %s\n", failure) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "  FAILED: %s\n", failure)
 			}
 		},
 	}

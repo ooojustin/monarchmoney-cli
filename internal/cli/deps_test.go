@@ -47,7 +47,7 @@ func TestAppLoadServiceComposesInjectedTransport(t *testing.T) {
 	}
 	app.Flags.Timeout = time.Second
 
-	service, _, err := app.loadService()
+	service, err := app.loadService()
 	if err != nil {
 		t.Fatalf("loadService() error = %v", err)
 	}

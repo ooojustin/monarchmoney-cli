@@ -5,10 +5,13 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
+
+	"golang.org/x/term"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/audit"
 	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
@@ -18,7 +21,6 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 	"github.com/thedavidweng/monarchmoney-cli/internal/version"
-	"golang.org/x/term"
 )
 
 type App struct {
@@ -27,6 +29,7 @@ type App struct {
 	Config    *config.Config
 	ConfigErr error
 	Root      *cobra.Command
+	executed  atomic.Bool
 }
 
 type Flags struct {
@@ -80,7 +83,7 @@ func DefaultDeps() Deps {
 	}
 }
 
-func New(deps Deps) *App {
+func New(deps Deps) *App { //nolint:gocritic // Copying dependencies isolates each App from caller mutation.
 	a := &App{Deps: deps}
 	defaults := DefaultDeps()
 	if a.Deps.LoadConfig == nil {
@@ -118,6 +121,9 @@ func New(deps Deps) *App {
 }
 
 func (a *App) Execute() error {
+	if !a.executed.CompareAndSwap(false, true) {
+		return clierrors.New(clierrors.InternalError, "app cannot be executed more than once", clierrors.CatInternal, false, nil)
+	}
 	return a.Root.Execute()
 }
 
@@ -250,20 +256,20 @@ func (a *App) buildVersion() *cobra.Command {
 	}
 }
 
-func (a *App) loadService() (*monarch.Service, *auth.Session, error) {
+func (a *App) loadService() (*monarch.Service, error) {
 	if a.ConfigErr != nil {
-		return nil, nil, clierrors.New(clierrors.InternalError, "failed to load config", clierrors.CatInternal, false, a.ConfigErr)
+		return nil, clierrors.New(clierrors.InternalError, "failed to load config", clierrors.CatInternal, false, a.ConfigErr)
 	}
 	if a.Config == nil {
-		return nil, nil, clierrors.New(clierrors.InternalError, "configuration not initialized", clierrors.CatInternal, false, nil)
+		return nil, clierrors.New(clierrors.InternalError, "configuration not initialized", clierrors.CatInternal, false, nil)
 	}
 	store := auth.NewStore(a.sessionPath())
 	sess, err := store.Load()
 	if err != nil {
-		return nil, nil, clierrors.New(clierrors.AuthRequired, "not logged in", clierrors.CatAuth, false, err)
+		return nil, clierrors.New(clierrors.AuthRequired, "not logged in", clierrors.CatAuth, false, err)
 	}
 	client := graphql.NewClient(a.Config.APIEndpoint, sess.Token, a.Flags.Timeout, graphql.WithHTTPTransport(a.Deps.HTTPTransport))
-	return monarch.NewService(client, monarch.WithHTTPTransport(a.Deps.HTTPTransport)), sess, nil
+	return monarch.NewService(client, monarch.WithHTTPTransport(a.Deps.HTTPTransport)), nil
 }
 
 func (a *App) handleError(renderer *output.Renderer, command string, err *clierrors.Error, start time.Time) {

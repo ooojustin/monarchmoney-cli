@@ -24,11 +24,11 @@ func (a *App) buildDoctorCommand() *cobra.Command {
 			if cfg == nil {
 				cfg = config.Default()
 			}
-			result := doctor.Check(cmd.Context(), doctor.Options{
+			result := doctor.Check(cmd.Context(), &doctor.Options{
 				Connect:       checkConnectivity,
 				ConfigPath:    a.configPath(),
 				ConfigError:   a.ConfigErr,
-				SessionPath:   cfg.SessionPath,
+				SessionPath:   a.sessionPath(),
 				APIEndpoint:   cfg.APIEndpoint,
 				Timeout:       a.Flags.Timeout,
 				HTTPTransport: a.Deps.HTTPTransport,
@@ -36,17 +36,17 @@ func (a *App) buildDoctorCommand() *cobra.Command {
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("doctor", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, result, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintln(cmd.OutOrStdout(), "Monarch Money CLI Doctor")                                                                                                                                    //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Version: %s\n", result.Version)                                                                                                                                //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "OS/Arch: %s/%s\n", result.OS, result.Arch)                                                                                                                     //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Config Path: %s (Exists: %v, Valid: %v)\n", result.Config.Path, result.Config.Exists, result.Config.Valid)                                                     //nolint:errcheck // best-effort output
-			fmt.Fprintf(cmd.OutOrStdout(), "Session Path: %s (Exists: %v, Auth: %v, PermOK: %v)\n", result.Session.Path, result.Session.Exists, result.Session.Authenticated, result.Session.PermissionOK) //nolint:errcheck // best-effort output
+			fmt.Fprintln(cmd.OutOrStdout(), "Monarch Money CLI Doctor")
+			fmt.Fprintf(cmd.OutOrStdout(), "Version: %s\n", result.Version)
+			fmt.Fprintf(cmd.OutOrStdout(), "OS/Arch: %s/%s\n", result.OS, result.Arch)
+			fmt.Fprintf(cmd.OutOrStdout(), "Config Path: %s (Exists: %v, Valid: %v)\n", result.Config.Path, result.Config.Exists, result.Config.Valid)
+			fmt.Fprintf(cmd.OutOrStdout(), "Session Path: %s (Exists: %v, Auth: %v, PermOK: %v)\n", result.Session.Path, result.Session.Exists, result.Session.Authenticated, result.Session.PermissionOK)
 			if checkConnectivity {
-				fmt.Fprintf(cmd.OutOrStdout(), "API Connected: %v\n", result.Network.APIReachable) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "API Connected: %v\n", result.Network.APIReachable)
 			}
 		},
 	}

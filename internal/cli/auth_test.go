@@ -19,13 +19,13 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/testutil"
 )
 
-func newTestAuthApp(t *testing.T, sessionPath string, transport http.RoundTripper) (*App, *bytes.Buffer, *bytes.Buffer, *int) {
+func newTestAuthApp(t *testing.T, sessionPath string, transport http.RoundTripper) (app *App, out, errOut *bytes.Buffer, exitCode *int) {
 	t.Helper()
 
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-	exitCode := 0
-	app := New(Deps{
+	out = &bytes.Buffer{}
+	errOut = &bytes.Buffer{}
+	exitCode = new(int)
+	app = New(Deps{
 		LoadConfig: func(string) (*config.Config, error) {
 			cfg := config.Default()
 			cfg.APIEndpoint = "https://example.invalid/graphql"
@@ -36,15 +36,15 @@ func newTestAuthApp(t *testing.T, sessionPath string, transport http.RoundTrippe
 		Getenv:        func(string) string { return "" },
 		NewRequestID:  func() string { return "request-id" },
 		HTTPTransport: transport,
-		Stdout:        &out,
-		Stderr:        &errOut,
+		Stdout:        out,
+		Stderr:        errOut,
 		Stdin:         strings.NewReader(""),
 		ReadPassword: func() ([]byte, error) {
 			return nil, stderrors.New("unexpected password prompt")
 		},
-		Exit: func(code int) { exitCode = code },
+		Exit: func(code int) { *exitCode = code },
 	})
-	return app, &out, &errOut, &exitCode
+	return app, out, errOut, exitCode
 }
 
 type authGraphQLRequest struct {
@@ -267,7 +267,7 @@ func TestAppAuthLocalCommandsUseConfiguredPathDespiteConfigError(t *testing.T) {
 	if err := auth.NewStore(sessionPath).Save(&auth.Session{Token: "token"}); err != nil {
 		t.Fatalf("Save() error = %v", err)
 	}
-	app, out, _, exitCode := newTestAuthApp(t, sessionPath, nil)
+	app, out, _, _ := newTestAuthApp(t, sessionPath, nil)
 	app.Deps.LoadConfig = func(string) (*config.Config, error) {
 		cfg := config.Default()
 		cfg.SessionPath = sessionPath
@@ -281,7 +281,7 @@ func TestAppAuthLocalCommandsUseConfiguredPathDespiteConfigError(t *testing.T) {
 		t.Fatalf("path output = %q, want %q", out.String(), sessionPath)
 	}
 
-	app, out, _, exitCode = newTestAuthApp(t, sessionPath, nil)
+	app, out, _, exitCode := newTestAuthApp(t, sessionPath, nil)
 	app.Deps.LoadConfig = func(string) (*config.Config, error) {
 		cfg := config.Default()
 		cfg.SessionPath = sessionPath

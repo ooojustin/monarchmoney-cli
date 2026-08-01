@@ -54,7 +54,7 @@ func (s *Service) ListTransactionAttachments(ctx context.Context, txID string) (
 
 func (s *Service) DownloadAttachment(ctx context.Context, url string, w io.Writer) error {
 	// Attachment assets are served from Monarch's file URL and are fetched directly.
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
 	if err != nil {
 		return errors.New(errors.InternalError, "failed to create download request", errors.CatInternal, false, err)
 	}

@@ -25,7 +25,7 @@ func (a *App) buildOverviewCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "overview", wrapError(err, "failed to load service"), start)
 				return
@@ -39,7 +39,7 @@ func (a *App) buildOverviewCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("overview", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, overview, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
@@ -52,22 +52,23 @@ func (a *App) buildOverviewCommand() *cobra.Command {
 }
 
 func renderFinancialOverview(out io.Writer, overview *monarch.FinancialOverview) {
-	fmt.Fprintf(out, "Financial Overview (as of %s)\n\n", overview.AsOf) //nolint:errcheck // best-effort output
-	fmt.Fprintf(out, "Net Worth:       %.2f\n", overview.NetWorth)       //nolint:errcheck // best-effort output
-	fmt.Fprintf(out, "Accounts:        %d\n", overview.AccountCount)     //nolint:errcheck // best-effort output
+	fmt.Fprintf(out, "Financial Overview (as of %s)\n\n", overview.AsOf)
+	fmt.Fprintf(out, "Net Worth:       %.2f\n", overview.NetWorth)
+	fmt.Fprintf(out, "Accounts:        %d\n", overview.AccountCount)
 	if overview.Cashflow != nil {
-		fmt.Fprintf(out, "Income:          %.2f\n", overview.Cashflow.Income)            //nolint:errcheck // best-effort output
-		fmt.Fprintf(out, "Expense:         %.2f\n", overview.Cashflow.Expense)           //nolint:errcheck // best-effort output
-		fmt.Fprintf(out, "Savings:         %.2f\n", overview.Cashflow.Savings)           //nolint:errcheck // best-effort output
-		fmt.Fprintf(out, "Savings Rate:    %.2f%%\n", overview.Cashflow.SavingsRate*100) //nolint:errcheck // best-effort output
+		fmt.Fprintf(out, "Income:          %.2f\n", overview.Cashflow.Income)
+		fmt.Fprintf(out, "Expense:         %.2f\n", overview.Cashflow.Expense)
+		fmt.Fprintf(out, "Savings:         %.2f\n", overview.Cashflow.Savings)
+		fmt.Fprintf(out, "Savings Rate:    %.2f%%\n", overview.Cashflow.SavingsRate*100)
 	}
-	fmt.Fprintf(out, "Transactions:    %d total (showing %d)\n\n", overview.TransactionTotal, len(overview.Transactions)) //nolint:errcheck // best-effort output
+	fmt.Fprintf(out, "Transactions:    %d total (showing %d)\n\n", overview.TransactionTotal, len(overview.Transactions))
 	if len(overview.Transactions) == 0 {
 		return
 	}
 
-	fmt.Fprintf(out, "%-12s %-20s %-15s %10s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT") //nolint:errcheck // best-effort output
-	for _, tx := range overview.Transactions {
-		fmt.Fprintf(out, "%-12s %-20s %-15s %10.2f\n", tx.Date, tx.Merchant, tx.Category, tx.Amount) //nolint:errcheck // best-effort output
+	fmt.Fprintf(out, "%-12s %-20s %-15s %10s\n", "DATE", "MERCHANT", "CATEGORY", "AMOUNT")
+	for i := range overview.Transactions {
+		tx := &overview.Transactions[i]
+		fmt.Fprintf(out, "%-12s %-20s %-15s %10.2f\n", tx.Date, tx.Merchant, tx.Category, tx.Amount)
 	}
 }

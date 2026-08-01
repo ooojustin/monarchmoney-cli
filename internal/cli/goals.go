@@ -32,7 +32,7 @@ func (a *App) buildGoalsListCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "goals.list", wrapError(err, "failed to load service"), start)
 				return
@@ -46,13 +46,14 @@ func (a *App) buildGoalsListCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("goals.list", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, goals, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-20s %-10s %12s %12s %12s\n", "ID", "NAME", "STATUS", "BALANCE", "TARGET", "PROGRESS") //nolint:errcheck // best-effort output
-			for _, goal := range goals {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-20s %-10s %12.2f %12.2f %11.1f%%\n", goal.ID, goal.Name, goal.Status, goal.CurrentBalance, goal.TargetAmount, goal.Progress*100) //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-20s %-10s %12s %12s %12s\n", "ID", "NAME", "STATUS", "BALANCE", "TARGET", "PROGRESS")
+			for i := range goals {
+				goal := &goals[i]
+				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-20s %-10s %12.2f %12.2f %11.1f%%\n", goal.ID, goal.Name, goal.Status, goal.CurrentBalance, goal.TargetAmount, goal.Progress*100)
 			}
 		},
 	}
@@ -66,7 +67,7 @@ func (a *App) buildGoalsBudgetsCommand() *cobra.Command {
 		Run: func(cmd *cobra.Command, _ []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "goals.budgets", wrapError(err, "failed to load service"), start)
 				return
@@ -93,9 +94,9 @@ func (a *App) buildGoalsBudgetsCommand() *cobra.Command {
 				renderer.RenderSuccess(output.NewEnvelope("goals.budgets", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, budgets, time.Since(start)))
 				return
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-20s %-10s %10s %10s %10s\n", "GOAL", "MONTH", "STATUS", "PLANNED", "ACTUAL", "REMAINING") //nolint:errcheck
+			fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-20s %-10s %10s %10s %10s\n", "GOAL", "MONTH", "STATUS", "PLANNED", "ACTUAL", "REMAINING")
 			for _, budget := range budgets {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-20s %-10s %10.2f %10.2f %10.2f\n", budget.GoalName, budget.Month, budget.GoalStatus, budget.Planned, budget.Actual, budget.Remaining) //nolint:errcheck
+				fmt.Fprintf(cmd.OutOrStdout(), "%-20s %-20s %-10s %10.2f %10.2f %10.2f\n", budget.GoalName, budget.Month, budget.GoalStatus, budget.Planned, budget.Actual, budget.Remaining)
 			}
 		},
 	}

@@ -28,7 +28,7 @@ func (a *App) buildCreditHistoryCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, _, err := a.loadService()
+			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "credit.history", wrapError(err, "failed to load service"), start)
 				return
@@ -42,13 +42,13 @@ func (a *App) buildCreditHistoryCommand() *cobra.Command {
 
 			if a.Flags.JSONMode {
 				env := output.NewEnvelope("credit.history", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, history, time.Since(start))
-				renderer.RenderSuccess(env) //nolint:errcheck // best-effort render
+				renderer.RenderSuccess(env)
 				return
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "%-12s %s\n", "DATE", "SCORE") //nolint:errcheck // best-effort output
+			fmt.Fprintf(cmd.OutOrStdout(), "%-12s %s\n", "DATE", "SCORE")
 			for _, r := range history {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-12s %d\n", r.Date, r.Score) //nolint:errcheck // best-effort output
+				fmt.Fprintf(cmd.OutOrStdout(), "%-12s %d\n", r.Date, r.Score)
 			}
 		},
 	}

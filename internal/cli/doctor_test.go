@@ -68,6 +68,22 @@ func TestAppDoctorReportsSelectedInvalidConfig(t *testing.T) {
 	}
 }
 
+func TestAppDoctorUsesDefaultSessionPathWhenConfigIsEmpty(t *testing.T) {
+	stateHome := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", stateHome)
+	wantSessionPath := config.DefaultSessionPath()
+
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	app, out := newTestDoctorApp(t, configPath, "", nil, nil)
+	app.Root.SetArgs([]string{"--config", configPath, "doctor"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(out.String(), wantSessionPath) {
+		t.Fatalf("output = %q, want default session path %q", out.String(), wantSessionPath)
+	}
+}
+
 func TestAppDoctorConnectUsesConfiguredService(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
