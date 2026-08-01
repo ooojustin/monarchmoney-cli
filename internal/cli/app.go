@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -223,6 +224,8 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 	root.AddCommand(a.buildSubscriptionCommand())
 	root.AddCommand(a.buildInstitutionsCommand())
 	root.AddCommand(a.buildGoalsCommand())
+	root.AddCommand(a.buildCashflowCommand())
+	root.AddCommand(a.buildInvestmentsCommand())
 	return root
 }
 
@@ -294,5 +297,18 @@ func (a *App) loadService() (*monarch.Service, *auth.Session, error) {
 }
 
 func (a *App) handleError(renderer *output.Renderer, command string, err *clierrors.Error, start time.Time) {
-	handleError(renderer, command, err, start)
+	if err != nil && err.Code == clierrors.AuthSessionExpired {
+		path := a.Deps.SessionPath()
+		if sess, loadErr := a.Deps.NewStore(path).Load(); loadErr == nil {
+			message := fmt.Sprintf("session token stored at %s expired or invalid; run `monarch auth login` again", path)
+			if sess.Email != "" {
+				message = fmt.Sprintf("session token for %s stored at %s expired or invalid; run `monarch auth login` again", sess.Email, path)
+			}
+			err = clierrors.New(err.Code, message, err.Category, err.Retryable, err.Err)
+		}
+	}
+	env := output.NewErrorEnvelope(command, a.Flags.Profile, output.SchemaVersion, err, time.Since(start))
+	env.Meta.RequestID = a.Flags.RequestID
+	renderer.RenderError(env)
+	a.Deps.Exit(err.ExitCode())
 }

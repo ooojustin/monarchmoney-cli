@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -154,5 +155,200 @@ func TestAppCreditHistoryUsesInjectedServiceDeps(t *testing.T) {
 	}
 	if got := out.String(); !strings.Contains(got, `"command":"credit.history"`) || !strings.Contains(got, `"score":790`) {
 		t.Fatalf("output = %q, want credit history JSON", got)
+	}
+}
+
+func TestAppRootRegistersCashflowAndInvestments(t *testing.T) {
+	app, _ := newTestApp(t)
+	tests := []struct {
+		args []string
+		name string
+	}{
+		{args: []string{"cashflow", "list"}, name: "list"},
+		{args: []string{"cashflow", "summary"}, name: "summary"},
+		{args: []string{"cashflow", "categories"}, name: "categories"},
+		{args: []string{"cashflow", "merchants"}, name: "merchants"},
+		{args: []string{"cashflow", "trends"}, name: "trends"},
+		{args: []string{"cashflow", "spending"}, name: "spending"},
+		{args: []string{"investments", "portfolio"}, name: "portfolio"},
+		{args: []string{"investments", "performance"}, name: "performance"},
+	}
+
+	for _, tt := range tests {
+		cmd, _, err := app.Root.Find(tt.args)
+		if err != nil {
+			t.Fatalf("Find(%v) error = %v", tt.args, err)
+		}
+		if cmd == nil || cmd.Name() != tt.name {
+			t.Fatalf("Find(%v) = %#v", tt.args, cmd)
+		}
+	}
+
+	cashflowCmd, _, err := app.Root.Find([]string{"cashflow"})
+	if err != nil {
+		t.Fatalf("Find(cashflow) error = %v", err)
+	}
+	if cashflowCmd.GroupID != "core" {
+		t.Fatalf("cashflow GroupID = %q, want core", cashflowCmd.GroupID)
+	}
+	if cashflowCmd.PersistentFlags().Lookup("from") == nil || cashflowCmd.PersistentFlags().Lookup("to") == nil {
+		t.Fatal("cashflow missing parent date flags")
+	}
+
+	trendsCmd, _, err := app.Root.Find([]string{"cashflow", "trends"})
+	if err != nil {
+		t.Fatalf("Find(cashflow trends) error = %v", err)
+	}
+	for _, flag := range []string{"from", "to", "group-by", "period", "account-id", "category-id"} {
+		if trendsCmd.Flags().Lookup(flag) == nil {
+			t.Fatalf("cashflow trends missing --%s flag", flag)
+		}
+	}
+
+	investmentsCmd, _, err := app.Root.Find([]string{"investments"})
+	if err != nil {
+		t.Fatalf("Find(investments) error = %v", err)
+	}
+	if investmentsCmd.GroupID != "core" {
+		t.Fatalf("investments GroupID = %q, want core", investmentsCmd.GroupID)
+	}
+	performanceCmd, _, err := app.Root.Find([]string{"investments", "performance"})
+	if err != nil {
+		t.Fatalf("Find(investments performance) error = %v", err)
+	}
+	for _, flag := range []string{"security-id", "from", "to", "values"} {
+		if performanceCmd.Flags().Lookup(flag) == nil {
+			t.Fatalf("investments performance missing --%s flag", flag)
+		}
+	}
+}
+
+func TestAppCashflowSummaryUsesInjectedServiceDeps(t *testing.T) {
+	dir := t.TempDir()
+	sessionPath := filepath.Join(dir, "session.json")
+	saveTestSession(t, sessionPath)
+
+	var out bytes.Buffer
+	var gotAuth string
+	var gotStartDate string
+	var gotEndDate string
+	app := New(Deps{
+		LoadConfig: func(string) (*config.Config, error) {
+			return &config.Config{Profile: "default", APIEndpoint: "https://example.invalid/graphql", Timeout: time.Second, SessionPath: sessionPath, AuditLog: true}, nil
+		},
+		Getenv:       func(string) string { return "" },
+		NewRequestID: func() string { return "request-id" },
+		Stdout:       &out,
+		Stderr:       io.Discard,
+		Exit:         func(int) {},
+		HTTPTransport: testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			gotAuth = req.Header.Get("Authorization")
+			var gqlReq struct {
+				OperationName string         `json:"operationName"`
+				Variables     map[string]any `json:"variables"`
+			}
+			if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
+				t.Fatalf("Decode request error = %v", err)
+			}
+			if gqlReq.OperationName != "GetCashflowSummary" {
+				t.Fatalf("operation = %q, want GetCashflowSummary", gqlReq.OperationName)
+			}
+			filters := gqlReq.Variables["filters"].(map[string]any)
+			gotStartDate, _ = filters["startDate"].(string)
+			gotEndDate, _ = filters["endDate"].(string)
+			return testutil.JSONResponse(`{"data":{"aggregates":[{"summary":{"sumIncome":8500,"sumExpense":6200,"savings":2300,"savingsRate":0.2706}}]}}`), nil
+		}),
+	})
+
+	app.Root.SetArgs([]string{"--json", "cashflow", "--from", "2026-01-01", "--to", "2026-03-31", "summary"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if gotAuth != "Token test-token" {
+		t.Fatalf("Authorization header = %q, want Token test-token", gotAuth)
+	}
+	if gotStartDate != "2026-01-01" || gotEndDate != "2026-03-31" {
+		t.Fatalf("cashflow dates = %q to %q, want 2026-01-01 to 2026-03-31", gotStartDate, gotEndDate)
+	}
+	if got := out.String(); !strings.Contains(got, `"command":"cashflow.summary"`) || !strings.Contains(got, `"income":8500`) {
+		t.Fatalf("output = %q, want cashflow summary JSON", got)
+	}
+}
+
+func TestAppCashflowTrendsValidation(t *testing.T) {
+	var out bytes.Buffer
+	exitCode := 0
+	app := New(Deps{
+		LoadConfig: func(string) (*config.Config, error) {
+			return &config.Config{Profile: "default", Timeout: time.Second, SessionPath: config.DefaultSessionPath(), AuditLog: true}, nil
+		},
+		Getenv:       func(string) string { return "" },
+		NewRequestID: func() string { return "request-id" },
+		Stdout:       &out,
+		Stderr:       io.Discard,
+		Exit: func(code int) {
+			exitCode = code
+		},
+	})
+
+	app.Root.SetArgs([]string{"--json", "cashflow", "trends"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if exitCode != 2 {
+		t.Fatalf("exitCode = %d, want 2", exitCode)
+	}
+	if got := out.String(); !strings.Contains(got, `"command":"cashflow.trends"`) || !strings.Contains(got, "--from and --to are required") {
+		t.Fatalf("output = %q, want trends validation error", got)
+	}
+}
+
+func TestAppInvestmentsPerformanceUsesInjectedServiceDeps(t *testing.T) {
+	dir := t.TempDir()
+	sessionPath := filepath.Join(dir, "session.json")
+	saveTestSession(t, sessionPath)
+
+	var out bytes.Buffer
+	var gotSecurityID string
+	var gotStartDate string
+	var gotEndDate string
+	app := New(Deps{
+		LoadConfig: func(string) (*config.Config, error) {
+			return &config.Config{Profile: "default", APIEndpoint: "https://example.invalid/graphql", Timeout: time.Second, SessionPath: sessionPath, AuditLog: true}, nil
+		},
+		Getenv:       func(string) string { return "" },
+		NewRequestID: func() string { return "request-id" },
+		Stdout:       &out,
+		Stderr:       io.Discard,
+		Exit:         func(int) {},
+		HTTPTransport: testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			var gqlReq struct {
+				OperationName string         `json:"operationName"`
+				Variables     map[string]any `json:"variables"`
+			}
+			if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
+				t.Fatalf("Decode request error = %v", err)
+			}
+			if gqlReq.OperationName != "Web_GetSecuritiesHistoricalPerformance" {
+				t.Fatalf("operation = %q, want Web_GetSecuritiesHistoricalPerformance", gqlReq.OperationName)
+			}
+			input := gqlReq.Variables["input"].(map[string]any)
+			securityIDs := input["securityIds"].([]any)
+			gotSecurityID, _ = securityIDs[0].(string)
+			gotStartDate, _ = input["startDate"].(string)
+			gotEndDate, _ = input["endDate"].(string)
+			return testutil.JSONResponse(`{"data":{"securityHistoricalPerformance":[{"security":{"id":"sec-1","ticker":"ABC","name":"ABC Fund"},"historicalChart":[{"date":"2026-01-01","returnPercent":0.1}]}]}}`), nil
+		}),
+	})
+
+	app.Root.SetArgs([]string{"--json", "investments", "performance", "--security-id", "sec-1", "--from", "2026-01-01", "--to", "2026-05-01"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if gotSecurityID != "sec-1" || gotStartDate != "2026-01-01" || gotEndDate != "2026-05-01" {
+		t.Fatalf("performance input = %q %q %q, want sec-1 2026-01-01 2026-05-01", gotSecurityID, gotStartDate, gotEndDate)
+	}
+	if got := out.String(); !strings.Contains(got, `"command":"investments.performance"`) || !strings.Contains(got, `"ticker":"ABC"`) {
+		t.Fatalf("output = %q, want investments performance JSON", got)
 	}
 }
