@@ -24,6 +24,28 @@
 - `meta.request_id`: A UUID generated per invocation, identical across every envelope emitted by a single command run.
 - `meta.warnings` (optional): Non-fatal notices about deprecated fields or migration advice. Emitted by commands that interact with legacy API fields (e.g., `transactions list`, `accounts history`).
 
+### Doctor Data
+
+`monarch doctor --json` reports the selected paths and whether the loaded configuration is valid:
+
+```json
+{
+  "config": {
+    "path": "/path/to/config.yaml",
+    "exists": true,
+    "valid": true
+  },
+  "session": {
+    "path": "/path/to/session.json",
+    "exists": true,
+    "authenticated": true,
+    "permission_ok": true
+  }
+}
+```
+
+A missing optional config file has `exists: false` and `valid: true`; a config read or parse failure has `valid: false`.
+
 ## Error Envelope
 
 ```json

@@ -4,10 +4,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var completionCmd = &cobra.Command{
-	Use:   "completion [bash|zsh|fish|powershell]",
-	Short: "Generate shell completion scripts",
-	Long: `Generate shell completion scripts for monarch.
+var completionCmd = buildCompletionCommand()
+
+func buildCompletionCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "completion [bash|zsh|fish|powershell]",
+		Short: "Generate shell completion scripts",
+		Long: `Generate shell completion scripts for monarch.
 
 To load completions:
 
@@ -48,23 +51,24 @@ PowerShell:
   PS> monarch completion powershell > monarch.ps1
   # and source this file from your PowerShell profile.
 `,
-	DisableFlagsInUseLine: true,
-	ValidArgs:             []string{"bash", "zsh", "fish", "powershell"},
-	Args:                  cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
-	GroupID:               "utility",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		out := cmd.OutOrStdout()
-		switch args[0] {
-		case "zsh":
-			return cmd.Root().GenZshCompletion(out)
-		case "fish":
-			return cmd.Root().GenFishCompletion(out, true)
-		case "powershell":
-			return cmd.Root().GenPowerShellCompletionWithDesc(out)
-		default:
-			return cmd.Root().GenBashCompletionV2(out, true)
-		}
-	},
+		DisableFlagsInUseLine: true,
+		ValidArgs:             []string{"bash", "zsh", "fish", "powershell"},
+		Args:                  cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
+		GroupID:               "utility",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
+			switch args[0] {
+			case "zsh":
+				return cmd.Root().GenZshCompletion(out)
+			case "fish":
+				return cmd.Root().GenFishCompletion(out, true)
+			case "powershell":
+				return cmd.Root().GenPowerShellCompletionWithDesc(out)
+			default:
+				return cmd.Root().GenBashCompletionV2(out, true)
+			}
+		},
+	}
 }
 
 func init() {

@@ -34,7 +34,7 @@ func (a *App) mutate(renderer *output.Renderer, command, resourceID string, star
 		}
 	}
 
-	a.Deps.WriteAudit(&audit.Record{ //nolint:errcheck // best-effort audit
+	a.recordAudit(&audit.Record{
 		Command:    command,
 		ResourceID: resourceID,
 		DryRun:     false,
@@ -50,4 +50,11 @@ func (a *App) mutate(renderer *output.Renderer, command, resourceID string, star
 	}
 
 	return result, nil
+}
+
+func (a *App) recordAudit(record *audit.Record) {
+	if a.Config == nil || !a.Config.AuditLog {
+		return
+	}
+	_ = a.Deps.WriteAudit(record)
 }

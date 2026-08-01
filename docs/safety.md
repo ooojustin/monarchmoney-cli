@@ -48,9 +48,9 @@ monarch transactions delete tx_123
 
 ## Audit Logging
 
-Every mutation that is successfully executed (or attempted with `--confirm`) is logged locally for your review.
+Executed mutations are logged locally for review when `audit_log` is enabled (the default). Set `audit_log: false` or `MONARCH_AUDIT_LOG=false` to disable writes.
 
-**Log Path:** `~/.monarchmoney-cli/audit/YYYY-MM-DD.jsonl`
+The log directory is platform-specific and each file is named `YYYY-MM-DD.jsonl`.
 
 **Log Format:**
 ```json

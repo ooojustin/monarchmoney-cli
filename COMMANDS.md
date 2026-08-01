@@ -77,7 +77,7 @@
 - `monarch subscription show`: Show Monarch subscription details.
 - `monarch auth status`: Check current authentication status.
 - `monarch auth session path`: Print the session file path.
-- `monarch doctor`: Verify environment, authentication, and API connectivity.
+- `monarch doctor`: Verify the selected config and session paths. Add `--connect` to check the configured API endpoint.
 - `monarch version`: Print version information.
 
 ## Mutation and Remote-Action Commands
@@ -124,7 +124,7 @@ All mutations are protected by the [Safety Model](./safety.md).
 - **Dry-run**: Every mutation supports `--dry-run` to preview changes.
 - **Confirmation**: Remote writes require the `--confirm` flag.
 - **Read-only**: Use `MONARCH_READONLY=1` to block all mutations.
-- **Audit Logs**: Every executed mutation is logged to `~/.monarchmoney-cli/audit/`. Use `monarch audit cleanup --older-than N` to remove logs older than N days (default 30).
+- **Audit Logs**: Executed mutations are logged when `audit_log` is enabled (the default). The directory is platform-specific. Use `monarch audit cleanup --older-than N` to remove logs older than N days (default 30).
 
 ## Feature Parity with monarch-mcp-server
 

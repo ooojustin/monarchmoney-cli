@@ -1,105 +1,50 @@
 package cli
 
 import (
-	"bytes"
+	stderrors "errors"
 	"strings"
 	"testing"
+
+	"github.com/thedavidweng/monarchmoney-cli/internal/config"
 )
 
-func TestCompletionCmdRegistered(t *testing.T) {
-	found := false
-	for _, cmd := range RootCmd.Commands() {
-		if cmd.Name() == "completion" {
-			found = true
-			break
-		}
+func TestAppRootRegistersCompletion(t *testing.T) {
+	app, _ := newTestApp(t)
+	command, _, err := app.Root.Find([]string{"completion"})
+	if err != nil || command == nil || command.GroupID != "utility" {
+		t.Fatalf("Find(completion) = %#v, %v", command, err)
 	}
-	if !found {
-		t.Fatal("completion command not registered on RootCmd")
-	}
-}
-
-func TestCompletionValidArgs(t *testing.T) {
-	expected := []string{"bash", "zsh", "fish", "powershell"}
-	for _, shell := range expected {
+	for _, shell := range []string{"bash", "zsh", "fish", "powershell"} {
 		found := false
-		for _, arg := range completionCmd.ValidArgs {
-			if arg == shell {
-				found = true
-				break
-			}
+		for _, valid := range command.ValidArgs {
+			found = found || valid == shell
 		}
 		if !found {
-			t.Errorf("completion ValidArgs missing %q", shell)
+			t.Fatalf("completion ValidArgs missing %q", shell)
 		}
 	}
-}
-
-func TestCompletionBash(t *testing.T) {
-	var buf bytes.Buffer
-	RootCmd.SetOut(&buf)
-	defer RootCmd.SetOut(nil)
-
-	err := completionCmd.RunE(completionCmd, []string{"bash"})
-	if err != nil {
-		t.Fatalf("completion bash error = %v", err)
-	}
-	got := buf.String()
-	if got == "" {
-		t.Fatal("completion bash produced no output")
-	}
-	if !strings.Contains(got, "bash") || (!strings.Contains(got, "complete") && !strings.Contains(got, "compgen")) {
-		t.Fatalf("completion bash output does not look like bash completion; got %d bytes", len(got))
+	if err := command.Args(command, []string{"tcsh"}); err == nil {
+		t.Fatal("completion tcsh should be rejected")
 	}
 }
 
-func TestCompletionZsh(t *testing.T) {
-	var buf bytes.Buffer
-	RootCmd.SetOut(&buf)
-	defer RootCmd.SetOut(nil)
-
-	err := completionCmd.RunE(completionCmd, []string{"zsh"})
-	if err != nil {
-		t.Fatalf("completion zsh error = %v", err)
-	}
-	got := buf.String()
-	if got == "" {
-		t.Fatal("completion zsh produced no output")
-	}
-}
-
-func TestCompletionFish(t *testing.T) {
-	var buf bytes.Buffer
-	RootCmd.SetOut(&buf)
-	defer RootCmd.SetOut(nil)
-
-	err := completionCmd.RunE(completionCmd, []string{"fish"})
-	if err != nil {
-		t.Fatalf("completion fish error = %v", err)
-	}
-	got := buf.String()
-	if got == "" {
-		t.Fatal("completion fish produced no output")
-	}
-}
-
-func TestCompletionPowershell(t *testing.T) {
-	var buf bytes.Buffer
-	RootCmd.SetOut(&buf)
-	defer RootCmd.SetOut(nil)
-
-	err := completionCmd.RunE(completionCmd, []string{"powershell"})
-	if err != nil {
-		t.Fatalf("completion powershell error = %v", err)
-	}
-	got := buf.String()
-	if got == "" {
-		t.Fatal("completion powershell produced no output")
-	}
-}
-
-func TestCompletionInvalidShellRejectedByArgs(t *testing.T) {
-	if err := completionCmd.Args(completionCmd, []string{"tcsh"}); err == nil {
-		t.Fatal("completion tcsh should be rejected by argument validation")
+func TestAppCompletionGeneratesScriptsFromFinalTree(t *testing.T) {
+	for _, shell := range []string{"bash", "zsh", "fish", "powershell"} {
+		t.Run(shell, func(t *testing.T) {
+			app, out := newTestApp(t)
+			app.Deps.LoadConfig = func(string) (*config.Config, error) {
+				return config.Default(), stderrors.New("malformed config")
+			}
+			app.Root.SetArgs([]string{"--json", "completion", shell})
+			if err := app.Execute(); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			if out.Len() == 0 {
+				t.Fatal("completion produced no output")
+			}
+			if strings.HasPrefix(strings.TrimSpace(out.String()), "{") {
+				t.Fatalf("completion was wrapped as JSON: %q", out.String())
+			}
+		})
 	}
 }

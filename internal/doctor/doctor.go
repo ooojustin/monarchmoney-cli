@@ -2,67 +2,86 @@ package doctor
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"runtime"
 	"time"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
-	"github.com/thedavidweng/monarchmoney-cli/internal/config"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 	"github.com/thedavidweng/monarchmoney-cli/internal/version"
 )
 
 type Result struct {
-	Version string `json:"version"`
-	OS      string `json:"os"`
-	Arch    string `json:"arch"`
-	Config  Report `json:"config"`
-	Session Report `json:"session"`
-	Network Report `json:"network"`
-	Safety  Report `json:"safety"`
+	Version string       `json:"version"`
+	OS      string       `json:"os"`
+	Arch    string       `json:"arch"`
+	Config  ConfigReport `json:"config"`
+	Session Report       `json:"session"`
+	Network Report       `json:"network"`
+	Safety  Report       `json:"safety"`
 }
 
 type Report struct {
 	Path          string `json:"path,omitempty"`
 	Exists        bool   `json:"exists"`
-	Valid         bool   `json:"valid,omitempty"`
 	PermissionOK  bool   `json:"permission_ok,omitempty"`
 	Authenticated bool   `json:"authenticated,omitempty"`
 	APIReachable  bool   `json:"api_reachable,omitempty"`
 }
 
-func Check(ctx context.Context, connect bool) *Result {
+type ConfigReport struct {
+	Path   string `json:"path,omitempty"`
+	Exists bool   `json:"exists"`
+	Valid  bool   `json:"valid"`
+}
+
+type Options struct {
+	Connect       bool
+	ConfigPath    string
+	ConfigError   error
+	SessionPath   string
+	APIEndpoint   string
+	Timeout       time.Duration
+	HTTPTransport http.RoundTripper
+}
+
+func Check(ctx context.Context, options Options) *Result {
 	res := &Result{
 		Version: version.GetVersion(),
 		OS:      runtime.GOOS,
 		Arch:    runtime.GOARCH,
 	}
 
-	cfgPath := config.DefaultConfigPath()
-	_, err := os.Stat(cfgPath)
-	res.Config = Report{
-		Path:   cfgPath,
+	_, err := os.Stat(options.ConfigPath)
+	res.Config = ConfigReport{
+		Path:   options.ConfigPath,
 		Exists: !os.IsNotExist(err),
+		Valid:  options.ConfigError == nil,
 	}
 
-	sessPath := config.DefaultSessionPath()
-	store := auth.NewStore(sessPath)
+	store := auth.NewStore(options.SessionPath)
 	sess, err := store.Load()
 	res.Session = Report{
-		Path:   sessPath,
+		Path:   options.SessionPath,
 		Exists: !os.IsNotExist(err),
 	}
 
 	if err == nil && sess != nil {
 		res.Session.Authenticated = true
-		info, err := os.Stat(sessPath)
+		info, err := os.Stat(options.SessionPath)
 		if err == nil {
 			res.Session.PermissionOK = checkFilePermission(info)
 		}
 	}
 
-	if connect && res.Session.Authenticated {
-		client := graphql.NewClient("https://api.monarch.com/graphql", sess.Token, 10*time.Second)
+	if options.Connect && res.Session.Authenticated {
+		client := graphql.NewClient(
+			options.APIEndpoint,
+			sess.Token,
+			options.Timeout,
+			graphql.WithHTTPTransport(options.HTTPTransport),
+		)
 		var identity any
 		err := client.Do(ctx, &graphql.Request{
 			OperationName: "GetIdentity",

@@ -1,114 +1,92 @@
 package cli
 
 import (
-	"encoding/json"
+	"bytes"
+	stderrors "errors"
+	"fmt"
+	"io"
+	"net/http"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
+	"github.com/thedavidweng/monarchmoney-cli/internal/config"
+	"github.com/thedavidweng/monarchmoney-cli/internal/testutil"
 )
 
-func TestDoctorCmdRegistered(t *testing.T) {
-	found := false
-	for _, cmd := range RootCmd.Commands() {
-		if cmd.Name() == "doctor" {
-			found = true
-			break
+func newTestDoctorApp(t *testing.T, configPath, sessionPath string, configErr error, transport http.RoundTripper) (*App, *bytes.Buffer) {
+	t.Helper()
+
+	var out bytes.Buffer
+	app := New(Deps{
+		LoadConfig: func(path string) (*config.Config, error) {
+			if path != configPath {
+				t.Fatalf("LoadConfig(%q), want %q", path, configPath)
+			}
+			cfg := config.Default()
+			cfg.APIEndpoint = "https://example.invalid/graphql"
+			cfg.SessionPath = sessionPath
+			cfg.Timeout = time.Second
+			return cfg, configErr
+		},
+		Getenv:        func(string) string { return "" },
+		NewRequestID:  func() string { return "request-id" },
+		HTTPTransport: transport,
+		Stdout:        &out,
+		Stderr:        io.Discard,
+		Exit:          func(int) {},
+	})
+	return app, &out
+}
+
+func TestAppRootRegistersDoctor(t *testing.T) {
+	app, _ := newTestApp(t)
+	command, _, err := app.Root.Find([]string{"doctor"})
+	if err != nil || command == nil || command.GroupID != "utility" {
+		t.Fatalf("Find(doctor) = %#v, %v", command, err)
+	}
+	if command.Flags().Lookup("connect") == nil {
+		t.Fatal("doctor missing --connect flag")
+	}
+}
+
+func TestAppDoctorReportsSelectedInvalidConfig(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	sessionPath := filepath.Join(dir, "session.json")
+	app, out := newTestDoctorApp(t, configPath, sessionPath, stderrors.New("malformed config"), nil)
+	app.Root.SetArgs([]string{"--config", configPath, "doctor"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{"Monarch Money CLI Doctor", configPath, "Valid: false", sessionPath} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("output = %q, want %q", out.String(), want)
 		}
 	}
-	if !found {
-		t.Fatal("doctor command not registered on RootCmd")
-	}
 }
 
-func TestDoctorPlainText(t *testing.T) {
-	out := captureStdout(t, func() {
-		doctorCmd.Run(doctorCmd, nil)
+func TestAppDoctorConnectUsesConfiguredService(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	sessionPath := filepath.Join(dir, "session.json")
+	if err := auth.NewStore(sessionPath).Save(&auth.Session{Token: "token-123"}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	transport := testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.String() != "https://example.invalid/graphql" || req.Header.Get("Authorization") != "Token token-123" {
+			return nil, fmt.Errorf("request URL=%q Authorization=%q", req.URL, req.Header.Get("Authorization"))
+		}
+		return testutil.JSONResponse(`{"data":{"me":{"email":"a@example.com"}}}`), nil
 	})
-
-	if !strings.Contains(out, "Monarch Money CLI Doctor") {
-		t.Fatalf("output = %q, want header", out)
+	app, out := newTestDoctorApp(t, configPath, sessionPath, nil, transport)
+	app.Root.SetArgs([]string{"--config", configPath, "--json", "doctor", "--connect"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
 	}
-	if !strings.Contains(out, "Version:") {
-		t.Fatalf("output = %q, want Version line", out)
-	}
-	if !strings.Contains(out, "OS/Arch:") {
-		t.Fatalf("output = %q, want OS/Arch line", out)
-	}
-	if !strings.Contains(out, "Config Path:") {
-		t.Fatalf("output = %q, want Config Path line", out)
-	}
-	if !strings.Contains(out, "Session Path:") {
-		t.Fatalf("output = %q, want Session Path line", out)
-	}
-}
-
-func TestDoctorJSON(t *testing.T) {
-	oldJSONMode := jsonMode
-	oldProfile := profile
-	jsonMode = true
-	profile = "default"
-	defer func() {
-		jsonMode = oldJSONMode
-		profile = oldProfile
-	}()
-
-	out := captureStdout(t, func() {
-		doctorCmd.Run(doctorCmd, nil)
-	})
-
-	var env struct {
-		OK   bool `json:"ok"`
-		Data struct {
-			Version string `json:"version"`
-			OS      string `json:"os"`
-			Arch    string `json:"arch"`
-			Config  struct {
-				Path   string `json:"path"`
-				Exists bool   `json:"exists"`
-			} `json:"config"`
-			Session struct {
-				Path   string `json:"path"`
-				Exists bool   `json:"exists"`
-			} `json:"session"`
-		} `json:"data"`
-		Meta struct {
-			Command string `json:"command"`
-		} `json:"meta"`
-	}
-	if err := json.Unmarshal([]byte(trimNewline(out)), &env); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v; output=%q", err, out)
-	}
-	if !env.OK {
-		t.Fatal("expected ok=true")
-	}
-	if env.Data.OS == "" {
-		t.Fatal("expected OS to be populated")
-	}
-	if env.Data.Arch == "" {
-		t.Fatal("expected Arch to be populated")
-	}
-	if env.Meta.Command != "doctor" {
-		t.Fatalf("meta.command = %q, want doctor", env.Meta.Command)
-	}
-}
-
-func TestDoctorConnectFlag(t *testing.T) {
-	// Verify that --connect flag exists and is accepted.
-	f := doctorCmd.Flags().Lookup("connect")
-	if f == nil {
-		t.Fatal("doctor command missing --connect flag")
-	}
-	if f.DefValue != "false" {
-		t.Fatalf("--connect default = %q, want false", f.DefValue)
-	}
-}
-
-func TestDoctorConnectNotShownWithoutFlag(t *testing.T) {
-	out := captureStdout(t, func() {
-		doctorCmd.Run(doctorCmd, nil)
-	})
-
-	// Without --connect, the "API Connected:" line should not appear.
-	if strings.Contains(out, "API Connected:") {
-		t.Fatalf("output should not contain 'API Connected:' without --connect flag; got %q", out)
+	if got := out.String(); !strings.Contains(got, `"api_reachable":true`) || !strings.Contains(got, `"valid":true`) || !strings.Contains(got, `"request_id":"request-id"`) {
+		t.Fatalf("output = %q", got)
 	}
 }

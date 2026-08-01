@@ -83,6 +83,7 @@ export MONARCH_EMAIL="agent-runtime@example.com"
 export MONARCH_PASSWORD="..."
 export MONARCH_MFA_SECRET="..."
 export MONARCH_SESSION_PATH="/run/secrets/monarch-session.json"
+export MONARCH_AUDIT_LOG="true"
 export MONARCH_READONLY="1"
 export MONARCH_USER_AGENT="MyAgent/1.0"
 ```

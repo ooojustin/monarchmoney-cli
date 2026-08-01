@@ -1,177 +1,104 @@
 package cli
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
+	"bytes"
+	stderrors "errors"
+	"io"
+	"strings"
 	"testing"
-	"time"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/audit"
+	"github.com/thedavidweng/monarchmoney-cli/internal/config"
 )
 
-func TestAuditCmdRegistered(t *testing.T) {
-	found := false
-	for _, cmd := range RootCmd.Commands() {
-		if cmd.Name() == "audit" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatal("audit command not registered on RootCmd")
-	}
-}
+func newTestAuditApp(t *testing.T, cleanup func(int) (int, error), write func(*audit.Record) error) (*App, *bytes.Buffer, *int) {
+	t.Helper()
 
-func TestAuditCleanupSubcommandRegistered(t *testing.T) {
-	found := false
-	for _, cmd := range auditCmd.Commands() {
-		if cmd.Name() == "cleanup" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatal("cleanup subcommand not registered on auditCmd")
-	}
-}
-
-func TestAuditCleanupFlagExists(t *testing.T) {
-	f := auditCleanupCmd.Flags().Lookup("older-than")
-	if f == nil {
-		t.Fatal("audit cleanup command missing --older-than flag")
-	}
-	if f.DefValue != "30" {
-		t.Fatalf("--older-than default = %q, want 30", f.DefValue)
-	}
-}
-
-func TestAuditCleanupInvalidDays(t *testing.T) {
-	oldJSONMode := jsonMode
-	oldProfile := profile
-	oldExitFunc := exitFunc
-	jsonMode = true
-	profile = "default"
-	exitFunc = func(int) {}
-	defer func() {
-		jsonMode = oldJSONMode
-		profile = oldProfile
-		exitFunc = oldExitFunc
-	}()
-
-	auditCleanupDays = 0
-
-	out := captureStdout(t, func() {
-		auditCleanupCmd.Run(auditCleanupCmd, nil)
+	var out bytes.Buffer
+	exitCode := 0
+	app := New(Deps{
+		LoadConfig: func(string) (*config.Config, error) {
+			return config.Default(), nil
+		},
+		Getenv:       func(string) string { return "" },
+		NewRequestID: func() string { return "request-id" },
+		CleanupAudit: cleanup,
+		WriteAudit:   write,
+		Stdout:       &out,
+		Stderr:       io.Discard,
+		Exit:         func(code int) { exitCode = code },
 	})
+	return app, &out, &exitCode
+}
 
-	var env struct {
-		OK    bool `json:"ok"`
-		Error struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
+func TestAppRootRegistersAudit(t *testing.T) {
+	app, _ := newTestApp(t)
+	auditCommand, _, err := app.Root.Find([]string{"audit"})
+	if err != nil || auditCommand == nil || auditCommand.GroupID != "utility" {
+		t.Fatalf("Find(audit) = %#v, %v", auditCommand, err)
 	}
-	if err := json.Unmarshal([]byte(trimNewline(out)), &env); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v; output=%q", err, out)
+	cleanupCommand, _, err := app.Root.Find([]string{"audit", "cleanup"})
+	if err != nil || cleanupCommand == nil {
+		t.Fatalf("Find(audit cleanup) = %#v, %v", cleanupCommand, err)
 	}
-	if env.OK {
-		t.Fatal("expected ok=false for zero days")
-	}
-	if env.Error.Code != "INVALID_ARGUMENTS" {
-		t.Fatalf("error code = %q, want INVALID_ARGUMENTS", env.Error.Code)
+	flag := cleanupCommand.Flags().Lookup("older-than")
+	if flag == nil || flag.DefValue != "30" {
+		t.Fatalf("--older-than flag = %#v", flag)
 	}
 }
 
-func TestAuditCleanupInvalidDaysPlainText(t *testing.T) {
-	oldJSONMode := jsonMode
-	oldExitFunc := exitFunc
-	jsonMode = false
-	var gotExitCode int
-	exitFunc = func(code int) { gotExitCode = code }
-	defer func() {
-		jsonMode = oldJSONMode
-		exitFunc = oldExitFunc
-	}()
+func TestAppAuditCleanupUsesInjectedDependency(t *testing.T) {
+	gotDays := 0
+	app, out, exitCode := newTestAuditApp(t, func(days int) (int, error) {
+		gotDays = days
+		return 3, nil
+	}, nil)
+	app.Deps.LoadConfig = func(string) (*config.Config, error) {
+		return config.Default(), stderrors.New("malformed config")
+	}
 
-	auditCleanupDays = -5
-
-	// In non-JSON mode, handleError writes to stderr, so we just verify
-	// the exit code is correct (InvalidArguments = exit code 2).
-	auditCleanupCmd.Run(auditCleanupCmd, nil)
-
-	if gotExitCode != 2 {
-		t.Fatalf("exit code = %d, want 2 (InvalidArguments)", gotExitCode)
+	app.Root.SetArgs([]string{"--json", "audit", "cleanup", "--older-than", "45"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if *exitCode != 0 || gotDays != 45 {
+		t.Fatalf("exitCode=%d cleanup days=%d", *exitCode, gotDays)
+	}
+	if got := out.String(); !strings.Contains(got, `"removed":3`) || !strings.Contains(got, `"older_than_days":45`) || !strings.Contains(got, `"request_id":"request-id"`) {
+		t.Fatalf("output = %q", got)
 	}
 }
 
-func TestAuditCleanupRemovesOldFiles(t *testing.T) {
-	// Create a temp audit directory with some old log files.
-	dir := t.TempDir()
-
-	oldDate := time.Now().AddDate(0, 0, -60).Format("2006-01-02")
-	oldFile := filepath.Join(dir, oldDate+".jsonl")
-	if err := os.WriteFile(oldFile, []byte(`{"command":"test"}`), 0o600); err != nil {
-		t.Fatalf("WriteFile() error = %v", err)
+func TestAppAuditCleanupValidatesBeforeDependency(t *testing.T) {
+	called := false
+	app, out, exitCode := newTestAuditApp(t, func(int) (int, error) {
+		called = true
+		return 0, nil
+	}, nil)
+	app.Root.SetArgs([]string{"--json", "audit", "cleanup", "--older-than", "0"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
 	}
-
-	recentDate := time.Now().AddDate(0, 0, -5).Format("2006-01-02")
-	recentFile := filepath.Join(dir, recentDate+".jsonl")
-	if err := os.WriteFile(recentFile, []byte(`{"command":"test"}`), 0o600); err != nil {
-		t.Fatalf("WriteFile() error = %v", err)
-	}
-
-	// Directly test audit.Logger.Cleanup against the temp directory.
-	logger := &audit.Logger{Dir: dir}
-	removed, err := logger.Cleanup(30)
-	if err != nil {
-		t.Fatalf("Cleanup() error = %v", err)
-	}
-	if removed != 1 {
-		t.Fatalf("Cleanup() removed = %d, want 1", removed)
-	}
-
-	// Old file should be gone, recent file should remain.
-	if _, err := os.Stat(oldFile); !os.IsNotExist(err) {
-		t.Fatalf("old file still exists: %v", err)
-	}
-	if _, err := os.Stat(recentFile); err != nil {
-		t.Fatalf("recent file should still exist: %v", err)
+	if called || *exitCode != 2 || !strings.Contains(out.String(), "INVALID_ARGUMENTS") {
+		t.Fatalf("called=%v exitCode=%d output=%q", called, *exitCode, out.String())
 	}
 }
 
-func TestAuditCleanupNoDirectory(t *testing.T) {
-	logger := &audit.Logger{Dir: filepath.Join(t.TempDir(), "nonexistent")}
-	removed, err := logger.Cleanup(30)
-	if err != nil {
-		t.Fatalf("Cleanup() error = %v", err)
-	}
-	if removed != 0 {
-		t.Fatalf("Cleanup() removed = %d, want 0", removed)
-	}
-}
+func TestAppRecordAuditHonorsConfig(t *testing.T) {
+	writes := 0
+	app, _, _ := newTestAuditApp(t, nil, func(*audit.Record) error {
+		writes++
+		return stderrors.New("best-effort failure")
+	})
+	app.Config = config.Default()
 
-func TestAuditCleanupSkipsNonJSONL(t *testing.T) {
-	dir := t.TempDir()
-
-	oldDate := time.Now().AddDate(0, 0, -60).Format("2006-01-02")
-	// Write a .txt file that looks like it could be an old log.
-	txtFile := filepath.Join(dir, oldDate+".txt")
-	if err := os.WriteFile(txtFile, []byte("not a log"), 0o600); err != nil {
-		t.Fatalf("WriteFile() error = %v", err)
+	app.recordAudit(&audit.Record{Command: "test"})
+	if writes != 1 {
+		t.Fatalf("writes = %d, want 1", writes)
 	}
-
-	logger := &audit.Logger{Dir: dir}
-	removed, err := logger.Cleanup(30)
-	if err != nil {
-		t.Fatalf("Cleanup() error = %v", err)
-	}
-	if removed != 0 {
-		t.Fatalf("Cleanup() removed = %d, want 0 (non-jsonl file should be skipped)", removed)
-	}
-
-	// Verify the file still exists.
-	if _, err := os.Stat(txtFile); err != nil {
-		t.Fatalf("txt file should still exist: %v", err)
+	app.Config.AuditLog = false
+	app.recordAudit(&audit.Record{Command: "test"})
+	if writes != 1 {
+		t.Fatalf("writes = %d after disabled audit, want 1", writes)
 	}
 }

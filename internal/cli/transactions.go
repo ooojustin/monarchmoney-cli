@@ -1795,7 +1795,7 @@ func (a *App) buildTransactionsBulkCategorizeCommand() *cobra.Command {
 			} else if len(failures) > 0 {
 				result = "partial"
 			}
-			a.Deps.WriteAudit(&audit.Record{Command: "transactions.bulk-categorize", DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result}) //nolint:errcheck // best-effort audit
+			a.recordAudit(&audit.Record{Command: "transactions.bulk-categorize", DryRun: a.Flags.DryRun, Confirmed: a.Flags.Confirm, Profile: a.Flags.Profile, Result: result})
 
 			if a.Flags.JSONMode {
 				data := map[string]any{"total": len(ids), "successful": successes, "failed": len(failures), "errors": failures}

@@ -49,7 +49,8 @@ type Deps struct {
 	NewRequestID  func() string
 	HTTPTransport http.RoundTripper
 
-	WriteAudit func(record *audit.Record) error
+	WriteAudit   func(record *audit.Record) error
+	CleanupAudit func(olderThanDays int) (int, error)
 
 	Stdout       io.Writer
 	Stderr       io.Writer
@@ -65,6 +66,9 @@ func DefaultDeps() Deps {
 		NewRequestID: uuid.NewString,
 		WriteAudit: func(record *audit.Record) error {
 			return audit.NewLogger().Log(record)
+		},
+		CleanupAudit: func(olderThanDays int) (int, error) {
+			return audit.NewLogger().Cleanup(olderThanDays)
 		},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
@@ -105,6 +109,9 @@ func New(deps Deps) *App {
 	}
 	if a.Deps.WriteAudit == nil {
 		a.Deps.WriteAudit = defaults.WriteAudit
+	}
+	if a.Deps.CleanupAudit == nil {
+		a.Deps.CleanupAudit = defaults.CleanupAudit
 	}
 	a.Root = a.buildRoot()
 	return a
@@ -184,6 +191,9 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 	root.AddCommand(a.buildCacheCommand())
 	root.AddCommand(a.buildOverviewCommand())
 	root.AddCommand(a.buildAuthCommand())
+	root.AddCommand(a.buildAuditCommand())
+	root.AddCommand(buildCompletionCommand())
+	root.AddCommand(a.buildDoctorCommand())
 	return root
 }
 
