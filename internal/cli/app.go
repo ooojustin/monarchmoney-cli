@@ -14,8 +14,10 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/audit"
 	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
 	"github.com/thedavidweng/monarchmoney-cli/internal/config"
+	clierrors "github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
+	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 	"github.com/thedavidweng/monarchmoney-cli/internal/version"
 	"golang.org/x/term"
 )
@@ -60,6 +62,7 @@ type Deps struct {
 	Authenticate func(email, password, mfaCode, mfaSecret string) (*auth.Session, error)
 	NewClient    func(endpoint, token string, timeout time.Duration) *graphql.Client
 	NewService   func(client GraphQLClient) *monarch.Service
+	LoadService  func() (*monarch.Service, *auth.Session, error)
 	WriteAudit   func(record *audit.Record) error
 
 	Stdout       io.Writer
@@ -167,6 +170,9 @@ func New(deps Deps) *App {
 			return monarch.NewService(client, monarch.WithHTTPTransport(a.Deps.HTTPTransport))
 		}
 	}
+	if a.Deps.LoadService == nil {
+		a.Deps.LoadService = a.loadService
+	}
 
 	a.Root = a.buildRoot()
 	return a
@@ -213,6 +219,10 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 	root.PersistentFlags().StringVar(&a.Flags.Profile, "profile", "default", "use a named profile")
 	root.PersistentFlags().BoolVar(&a.Flags.Verbose, "verbose", false, "print more diagnostics to stderr")
 	root.AddCommand(a.buildVersion())
+	root.AddCommand(a.buildCreditCommand())
+	root.AddCommand(a.buildSubscriptionCommand())
+	root.AddCommand(a.buildInstitutionsCommand())
+	root.AddCommand(a.buildGoalsCommand())
 	return root
 }
 
@@ -265,4 +275,24 @@ func (a *App) buildVersion() *cobra.Command {
 			}
 		},
 	}
+}
+
+func (a *App) loadService() (*monarch.Service, *auth.Session, error) {
+	if a.ConfigErr != nil {
+		return nil, nil, clierrors.New(clierrors.InternalError, "failed to load config", clierrors.CatInternal, false, a.ConfigErr)
+	}
+	if a.Config == nil {
+		return nil, nil, clierrors.New(clierrors.InternalError, "configuration not initialized", clierrors.CatInternal, false, nil)
+	}
+	store := a.Deps.NewStore(a.Config.SessionPath)
+	sess, err := store.Load()
+	if err != nil {
+		return nil, nil, clierrors.New(clierrors.AuthRequired, "not logged in", clierrors.CatAuth, false, err)
+	}
+	client := a.Deps.NewClient(a.Config.APIEndpoint, sess.Token, a.Config.Timeout)
+	return a.Deps.NewService(client), sess, nil
+}
+
+func (a *App) handleError(renderer *output.Renderer, command string, err *clierrors.Error, start time.Time) {
+	handleError(renderer, command, err, start)
 }
