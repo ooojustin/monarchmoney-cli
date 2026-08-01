@@ -121,6 +121,25 @@ func TestAppRootRegistersRulesAndBudgets(t *testing.T) {
 	}
 }
 
+func TestAppRootRegistersAccounts(t *testing.T) {
+	app, _ := newTestApp(t)
+	for _, path := range [][]string{
+		{"accounts", "list"},
+		{"accounts", "balance-at"},
+		{"accounts", "refresh"},
+		{"accounts", "upload-history"},
+		{"accounts", "recent-balances"},
+		{"accounts", "snapshots"},
+		{"accounts", "aggregate-snapshots"},
+		{"networth"},
+	} {
+		cmd, _, err := app.Root.Find(path)
+		if err != nil || cmd == nil || cmd.Name() != path[len(path)-1] {
+			t.Fatalf("Find(%v) = %#v, %v", path, cmd, err)
+		}
+	}
+}
+
 func TestAppRootRegistersSimpleReadCommands(t *testing.T) {
 	app, _ := newTestApp(t)
 	tests := []struct {
