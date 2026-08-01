@@ -16,19 +16,29 @@ type Store struct {
 	db *sql.DB
 }
 
-var mkdirAll = os.MkdirAll
-var openDB = func(path string) (*sql.DB, error) {
-	return sql.Open("sqlite3", path)
+type storeDeps struct {
+	mkdirAll func(string, os.FileMode) error
+	openDB   func(string) (*sql.DB, error)
+	migrate  func(*sql.DB) error
 }
-var migrateStore = Migrate
 
 func NewStore(path string) (*Store, error) {
+	return newStore(path, storeDeps{
+		mkdirAll: os.MkdirAll,
+		openDB: func(path string) (*sql.DB, error) {
+			return sql.Open("sqlite3", path)
+		},
+		migrate: Migrate,
+	})
+}
+
+func newStore(path string, deps storeDeps) (*Store, error) {
 	dir := filepath.Dir(path)
-	if err := mkdirAll(dir, 0o700); err != nil {
+	if err := deps.mkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
 
-	db, err := openDB(path)
+	db, err := deps.openDB(path)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +56,7 @@ func NewStore(path string) (*Store, error) {
 		return nil, err
 	}
 
-	if err := migrateStore(db); err != nil {
+	if err := deps.migrate(db); err != nil {
 		_ = db.Close()
 		return nil, err
 	}

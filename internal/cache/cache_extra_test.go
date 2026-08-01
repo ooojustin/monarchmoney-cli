@@ -23,25 +23,31 @@ func TestNewStoreFailsWhenParentPathIsAFile(t *testing.T) {
 }
 
 func TestNewStoreReturnsOpenError(t *testing.T) {
-	original := openDB
-	openDB = func(string) (*sql.DB, error) {
-		return nil, errors.New("open failed")
+	deps := storeDeps{
+		mkdirAll: os.MkdirAll,
+		openDB: func(string) (*sql.DB, error) {
+			return nil, errors.New("open failed")
+		},
+		migrate: Migrate,
 	}
-	defer func() { openDB = original }()
 
-	if _, err := NewStore(filepath.Join(t.TempDir(), "monarch.sqlite")); err == nil {
+	if _, err := newStore(filepath.Join(t.TempDir(), "monarch.sqlite"), deps); err == nil {
 		t.Fatal("NewStore() error = nil, want failure")
 	}
 }
 
 func TestNewStoreReturnsMigrateError(t *testing.T) {
-	original := migrateStore
-	migrateStore = func(*sql.DB) error {
-		return errors.New("migrate failed")
+	deps := storeDeps{
+		mkdirAll: os.MkdirAll,
+		openDB: func(path string) (*sql.DB, error) {
+			return sql.Open("sqlite3", path)
+		},
+		migrate: func(*sql.DB) error {
+			return errors.New("migrate failed")
+		},
 	}
-	defer func() { migrateStore = original }()
 
-	if _, err := NewStore(filepath.Join(t.TempDir(), "monarch.sqlite")); err == nil {
+	if _, err := newStore(filepath.Join(t.TempDir(), "monarch.sqlite"), deps); err == nil {
 		t.Fatal("NewStore() error = nil, want failure")
 	}
 }

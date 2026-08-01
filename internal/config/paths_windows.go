@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 )
 
-var defaultDir = func() string {
+func defaultDir() string {
 	dir, _ := os.UserConfigDir()
 	return filepath.Join(dir, "monarchmoney-cli")
 }
