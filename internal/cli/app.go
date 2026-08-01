@@ -180,6 +180,21 @@ func New(deps Deps) *App {
 }
 
 func (a *App) Execute() error {
+	legacy := Flags{
+		Config:    cfgFile,
+		JSONMode:  jsonMode,
+		Pretty:    pretty,
+		Events:    events,
+		ReadOnly:  readOnly,
+		DryRun:    dryRun,
+		Confirm:   confirm,
+		Timeout:   timeout,
+		Profile:   profile,
+		Verbose:   verbose,
+		RequestID: requestID,
+	}
+	defer syncLegacyGlobals(legacy)
+
 	return a.Root.Execute()
 }
 
@@ -235,6 +250,7 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 	root.AddCommand(a.buildNetworthCommand())
 	root.AddCommand(a.buildTransactionsCommand())
 	root.AddCommand(a.buildAnalyzeCommand())
+	root.AddCommand(a.buildCacheCommand())
 	return root
 }
 
@@ -296,7 +312,7 @@ func (a *App) loadService() (*monarch.Service, *auth.Session, error) {
 	if a.Config == nil {
 		return nil, nil, clierrors.New(clierrors.InternalError, "configuration not initialized", clierrors.CatInternal, false, nil)
 	}
-	store := a.Deps.NewStore(a.Config.SessionPath)
+	store := a.Deps.NewStore(a.Deps.SessionPath())
 	sess, err := store.Load()
 	if err != nil {
 		return nil, nil, clierrors.New(clierrors.AuthRequired, "not logged in", clierrors.CatAuth, false, err)
