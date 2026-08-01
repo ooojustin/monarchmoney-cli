@@ -7,9 +7,12 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/spf13/cobra"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/config"
 	"github.com/thedavidweng/monarchmoney-cli/internal/testutil"
@@ -42,6 +45,38 @@ func TestNewBuildsIndependentRoots(t *testing.T) {
 	if second.Flags.Profile == "changed" {
 		t.Fatal("New() returned shared flag state")
 	}
+}
+
+func TestAppCommandTreeTopology(t *testing.T) {
+	app, _ := newTestApp(t)
+
+	var topLevel []string
+	for _, cmd := range app.Root.Commands() {
+		topLevel = append(topLevel, cmd.Name())
+	}
+	slices.Sort(topLevel)
+	wantTopLevel := []string{
+		"accounts", "analyze", "audit", "auth", "budgets", "cache", "cashflow",
+		"categories", "completion", "credit", "doctor", "goals", "institutions",
+		"investments", "networth", "overview", "recurring", "rules", "subscription",
+		"tags", "transactions", "version",
+	}
+	if !slices.Equal(topLevel, wantTopLevel) {
+		t.Fatalf("top-level commands = %v, want %v", topLevel, wantTopLevel)
+	}
+
+	var checkUniqueSiblings func(*cobra.Command)
+	checkUniqueSiblings = func(parent *cobra.Command) {
+		seen := make(map[string]struct{})
+		for _, child := range parent.Commands() {
+			if _, exists := seen[child.Name()]; exists {
+				t.Errorf("duplicate command %q under %q", child.Name(), parent.CommandPath())
+			}
+			seen[child.Name()] = struct{}{}
+			checkUniqueSiblings(child)
+		}
+	}
+	checkUniqueSiblings(app.Root)
 }
 
 func TestAppConfigPrecedence(t *testing.T) {
