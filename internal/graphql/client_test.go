@@ -14,6 +14,11 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/testutil"
 )
 
+func newRetryTestClient(endpoint, token string, timeout time.Duration, opts ...ClientOption) *Client {
+	instant := WithRetrySleep(func(ctx context.Context, _ time.Duration) error { return ctx.Err() })
+	return NewClient(endpoint, token, timeout, append(opts, instant)...)
+}
+
 func TestNewClient(t *testing.T) {
 	client := NewClient("https://example.invalid/graphql", "token", 3*time.Second)
 	if client.Endpoint != "https://example.invalid/graphql" || client.Token != "token" || client.HTTP.Timeout != 3*time.Second {
@@ -28,7 +33,7 @@ func TestNewClientUsesInjectedTransport(t *testing.T) {
 	transport := testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("unused")
 	})
-	client := NewClient("https://example.invalid/graphql", "token", time.Second, WithHTTPTransport(transport))
+	client := newRetryTestClient("https://example.invalid/graphql", "token", time.Second, WithHTTPTransport(transport))
 	if client.HTTP.Transport == nil {
 		t.Fatal("NewClient() HTTP.Transport is nil")
 	}
@@ -38,7 +43,7 @@ func TestNewClientUsesInjectedTransport(t *testing.T) {
 }
 
 func TestCredentialValues(t *testing.T) {
-	client := NewClient("https://example.invalid/graphql", "token", time.Second, WithDeviceUUID("device-123"))
+	client := newRetryTestClient("https://example.invalid/graphql", "token", time.Second, WithDeviceUUID("device-123"))
 	if got := client.TokenValue(); got != "token" {
 		t.Fatalf("TokenValue() = %q, want %q", got, "token")
 	}
@@ -49,7 +54,7 @@ func TestCredentialValues(t *testing.T) {
 
 func TestDoSuccessAndHeaders(t *testing.T) {
 	var gotReq *http.Request
-	client := NewClient("https://example.invalid/graphql", "abc123", time.Second, WithDeviceUUID("device-123"))
+	client := newRetryTestClient("https://example.invalid/graphql", "abc123", time.Second, WithDeviceUUID("device-123"))
 	client.HTTP = &http.Client{Transport: testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		gotReq = req
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString(`{"data":{"foo":"bar"}}`))}, nil
@@ -84,7 +89,7 @@ func TestDoSuccessAndHeaders(t *testing.T) {
 
 func TestDoWithoutTokenOmitsAuthorization(t *testing.T) {
 	var gotReq *http.Request
-	client := NewClient("https://example.invalid/graphql", "", time.Second)
+	client := newRetryTestClient("https://example.invalid/graphql", "", time.Second)
 	client.HTTP = &http.Client{Transport: testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		gotReq = req
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString(`{"data":{"foo":"bar"}}`))}, nil
@@ -103,7 +108,7 @@ func TestDoWithoutTokenOmitsAuthorization(t *testing.T) {
 
 func TestDoErrorPaths(t *testing.T) {
 	t.Run("marshal request", func(t *testing.T) {
-		client := NewClient("https://example.invalid/graphql", "", time.Second)
+		client := newRetryTestClient("https://example.invalid/graphql", "", time.Second)
 		err := client.Do(context.Background(), &Request{Variables: map[string]any{"bad": make(chan int)}}, &struct{}{})
 		if err == nil {
 			t.Fatal("Do() error = nil, want failure")
@@ -111,7 +116,7 @@ func TestDoErrorPaths(t *testing.T) {
 	})
 
 	t.Run("bad endpoint", func(t *testing.T) {
-		client := NewClient("://", "", time.Second)
+		client := newRetryTestClient("://", "", time.Second)
 		err := client.Do(context.Background(), &Request{Query: "query { foo }"}, &struct{}{})
 		if err == nil {
 			t.Fatal("Do() error = nil, want failure")
@@ -119,7 +124,7 @@ func TestDoErrorPaths(t *testing.T) {
 	})
 
 	t.Run("network unreachable", func(t *testing.T) {
-		client := NewClient("https://example.invalid/graphql", "", time.Second)
+		client := newRetryTestClient("https://example.invalid/graphql", "", time.Second)
 		client.HTTP = &http.Client{Transport: testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 			return nil, errors.New("boom")
 		})}
@@ -130,7 +135,7 @@ func TestDoErrorPaths(t *testing.T) {
 	})
 
 	t.Run("unauthorized", func(t *testing.T) {
-		client := NewClient("https://example.invalid/graphql", "", time.Second)
+		client := newRetryTestClient("https://example.invalid/graphql", "", time.Second)
 		client.HTTP = &http.Client{Transport: testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 			return &http.Response{StatusCode: 401, Body: io.NopCloser(bytes.NewBufferString("{}"))}, nil
 		})}
@@ -144,7 +149,7 @@ func TestDoErrorPaths(t *testing.T) {
 	})
 
 	t.Run("non-200", func(t *testing.T) {
-		client := NewClient("https://example.invalid/graphql", "", time.Second)
+		client := newRetryTestClient("https://example.invalid/graphql", "", time.Second)
 		client.HTTP = &http.Client{Transport: testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 			return &http.Response{StatusCode: 500, Body: io.NopCloser(bytes.NewBufferString("{}"))}, nil
 		})}
@@ -155,7 +160,7 @@ func TestDoErrorPaths(t *testing.T) {
 	})
 
 	t.Run("read body", func(t *testing.T) {
-		client := NewClient("https://example.invalid/graphql", "", time.Second)
+		client := newRetryTestClient("https://example.invalid/graphql", "", time.Second)
 		client.HTTP = &http.Client{Transport: testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 			return &http.Response{StatusCode: 200, Body: testutil.FailingCloser{}}, nil
 		})}
@@ -166,7 +171,7 @@ func TestDoErrorPaths(t *testing.T) {
 	})
 
 	t.Run("schema changed", func(t *testing.T) {
-		client := NewClient("https://example.invalid/graphql", "", time.Second)
+		client := newRetryTestClient("https://example.invalid/graphql", "", time.Second)
 		client.HTTP = &http.Client{Transport: testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 			return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString("not-json"))}, nil
 		})}
@@ -177,7 +182,7 @@ func TestDoErrorPaths(t *testing.T) {
 	})
 
 	t.Run("graphql errors", func(t *testing.T) {
-		client := NewClient("https://example.invalid/graphql", "", time.Second)
+		client := newRetryTestClient("https://example.invalid/graphql", "", time.Second)
 		client.HTTP = &http.Client{Transport: testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 			return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString(`{"data":{},"errors":[{"message":"bad"}]}`))}, nil
 		})}
@@ -189,7 +194,7 @@ func TestDoErrorPaths(t *testing.T) {
 }
 
 func TestDoErrorTypeIsStructured(t *testing.T) {
-	client := NewClient("https://example.invalid/graphql", "", time.Second)
+	client := newRetryTestClient("https://example.invalid/graphql", "", time.Second)
 	client.HTTP = &http.Client{Transport: testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 		return nil, errors.New("boom")
 	})}
@@ -202,7 +207,7 @@ func TestDoErrorTypeIsStructured(t *testing.T) {
 
 func TestDoRetriesOnRetryableErrors(t *testing.T) {
 	attempts := 0
-	client := NewClient("https://example.invalid/graphql", "", 2*time.Second)
+	client := newRetryTestClient("https://example.invalid/graphql", "", 2*time.Second)
 	client.HTTP = &http.Client{Transport: testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 		attempts++
 		if attempts <= 2 {
@@ -225,7 +230,7 @@ func TestDoRetriesOnRetryableErrors(t *testing.T) {
 
 func TestDoDoesNotRetryNonRetryableErrors(t *testing.T) {
 	attempts := 0
-	client := NewClient("https://example.invalid/graphql", "", time.Second)
+	client := newRetryTestClient("https://example.invalid/graphql", "", time.Second)
 	client.HTTP = &http.Client{Transport: testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 		attempts++
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString(`{"data":{},"errors":[{"message":"bad query"}]}`))}, nil
@@ -242,7 +247,7 @@ func TestDoDoesNotRetryNonRetryableErrors(t *testing.T) {
 
 func TestDoResponseSizeLimit(t *testing.T) {
 	bigBody := strings.Repeat("x", int(maxResponseBody)+1)
-	client := NewClient("https://example.invalid/graphql", "", 5*time.Second)
+	client := newRetryTestClient("https://example.invalid/graphql", "", 5*time.Second)
 	client.HTTP = &http.Client{Transport: testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString(bigBody))}, nil
 	})}
@@ -254,7 +259,7 @@ func TestDoResponseSizeLimit(t *testing.T) {
 }
 
 func TestDoJoinsMultipleGraphQLErrors(t *testing.T) {
-	client := NewClient("https://example.invalid/graphql", "", time.Second)
+	client := newRetryTestClient("https://example.invalid/graphql", "", time.Second)
 	client.HTTP = &http.Client{Transport: testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString(`{"data":{},"errors":[{"message":"error one"},{"message":"error two"}]}`))}, nil
 	})}
@@ -284,7 +289,7 @@ func TestUserAgentEnvOverride(t *testing.T) {
 }
 
 func TestDoRateLimitedReturnsStructuredError(t *testing.T) {
-	client := NewClient("https://example.invalid/graphql", "", time.Second)
+	client := newRetryTestClient("https://example.invalid/graphql", "", time.Second)
 	client.HTTP = &http.Client{Transport: testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 429, Header: http.Header{"Retry-After": []string{"5"}}, Body: io.NopCloser(bytes.NewBufferString("{}"))}, nil
 	})}
@@ -307,7 +312,7 @@ func TestDoRateLimitedReturnsStructuredError(t *testing.T) {
 
 func TestDoMutationDoesNotRetry(t *testing.T) {
 	attempts := 0
-	client := NewClient("https://example.invalid/graphql", "", 2*time.Second)
+	client := newRetryTestClient("https://example.invalid/graphql", "", 2*time.Second)
 	client.HTTP = &http.Client{Transport: testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 		attempts++
 		return nil, errors.New("transient network error")
@@ -323,7 +328,7 @@ func TestDoMutationDoesNotRetry(t *testing.T) {
 }
 
 func TestDoMutationSuccess(t *testing.T) {
-	client := NewClient("https://example.invalid/graphql", "", time.Second)
+	client := newRetryTestClient("https://example.invalid/graphql", "", time.Second)
 	client.HTTP = &http.Client{Transport: testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString(`{"data":{"ok":true}}`))}, nil
 	})}
@@ -340,7 +345,7 @@ func TestDoMutationSuccess(t *testing.T) {
 }
 
 func TestDoRejectsRedirects(t *testing.T) {
-	client := NewClient("https://example.invalid/graphql", "token", time.Second)
+	client := newRetryTestClient("https://example.invalid/graphql", "token", time.Second)
 	client.HTTP = &http.Client{
 		Transport: testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 			return &http.Response{StatusCode: 302, Header: http.Header{"Location": []string{"https://evil.example/steal"}}, Body: io.NopCloser(bytes.NewBufferString(""))}, nil
@@ -378,5 +383,40 @@ func TestParseRetryAfterHTTPDate(t *testing.T) {
 	got := parseRetryAfter(future)
 	if got <= 0 || got > 3*time.Second {
 		t.Fatalf("parseRetryAfter(%q) = %v, want ~1-2s", future, got)
+	}
+}
+
+func TestNewClientUsesRealSleepByDefault(t *testing.T) {
+	if NewClient("https://example.invalid/graphql", "", time.Second).sleep == nil {
+		t.Fatal("NewClient() sleep is nil, want the default backoff")
+	}
+}
+
+func TestRetrySleepReceivesGrowingBackoff(t *testing.T) {
+	var delays []time.Duration
+	attempts := 0
+	client := NewClient("https://example.invalid/graphql", "", time.Second,
+		WithHTTPTransport(testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+			attempts++
+			return nil, errors.New("unreachable")
+		})),
+		WithRetrySleep(func(_ context.Context, delay time.Duration) error {
+			delays = append(delays, delay)
+			return nil
+		}))
+
+	if err := client.Do(context.Background(), &Request{OperationName: "Op"}, nil); err == nil {
+		t.Fatal("Do() error = nil, want network failure")
+	}
+	if attempts != maxRetries+1 {
+		t.Fatalf("attempts = %d, want %d", attempts, maxRetries+1)
+	}
+	if len(delays) != maxRetries {
+		t.Fatalf("delays = %v, want %d entries", delays, maxRetries)
+	}
+	for i := 1; i < len(delays); i++ {
+		if delays[i] <= delays[i-1] {
+			t.Fatalf("delays = %v, want strictly increasing backoff", delays)
+		}
 	}
 }

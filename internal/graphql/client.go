@@ -41,11 +41,13 @@ type Client struct {
 	Token      string
 	DeviceUUID string
 	HTTP       *http.Client
+	sleep      func(context.Context, time.Duration) error
 }
 
 type clientOptions struct {
 	transport  http.RoundTripper
 	deviceUUID string
+	sleep      func(context.Context, time.Duration) error
 }
 
 type ClientOption func(*clientOptions)
@@ -61,6 +63,23 @@ func WithHTTPTransport(transport http.RoundTripper) ClientOption {
 func WithDeviceUUID(deviceUUID string) ClientOption {
 	return func(options *clientOptions) {
 		options.deviceUUID = deviceUUID
+	}
+}
+
+func WithRetrySleep(sleep func(context.Context, time.Duration) error) ClientOption {
+	return func(options *clientOptions) {
+		if sleep != nil {
+			options.sleep = sleep
+		}
+	}
+}
+
+func sleepUntil(ctx context.Context, delay time.Duration) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(delay):
+		return nil
 	}
 }
 
@@ -93,11 +112,15 @@ func NewClient(endpoint, token string, timeout time.Duration, opts ...ClientOpti
 		cloned.IdleConnTimeout = 90 * time.Second
 		httpClient.Transport = cloned
 	}
+	if options.sleep == nil {
+		options.sleep = sleepUntil
+	}
 	return &Client{
 		Endpoint:   endpoint,
 		Token:      token,
 		DeviceUUID: options.deviceUUID,
 		HTTP:       httpClient,
+		sleep:      options.sleep,
 	}
 }
 
@@ -131,10 +154,8 @@ func (c *Client) doWithAttempts(ctx context.Context, reqBody *Request, result an
 			if delay <= 0 {
 				delay = time.Duration(1<<uint(attempt-1))*500*time.Millisecond + time.Duration(attempt)*37*time.Millisecond
 			}
-			select {
-			case <-ctx.Done():
-				return errors.New(errors.NetworkTimeout, "request canceled during retry backoff", errors.CatNetwork, false, ctx.Err())
-			case <-time.After(delay):
+			if err := c.sleep(ctx, delay); err != nil {
+				return errors.New(errors.NetworkTimeout, "request canceled during retry backoff", errors.CatNetwork, false, err)
 			}
 		}
 
