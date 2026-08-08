@@ -71,13 +71,17 @@ func (a *App) buildCashflowSummaryCommand(startDate, endDate *string) *cobra.Com
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
+			resolvedStart, resolvedEnd := resolveCashflowDates(*startDate, *endDate, time.Now())
+			if err := validateDateRange(resolvedStart, resolvedEnd); err != nil {
+				a.handleError(renderer, "cashflow.summary", err, start)
+				return
+			}
+
 			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "cashflow.summary", wrapError(err, "failed to load service"), start)
 				return
 			}
-
-			resolvedStart, resolvedEnd := resolveCashflowDates(*startDate, *endDate, time.Now())
 			summary, err := svc.GetCashflowSummary(cmd.Context(), resolvedStart, resolvedEnd)
 			if err != nil {
 				a.handleError(renderer, "cashflow.summary", wrapError(err, "failed to get cashflow summary"), start)
@@ -107,13 +111,17 @@ func (a *App) buildCashflowCategoriesCommand(startDate, endDate *string) *cobra.
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
+			resolvedStart, resolvedEnd := resolveCashflowDates(*startDate, *endDate, time.Now())
+			if err := validateDateRange(resolvedStart, resolvedEnd); err != nil {
+				a.handleError(renderer, "cashflow.categories", err, start)
+				return
+			}
+
 			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "cashflow.categories", wrapError(err, "failed to load service"), start)
 				return
 			}
-
-			resolvedStart, resolvedEnd := resolveCashflowDates(*startDate, *endDate, time.Now())
 			records, err := svc.GetCashflowCategories(cmd.Context(), resolvedStart, resolvedEnd)
 			if err != nil {
 				a.handleError(renderer, "cashflow.categories", wrapError(err, "failed to get cashflow categories"), start)
@@ -142,13 +150,17 @@ func (a *App) buildCashflowMerchantsCommand(startDate, endDate *string) *cobra.C
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
+			resolvedStart, resolvedEnd := resolveCashflowDates(*startDate, *endDate, time.Now())
+			if err := validateDateRange(resolvedStart, resolvedEnd); err != nil {
+				a.handleError(renderer, "cashflow.merchants", err, start)
+				return
+			}
+
 			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "cashflow.merchants", wrapError(err, "failed to load service"), start)
 				return
 			}
-
-			resolvedStart, resolvedEnd := resolveCashflowDates(*startDate, *endDate, time.Now())
 			records, err := svc.GetCashflowMerchants(cmd.Context(), resolvedStart, resolvedEnd)
 			if err != nil {
 				a.handleError(renderer, "cashflow.merchants", wrapError(err, "failed to get cashflow merchants"), start)
@@ -180,16 +192,16 @@ func (a *App) buildCashflowTrendsCommand(startDate, endDate, groupBy, period *st
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			if *startDate == "" || *endDate == "" {
-				a.handleError(renderer, "cashflow.trends", errors.New(errors.InvalidArguments, "--from and --to are required", errors.CatValidation, false, nil), start)
+			if err := validateRequiredDateFlag("from", *startDate); err != nil {
+				a.handleError(renderer, "cashflow.trends", err, start)
 				return
 			}
-			if _, err := time.Parse("2006-01-02", *startDate); err != nil {
-				a.handleError(renderer, "cashflow.trends", errors.New(errors.InvalidArguments, "from date must use YYYY-MM-DD", errors.CatValidation, false, err), start)
+			if err := validateRequiredDateFlag("to", *endDate); err != nil {
+				a.handleError(renderer, "cashflow.trends", err, start)
 				return
 			}
-			if _, err := time.Parse("2006-01-02", *endDate); err != nil {
-				a.handleError(renderer, "cashflow.trends", errors.New(errors.InvalidArguments, "to date must use YYYY-MM-DD", errors.CatValidation, false, err), start)
+			if err := validateDateRange(*startDate, *endDate); err != nil {
+				a.handleError(renderer, "cashflow.trends", err, start)
 				return
 			}
 			if *groupBy != "category" && *groupBy != "category-group" {
@@ -246,13 +258,17 @@ func (a *App) buildCashflowListCommand(startDate, endDate *string) *cobra.Comman
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
+			resolvedStart, resolvedEnd := resolveCashflowDates(*startDate, *endDate, time.Now())
+			if err := validateDateRange(resolvedStart, resolvedEnd); err != nil {
+				a.handleError(renderer, "cashflow.list", err, start)
+				return
+			}
+
 			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "cashflow.list", wrapError(err, "failed to load service"), start)
 				return
 			}
-
-			resolvedStart, resolvedEnd := resolveCashflowDates(*startDate, *endDate, time.Now())
 			records, err := svc.ListCashflow(cmd.Context(), resolvedStart, resolvedEnd)
 			if err != nil {
 				a.handleError(renderer, "cashflow.list", wrapError(err, "failed to list cashflow"), start)
@@ -281,13 +297,17 @@ func (a *App) buildCashflowSpendingCommand(startDate, endDate *string) *cobra.Co
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
+			resolvedStart, resolvedEnd := resolveCashflowDates(*startDate, *endDate, time.Now())
+			if err := validateDateRange(resolvedStart, resolvedEnd); err != nil {
+				a.handleError(renderer, "cashflow.spending", err, start)
+				return
+			}
+
 			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "cashflow.spending", wrapError(err, "failed to load service"), start)
 				return
 			}
-
-			resolvedStart, resolvedEnd := resolveCashflowDates(*startDate, *endDate, time.Now())
 			records, err := svc.GetCashflowCategories(cmd.Context(), resolvedStart, resolvedEnd)
 			if err != nil {
 				a.handleError(renderer, "cashflow.spending", wrapError(err, "failed to get spending data"), start)

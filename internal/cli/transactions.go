@@ -242,6 +242,11 @@ func (a *App) buildTransactionsListCommand(startDate, endDate *string) *cobra.Co
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
+			if err := validateDateRange(*startDate, *endDate); err != nil {
+				a.handleError(renderer, "transactions.list", err, start)
+				return
+			}
+
 			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.list", wrapError(err, "failed to load service"), start)
@@ -287,6 +292,11 @@ func (a *App) buildTransactionsSearchCommand(startDate, endDate *string) *cobra.
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
+
+			if err := validateDateRange(*startDate, *endDate); err != nil {
+				a.handleError(renderer, "transactions.search", err, start)
+				return
+			}
 
 			svc, err := a.loadService()
 			if err != nil {
@@ -630,6 +640,11 @@ func (a *App) buildTransactionsExportCommand(startDate, endDate *string) *cobra.
 				return
 			}
 
+			if err := validateDateRange(*startDate, *endDate); err != nil {
+				a.handleError(renderer, "transactions.export", err, start)
+				return
+			}
+
 			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "transactions.export", wrapError(err, "failed to load service"), start)
@@ -926,6 +941,11 @@ func (a *App) buildTransactionsSummaryCommand(startDate, endDate *string) *cobra
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
+
+			if err := validateDateRange(*startDate, *endDate); err != nil {
+				a.handleError(renderer, "transactions.summary", err, start)
+				return
+			}
 
 			svc, err := a.loadService()
 			if err != nil {

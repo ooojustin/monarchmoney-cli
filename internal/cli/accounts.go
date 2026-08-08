@@ -124,8 +124,8 @@ func (a *App) buildAccountsBalanceAtCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			if _, err := time.Parse("2006-01-02", date); err != nil {
-				a.handleError(renderer, "accounts.balance-at", errors.New(errors.InvalidArguments, "date must use YYYY-MM-DD", errors.CatValidation, false, err), start)
+			if err := validateRequiredDateFlag("date", date); err != nil {
+				a.handleError(renderer, "accounts.balance-at", err, start)
 				return
 			}
 
@@ -172,6 +172,11 @@ func (a *App) buildAccountsHistoryCommand() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
+
+			if err := validateDateRange(from, to); err != nil {
+				a.handleError(renderer, "accounts.history", err, start)
+				return
+			}
 
 			svc, err := a.loadService()
 			if err != nil {
@@ -635,6 +640,11 @@ func (a *App) buildAccountsRecentBalancesCommand() *cobra.Command {
 				effectiveFrom = time.Now().AddDate(0, 0, -31).Format("2006-01-02")
 			}
 
+			if err := validateDateFlag("from", from); err != nil {
+				a.handleError(renderer, "accounts.recent-balances", err, start)
+				return
+			}
+
 			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.recent-balances", wrapError(err, "failed to load service"), start)
@@ -678,6 +688,11 @@ func (a *App) buildAccountsSnapshotsCommand() *cobra.Command {
 				effectiveFrom = time.Now().AddDate(-1, 0, 0).Format("2006-01-02")
 			}
 
+			if err := validateDateFlag("from", from); err != nil {
+				a.handleError(renderer, "accounts.snapshots", err, start)
+				return
+			}
+
 			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "accounts.snapshots", wrapError(err, "failed to load service"), start)
@@ -717,6 +732,11 @@ func (a *App) buildAccountsAggregateSnapshotsCommand() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
+
+			if err := validateDateRange(from, to); err != nil {
+				a.handleError(renderer, "accounts.aggregate-snapshots", err, start)
+				return
+			}
 
 			svc, err := a.loadService()
 			if err != nil {
@@ -758,6 +778,11 @@ func (a *App) buildNetworthCommand() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
+
+			if err := validateDateRange(from, to); err != nil {
+				a.handleError(renderer, "networth", err, start)
+				return
+			}
 
 			svc, err := a.loadService()
 			if err != nil {

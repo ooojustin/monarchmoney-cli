@@ -25,6 +25,11 @@ func (a *App) buildOverviewCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
+			if err := validateDateRange(from, to); err != nil {
+				a.handleError(renderer, "overview", err, start)
+				return
+			}
+
 			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "overview", wrapError(err, "failed to load service"), start)

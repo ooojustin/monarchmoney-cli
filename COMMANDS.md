@@ -124,6 +124,7 @@ All mutations are protected by the [Safety Model](./safety.md).
 
 Exit codes are listed in [JSON_SCHEMA.md](JSON_SCHEMA.md#exit-codes).
 
+- Date flags must use `YYYY-MM-DD`, and `--from` must not be after `--to`. Both are checked locally, before any request.
 - A command that owns subcommands requires one. Invoked bare or with an unknown subcommand it exits 2 with `INVALID_ARGUMENTS`.
 - Looking up one resource by identifier exits 8 with `RESOURCE_NOT_FOUND` when it does not exist, for example `monarch accounts show <unknown-id>`.
 - Listing, searching, and filtering return an empty array and exit 0 when nothing matches, for example `monarch accounts holdings <unknown-id>`.

@@ -66,10 +66,8 @@ func (s *Service) ListCashflow(ctx context.Context, startDate, endDate string) (
 	}
 
 	if end.Before(start) {
-		start, end = end, start
+		return nil, errors.New(errors.InvalidArguments, "cashflow end date must not be before start date", errors.CatValidation, false, nil)
 	}
-	startDate = start.Format("2006-01-02")
-	endDate = end.Format("2006-01-02")
 
 	periods := make(map[string]*CashflowPeriod)
 	for day := start; !day.After(end); day = day.AddDate(0, 0, 1) {

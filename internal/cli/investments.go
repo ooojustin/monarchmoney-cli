@@ -37,11 +37,7 @@ func (a *App) buildInvestmentsPortfolioCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			if err := validateOptionalDate("from", from); err != nil {
-				a.handleError(renderer, "investments.portfolio", err, start)
-				return
-			}
-			if err := validateOptionalDate("to", to); err != nil {
+			if err := validateDateRange(from, to); err != nil {
 				a.handleError(renderer, "investments.portfolio", err, start)
 				return
 			}
@@ -100,11 +96,15 @@ func (a *App) buildInvestmentsPerformanceCommand() *cobra.Command {
 				a.handleError(renderer, "investments.performance", errors.New(errors.InvalidArguments, "--security-id is required", errors.CatValidation, false, nil), start)
 				return
 			}
-			if err := validateRequiredDate("from", from); err != nil {
+			if err := validateRequiredDateFlag("from", from); err != nil {
 				a.handleError(renderer, "investments.performance", err, start)
 				return
 			}
-			if err := validateRequiredDate("to", to); err != nil {
+			if err := validateRequiredDateFlag("to", to); err != nil {
+				a.handleError(renderer, "investments.performance", err, start)
+				return
+			}
+			if err := validateDateRange(from, to); err != nil {
 				a.handleError(renderer, "investments.performance", err, start)
 				return
 			}
@@ -143,21 +143,4 @@ func (a *App) buildInvestmentsPerformanceCommand() *cobra.Command {
 	cmd.Flags().StringVar(&to, "to", "", "end date (required; YYYY-MM-DD)")
 	cmd.Flags().BoolVar(&includeValues, "values", false, "include chart value fields")
 	return cmd
-}
-
-func validateOptionalDate(name, value string) *errors.Error {
-	if value == "" {
-		return nil
-	}
-	if _, err := time.Parse("2006-01-02", value); err != nil {
-		return errors.New(errors.InvalidArguments, name+" date must use YYYY-MM-DD", errors.CatValidation, false, err)
-	}
-	return nil
-}
-
-func validateRequiredDate(name, value string) *errors.Error {
-	if value == "" {
-		return errors.New(errors.InvalidArguments, "--"+name+" is required", errors.CatValidation, false, nil)
-	}
-	return validateOptionalDate(name, value)
 }

@@ -1477,3 +1477,20 @@ func TestServiceGetAccountHistoryUnknownAccount(t *testing.T) {
 		return err
 	})
 }
+
+func TestServiceListCashflowRejectsInvertedRange(t *testing.T) {
+	client := &mockClient{
+		token: "token-123",
+		handler: func(*graphql.Request, any) error {
+			t.Fatal("ListCashflow must validate the range before any request")
+			return nil
+		},
+	}
+
+	_, err := NewService(client).ListCashflow(context.Background(), "2026-01-31", "2026-01-01")
+
+	var cliErr *clierrors.Error
+	if !errors.As(err, &cliErr) || cliErr.Code != clierrors.InvalidArguments {
+		t.Fatalf("error = %v, want INVALID_ARGUMENTS", err)
+	}
+}

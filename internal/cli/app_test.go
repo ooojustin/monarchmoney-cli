@@ -540,7 +540,7 @@ func TestAppCashflowTrendsValidation(t *testing.T) {
 	if exitCode != 2 {
 		t.Fatalf("exitCode = %d, want 2", exitCode)
 	}
-	if got := out.String(); !strings.Contains(got, `"command":"cashflow.trends"`) || !strings.Contains(got, "--from and --to are required") {
+	if got := out.String(); !strings.Contains(got, `"command":"cashflow.trends"`) || !strings.Contains(got, "--from is required") {
 		t.Fatalf("output = %q, want trends validation error", got)
 	}
 }

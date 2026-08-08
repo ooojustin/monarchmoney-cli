@@ -45,11 +45,9 @@ func (a *App) buildCacheSyncCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			if from != "" {
-				if _, err := time.Parse("2006-01-02", from); err != nil {
-					a.handleError(renderer, "cache.sync", errors.New(errors.InvalidArguments, "--from must be a date in YYYY-MM-DD format", errors.CatValidation, false, err), start)
-					return
-				}
+			if err := validateDateFlag("from", from); err != nil {
+				a.handleError(renderer, "cache.sync", err, start)
+				return
 			}
 
 			svc, err := a.loadService()
@@ -226,12 +224,8 @@ func (a *App) buildCacheCleanupCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			if before == "" {
-				a.handleError(renderer, "cache.cleanup", errors.New(errors.InvalidArguments, "--before is required", errors.CatValidation, false, nil), start)
-				return
-			}
-			if _, err := time.Parse("2006-01-02", before); err != nil {
-				a.handleError(renderer, "cache.cleanup", errors.New(errors.InvalidArguments, "--before must be a date in YYYY-MM-DD format", errors.CatValidation, false, err), start)
+			if err := validateRequiredDateFlag("before", before); err != nil {
+				a.handleError(renderer, "cache.cleanup", err, start)
 				return
 			}
 
