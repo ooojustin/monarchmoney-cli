@@ -102,8 +102,8 @@ locally so agents do not need to group transactions themselves.`,
 				a.handleError(renderer, "analyze.anomalies", errors.New(errors.InvalidArguments, "--month must use YYYY-MM", errors.CatValidation, false, err), start)
 				return
 			}
-			if flags.historyMonths <= 0 {
-				a.handleError(renderer, "analyze.anomalies", errors.New(errors.InvalidArguments, "--history-months must be greater than zero", errors.CatValidation, false, nil), start)
+			if err := validatePositiveInt("history-months", flags.historyMonths); err != nil {
+				a.handleError(renderer, "analyze.anomalies", err, start)
 				return
 			}
 
@@ -165,8 +165,12 @@ the services are wasteful.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
-			if flags.pastDays < 0 || flags.futureDays < 0 {
-				a.handleError(renderer, "analyze.subscriptions", errors.New(errors.InvalidArguments, "day windows must be non-negative", errors.CatValidation, false, nil), start)
+			if err := validateNonNegativeInt("past-days", flags.pastDays); err != nil {
+				a.handleError(renderer, "analyze.subscriptions", err, start)
+				return
+			}
+			if err := validateNonNegativeInt("future-days", flags.futureDays); err != nil {
+				a.handleError(renderer, "analyze.subscriptions", err, start)
 				return
 			}
 
@@ -215,6 +219,10 @@ expense_previous, change_pct, and direction with stable semantics for agents.`,
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 			if flags.compare != "previous-month" {
 				a.handleError(renderer, "analyze.merchants", errors.New(errors.InvalidArguments, "--compare currently supports previous-month", errors.CatValidation, false, nil), start)
+				return
+			}
+			if err := validatePositiveInt("limit", flags.limit); err != nil {
+				a.handleError(renderer, "analyze.merchants", err, start)
 				return
 			}
 			month := normalizeAnalyzeMonth(flags.month, start)

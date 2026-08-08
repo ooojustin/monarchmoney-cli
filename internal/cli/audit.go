@@ -24,8 +24,8 @@ func (a *App) buildAuditCommand() *cobra.Command {
 		Run: func(cmd *cobra.Command, _ []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
-			if olderThanDays <= 0 {
-				a.handleError(renderer, "audit.cleanup", errors.New(errors.InvalidArguments, "--older-than must be a positive number of days", errors.CatValidation, false, nil), start)
+			if err := validatePositiveInt("older-than", olderThanDays); err != nil {
+				a.handleError(renderer, "audit.cleanup", err, start)
 				return
 			}
 

@@ -49,6 +49,10 @@ func (a *App) buildCacheSyncCommand() *cobra.Command {
 				a.handleError(renderer, "cache.sync", err, start)
 				return
 			}
+			if err := validatePositiveInt("limit", limit); err != nil {
+				a.handleError(renderer, "cache.sync", err, start)
+				return
+			}
 
 			svc, err := a.loadService()
 			if err != nil {
@@ -90,15 +94,11 @@ func (a *App) buildCacheSyncCommand() *cobra.Command {
 			}
 
 			renderer.PrintDiagnostic("Syncing transactions...")
-			pageLimit := limit
-			if pageLimit <= 0 {
-				pageLimit = 1000
-			}
 			var txs []monarch.Transaction
 			if all {
-				txs, err = svc.ListAllTransactions(cmd.Context(), &monarch.ListTransactionsOptions{Limit: pageLimit, StartDate: from})
+				txs, err = svc.ListAllTransactions(cmd.Context(), &monarch.ListTransactionsOptions{Limit: limit, StartDate: from})
 			} else {
-				txs, _, err = svc.ListTransactions(cmd.Context(), &monarch.ListTransactionsOptions{Limit: pageLimit, StartDate: from})
+				txs, _, err = svc.ListTransactions(cmd.Context(), &monarch.ListTransactionsOptions{Limit: limit, StartDate: from})
 			}
 			if err != nil {
 				a.handleError(renderer, "cache.sync", errors.New(errors.APIError, fmt.Sprintf("failed to sync transactions: %v", err), errors.CatAPI, false, err), start)

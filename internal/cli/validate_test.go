@@ -85,3 +85,38 @@ func TestDateRangeValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestNumericFlagsValidateBeforeRequests(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		command string
+		message string
+	}{
+		{"list negative limit", []string{"--json", "transactions", "list", "--limit", "-5"}, "transactions.list", "--limit must be greater than zero"},
+		{"list zero limit", []string{"--json", "transactions", "list", "--limit", "0"}, "transactions.list", "--limit must be greater than zero"},
+		{"list negative offset", []string{"--json", "transactions", "list", "--offset", "-1"}, "transactions.list", "--offset must not be negative"},
+		{"search negative limit", []string{"--json", "transactions", "search", "coffee", "--limit", "-5"}, "transactions.search", "--limit must be greater than zero"},
+		{"export zero limit", []string{"--json", "transactions", "export", "--limit", "0"}, "transactions.export", "--limit must be greater than zero"},
+		{"merchants zero limit", []string{"--json", "analyze", "merchants", "--limit", "0"}, "analyze.merchants", "--limit must be greater than zero"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := noRequestHarness(t)
+			if err := h.execute(tt.args...); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			out := h.Stdout.String()
+			if h.ExitCode != 2 {
+				t.Fatalf("exitCode = %d, want 2; output=%q", h.ExitCode, out)
+			}
+			if !strings.Contains(out, `"INVALID_ARGUMENTS"`) || !strings.Contains(out, tt.message) {
+				t.Fatalf("output=%q, want %q", out, tt.message)
+			}
+			if !strings.Contains(out, `"command":"`+tt.command+`"`) {
+				t.Fatalf("output=%q, want command %q", out, tt.command)
+			}
+		})
+	}
+}

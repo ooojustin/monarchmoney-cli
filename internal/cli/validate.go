@@ -38,3 +38,17 @@ func validateDateRange(from, to string) *errors.Error {
 	}
 	return nil
 }
+
+func validatePositiveInt(name string, value int) *errors.Error {
+	if value <= 0 {
+		return errors.New(errors.InvalidArguments, "--"+name+" must be greater than zero", errors.CatValidation, false, nil)
+	}
+	return nil
+}
+
+func validateNonNegativeInt(name string, value int) *errors.Error {
+	if value < 0 {
+		return errors.New(errors.InvalidArguments, "--"+name+" must not be negative", errors.CatValidation, false, nil)
+	}
+	return nil
+}

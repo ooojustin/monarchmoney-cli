@@ -246,6 +246,14 @@ func (a *App) buildTransactionsListCommand(startDate, endDate *string) *cobra.Co
 				a.handleError(renderer, "transactions.list", err, start)
 				return
 			}
+			if err := validatePositiveInt("limit", flags.limit); err != nil {
+				a.handleError(renderer, "transactions.list", err, start)
+				return
+			}
+			if err := validateNonNegativeInt("offset", flags.offset); err != nil {
+				a.handleError(renderer, "transactions.list", err, start)
+				return
+			}
 
 			svc, err := a.loadService()
 			if err != nil {
@@ -294,6 +302,14 @@ func (a *App) buildTransactionsSearchCommand(startDate, endDate *string) *cobra.
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
 			if err := validateDateRange(*startDate, *endDate); err != nil {
+				a.handleError(renderer, "transactions.search", err, start)
+				return
+			}
+			if err := validatePositiveInt("limit", limitValue); err != nil {
+				a.handleError(renderer, "transactions.search", err, start)
+				return
+			}
+			if err := validateNonNegativeInt("offset", offsetValue); err != nil {
 				a.handleError(renderer, "transactions.search", err, start)
 				return
 			}
@@ -641,6 +657,14 @@ func (a *App) buildTransactionsExportCommand(startDate, endDate *string) *cobra.
 			}
 
 			if err := validateDateRange(*startDate, *endDate); err != nil {
+				a.handleError(renderer, "transactions.export", err, start)
+				return
+			}
+			if err := validatePositiveInt("limit", flags.limit); err != nil {
+				a.handleError(renderer, "transactions.export", err, start)
+				return
+			}
+			if err := validateNonNegativeInt("offset", flags.offset); err != nil {
 				a.handleError(renderer, "transactions.export", err, start)
 				return
 			}
