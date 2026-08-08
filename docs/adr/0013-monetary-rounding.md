@@ -27,5 +27,6 @@ Rounding is applied per assignment rather than by a transform over the encoded p
 - No monetary field in JSON output carries more than two decimal places, whichever layer produced it.
 - A regression test walks emitted payloads and fails on any numeric leaf with more than two decimals, except for an explicit set of non-monetary keys. That set is the reviewable statement of what is not money, and new monetary fields are covered without being enumerated.
 - Values that Monarch reports with representation artifacts no longer match Monarch's bytes exactly.
+- Holding quantities stay unrounded, so a cash holding, whose quantity is denominated in currency rather than shares, can still carry an artifact. Rounding quantities would truncate fractional share counts, which is the larger loss.
 - Adding a monetary field to a response requires rounding it at the assignment. Omitting that is caught by the regression test rather than by a reader.
 - `internal/analyze` keeps its existing behavior; its private helper is replaced by the shared one.
