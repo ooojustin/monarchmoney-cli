@@ -2,8 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -19,13 +17,11 @@ func appBudgetMonth(month string, now time.Time) (year, monthNumber int, err *er
 		return now.Year(), int(now.Month()), nil
 	}
 
-	parts := strings.Split(month, "-")
-	if len(parts) != 2 {
-		return 0, 0, errors.New(errors.InvalidArguments, "invalid month format, use YYYY-MM", errors.CatValidation, false, nil)
+	parsed, parseErr := time.Parse("2006-01", month)
+	if parseErr != nil {
+		return 0, 0, errors.New(errors.InvalidArguments, "--month must use YYYY-MM", errors.CatValidation, false, parseErr)
 	}
-	y, _ := strconv.Atoi(parts[0])
-	m, _ := strconv.Atoi(parts[1])
-	return y, m, nil
+	return parsed.Year(), int(parsed.Month()), nil
 }
 
 func appBudgetListOptions(month string, now time.Time) (monarch.ListBudgetsOptions, *errors.Error) {

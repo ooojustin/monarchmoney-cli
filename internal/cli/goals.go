@@ -2,13 +2,10 @@ package cli
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
-	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 )
 
@@ -67,22 +64,18 @@ func (a *App) buildGoalsBudgetsCommand() *cobra.Command {
 		Run: func(cmd *cobra.Command, _ []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
+			y, m, monthErr := appBudgetMonth(month, time.Now())
+			if monthErr != nil {
+				a.handleError(renderer, "goals.budgets", monthErr, start)
+				return
+			}
+
 			svc, err := a.loadService()
 			if err != nil {
 				a.handleError(renderer, "goals.budgets", wrapError(err, "failed to load service"), start)
 				return
 			}
 
-			y, m := time.Now().Year(), int(time.Now().Month())
-			if month != "" {
-				parts := strings.Split(month, "-")
-				if len(parts) != 2 {
-					a.handleError(renderer, "goals.budgets", errors.New(errors.InvalidArguments, "invalid month format, use YYYY-MM", errors.CatValidation, false, nil), start)
-					return
-				}
-				y, _ = strconv.Atoi(parts[0])
-				m, _ = strconv.Atoi(parts[1])
-			}
 			startDate := fmt.Sprintf("%04d-%02d-01", y, m)
 			endDate := time.Date(y, time.Month(m+1), 0, 0, 0, 0, 0, time.UTC).Format("2006-01-02")
 			budgets, err := svc.ListSavingsGoalBudgets(cmd.Context(), startDate, endDate)

@@ -120,3 +120,22 @@ func TestNumericFlagsValidateBeforeRequests(t *testing.T) {
 		})
 	}
 }
+
+func TestMonthFlagRejectsMalformedValues(t *testing.T) {
+	for _, args := range [][]string{
+		{"--json", "budgets", "list", "--month", "abc-def"},
+		{"--json", "budgets", "show", "cat-1", "--month", "2026-13"},
+		{"--json", "goals", "budgets", "--month", "abc-def"},
+	} {
+		t.Run(strings.Join(args[1:3], "."), func(t *testing.T) {
+			h := noRequestHarness(t)
+			if err := h.execute(args...); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			out := h.Stdout.String()
+			if h.ExitCode != 2 || !strings.Contains(out, "--month must use YYYY-MM") {
+				t.Fatalf("exitCode = %d, output=%q, want month validation error", h.ExitCode, out)
+			}
+		})
+	}
+}
