@@ -122,7 +122,7 @@ func (s *Service) GetAccountHoldings(ctx context.Context, accountID string) ([]H
 		return nil, err
 	}
 
-	var holdings []Holding
+	holdings := []Holding{}
 	for _, edge := range resp.Portfolio.AggregateHoldings.Edges {
 		if accountID != "" {
 			matched := false
@@ -237,6 +237,10 @@ func (s *Service) GetAccount(ctx context.Context, id string) (*Account, error) {
 
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.Account.ID == "" {
+		return nil, errors.New(errors.ResourceNotFound, fmt.Sprintf("account %s not found", id), errors.CatAPI, false, nil)
 	}
 
 	return &Account{

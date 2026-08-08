@@ -2,7 +2,9 @@ package monarch
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 	"github.com/thedavidweng/monarchmoney-cli/queries"
 )
@@ -58,17 +60,18 @@ func (s *Service) GetBudget(ctx context.Context, categoryID, startDate, endDate 
 	}
 
 	for _, cat := range resp.BudgetData.MonthlyAmountsByCategory {
-		if cat.Category.ID == categoryID && len(cat.MonthlyAmounts) > 0 {
-			return &Budget{
-				CategoryID:   cat.Category.ID,
-				CategoryName: cat.Category.Name,
-				Planned:      cat.MonthlyAmounts[0].PlannedCashFlowAmount,
-				Actual:       cat.MonthlyAmounts[0].ActualAmount,
-			}, nil
+		if cat.Category.ID != categoryID {
+			continue
 		}
+		budget := &Budget{CategoryID: cat.Category.ID, CategoryName: cat.Category.Name}
+		if len(cat.MonthlyAmounts) > 0 {
+			budget.Planned = cat.MonthlyAmounts[0].PlannedCashFlowAmount
+			budget.Actual = cat.MonthlyAmounts[0].ActualAmount
+		}
+		return budget, nil
 	}
 
-	return nil, nil
+	return nil, errors.New(errors.ResourceNotFound, fmt.Sprintf("budget category %s not found", categoryID), errors.CatAPI, false, nil)
 }
 
 func (s *Service) UpdateFlexibleBudget(ctx context.Context, month, year int, amount float64) error {

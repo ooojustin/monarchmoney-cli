@@ -1023,7 +1023,7 @@ func (a *App) buildTransactionsTagsAddCommand() *cobra.Command {
 
 			tx, err := svc.GetTransaction(cmd.Context(), id)
 			if err != nil {
-				a.handleError(renderer, "transactions.tags.add", errors.New(errors.APIError, "failed to fetch current transaction", errors.CatAPI, false, err), start)
+				a.handleError(renderer, "transactions.tags.add", wrapError(err, "failed to fetch current transaction"), start)
 				return
 			}
 

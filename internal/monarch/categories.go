@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 	"github.com/thedavidweng/monarchmoney-cli/queries"
 )
@@ -267,6 +268,10 @@ func (s *Service) GetCategoryRollover(ctx context.Context, categoryID string) (*
 	}, &resp)
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.Category.ID == "" {
+		return nil, errors.New(errors.ResourceNotFound, fmt.Sprintf("category %s not found", categoryID), errors.CatAPI, false, nil)
 	}
 
 	r := &CategoryRollover{ID: resp.Category.ID, Name: resp.Category.Name}

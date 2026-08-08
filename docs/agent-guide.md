@@ -65,13 +65,14 @@ The full scheme is defined in [JSON_SCHEMA.md](../JSON_SCHEMA.md#exit-codes).
 | Exit Code | Category | Agent Action |
 |---|---|---|
 | 0 | Success | Parse `data` from stdout |
-| 1 | Internal / not found | Report the unexpected failure; do not retry |
+| 1 | Internal | Report the unexpected failure; do not retry |
 | 2 | Invalid arguments | Fix the command-line arguments and retry |
 | 3 | Auth | Prompt user to run `monarch auth login` |
 | 4 | Read-only | Explain that the operation is blocked by security settings |
 | 5 | Network | Retry with backoff; the error is transient |
 | 6 | API | Surface the API message; do not retry blindly |
 | 7 | Validation | Correct the input values and retry |
+| 8 | Not found | Report that the resource does not exist; do not retry |
 | 10 | Confirmation | Ask user for explicit permission to use `--confirm` |
 
 ## Environment Configuration

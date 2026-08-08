@@ -21,6 +21,8 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("[%s] %s", e.Code, e.Message)
 }
 
+func (e *Error) Unwrap() error { return e.Err }
+
 func New(code Code, message string, category Category, retryable bool, err error) *Error {
 	return &Error{
 		Code:      code,
@@ -56,10 +58,14 @@ func (e *Error) ExitCode() int {
 		return 6
 	case ValidationFailed:
 		return 7
+	case ResourceNotFound:
+		return 8
 	case ConfirmationRequired:
 		return 10
 	case InvalidArguments:
 		return 2
+	case InternalError:
+		return 1
 	default:
 		return 1
 	}

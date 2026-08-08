@@ -88,7 +88,6 @@ The process exit code is derived from `error.code` (see `internal/errors`). A su
 |---|---|---|
 | 0 | (success) | — |
 | 1 | `INTERNAL_ERROR` | internal |
-| 1 | `RESOURCE_NOT_FOUND` | api |
 | 2 | `INVALID_ARGUMENTS` | validation |
 | 3 | `AUTH_REQUIRED` | auth |
 | 3 | `AUTH_LOGIN_FAILED` | auth |
@@ -105,6 +104,7 @@ The process exit code is derived from `error.code` (see `internal/errors`). A su
 | 6 | `API_SCHEMA_CHANGED` | api |
 | 6 | `FEATURE_UNAVAILABLE` | api |
 | 7 | `VALIDATION_FAILED` | validation |
+| 8 | `RESOURCE_NOT_FOUND` | api |
 | 10 | `CONFIRMATION_REQUIRED` | safety |
 
 ## Event Stream (NDJSON)

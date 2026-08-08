@@ -46,8 +46,10 @@ func TestExitCode(t *testing.T) {
 		{"schema changed", APISchemaChanged, 6},
 		{"feature unavailable", FEATURE_UNAVAILABLE, 6},
 		{"validation failed", ValidationFailed, 7},
+		{"resource not found", ResourceNotFound, 8},
 		{"confirm required", ConfirmationRequired, 10},
 		{"invalid args", InvalidArguments, 2},
+		{"internal", InternalError, 1},
 		{"default", Code("SOMETHING_ELSE"), 1},
 	}
 

@@ -2,6 +2,7 @@ package monarch
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
@@ -114,6 +115,10 @@ func (s *Service) GetTransaction(ctx context.Context, id string) (*Transaction, 
 
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.GetTransaction.ID == "" {
+		return nil, errors.New(errors.ResourceNotFound, fmt.Sprintf("transaction %s not found", id), errors.CatAPI, false, nil)
 	}
 
 	tags := make([]Tag, len(resp.GetTransaction.Tags))

@@ -15,6 +15,7 @@ import (
 	"sync"
 	"testing"
 
+	clierrors "github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 	"github.com/thedavidweng/monarchmoney-cli/internal/testutil"
 )
@@ -1344,4 +1345,99 @@ func TestGetFinancialOverviewPropagatesErrors(t *testing.T) {
 
 	_, err := NewService(client).GetFinancialOverview(context.Background(), "2026-01-01", "2026-01-31")
 	hasErr(t, err)
+}
+
+func runNotFoundCase(t *testing.T, payload string, call func(*Service) error) {
+	t.Helper()
+
+	var client *mockClient
+	client = &mockClient{
+		token: "token-123",
+		handler: func(_ *graphql.Request, result any) error {
+			return client.respond(result, payload)
+		},
+	}
+
+	err := call(NewService(client))
+
+	var cliErr *clierrors.Error
+	if !errors.As(err, &cliErr) {
+		t.Fatalf("error = %v, want *errors.Error", err)
+	}
+	if cliErr.Code != clierrors.ResourceNotFound {
+		t.Fatalf("code = %q, want %q", cliErr.Code, clierrors.ResourceNotFound)
+	}
+	if cliErr.ExitCode() != 8 {
+		t.Fatalf("exit code = %d, want 8", cliErr.ExitCode())
+	}
+}
+
+func TestServiceReportsMissingSingleResources(t *testing.T) {
+	tests := []struct {
+		name    string
+		payload string
+		call    func(*Service) error
+	}{
+		{"account", `{"account":null}`, func(s *Service) error {
+			_, err := s.GetAccount(context.Background(), "missing")
+			return err
+		}},
+		{"transaction", `{"getTransaction":null}`, func(s *Service) error {
+			_, err := s.GetTransaction(context.Background(), "missing")
+			return err
+		}},
+		{"category rollover", `{"category":null}`, func(s *Service) error {
+			_, err := s.GetCategoryRollover(context.Background(), "missing")
+			return err
+		}},
+		{"budget", `{"budgetData":{"monthlyAmountsByCategory":[]}}`, func(s *Service) error {
+			_, err := s.GetBudget(context.Background(), "missing", "2026-01-01", "2026-01-31")
+			return err
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runNotFoundCase(t, tt.payload, tt.call)
+		})
+	}
+}
+
+func TestServiceGetBudgetWithoutMonthlyAmounts(t *testing.T) {
+	var client *mockClient
+	client = &mockClient{
+		token: "token-123",
+		handler: func(_ *graphql.Request, result any) error {
+			return client.respond(result, `{"budgetData":{"monthlyAmountsByCategory":[{"category":{"id":"cat-1","name":"Food"},"monthlyAmounts":[]}]}}`)
+		},
+	}
+
+	budget, err := NewService(client).GetBudget(context.Background(), "cat-1", "2026-01-01", "2026-01-31")
+	if err != nil {
+		t.Fatalf("GetBudget() error = %v", err)
+	}
+	if budget.CategoryName != "Food" || budget.Planned != 0 || budget.Actual != 0 {
+		t.Fatalf("GetBudget() = %+v, want Food with zero amounts", budget)
+	}
+}
+
+func TestServiceGetAccountHoldingsUnknownAccountIsEmpty(t *testing.T) {
+	var client *mockClient
+	client = &mockClient{
+		token: "token-123",
+		handler: func(_ *graphql.Request, result any) error {
+			return client.respond(result, `{"portfolio":{"aggregateHoldings":{"edges":[]}}}`)
+		},
+	}
+
+	holdings, err := NewService(client).GetAccountHoldings(context.Background(), "missing")
+	if err != nil {
+		t.Fatalf("GetAccountHoldings() error = %v", err)
+	}
+	if holdings == nil {
+		t.Fatal("GetAccountHoldings() = nil, want empty slice")
+	}
+	if len(holdings) != 0 {
+		t.Fatalf("GetAccountHoldings() len = %d, want 0", len(holdings))
+	}
 }
