@@ -254,7 +254,34 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 	root.AddCommand(a.buildAuditCommand())
 	root.AddCommand(buildCompletionCommand())
 	root.AddCommand(a.buildDoctorCommand())
+	a.requireSubcommands(root)
 	return root
+}
+
+func (a *App) requireSubcommands(parent *cobra.Command) {
+	for _, cmd := range parent.Commands() {
+		a.requireSubcommands(cmd)
+		if !cmd.HasSubCommands() {
+			continue
+		}
+		if cmd.Runnable() {
+			if cmd.Args == nil {
+				cmd.Args = cobra.NoArgs
+			}
+			continue
+		}
+		cmd.RunE = a.runSubcommandRequired
+	}
+}
+
+func (a *App) runSubcommandRequired(cmd *cobra.Command, args []string) error {
+	if err := cobra.NoArgs(cmd, args); err != nil {
+		return err
+	}
+	if !a.Flags.JSONMode && !a.Flags.Events {
+		_ = cmd.Help()
+	}
+	return fmt.Errorf("%q requires a subcommand", cmd.CommandPath())
 }
 
 func (a *App) prepareRuntime(cmd *cobra.Command) {

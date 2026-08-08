@@ -120,6 +120,14 @@ All mutations are protected by the [Safety Model](./safety.md).
 - `monarch audit cleanup`: Remove audit log files older than N days (default 30). Use `--older-than N` to customize.
 - `monarch completion [bash|zsh|fish|powershell]`: Generate shell completion scripts.
 
+## Error Surface
+
+Exit codes are listed in [JSON_SCHEMA.md](JSON_SCHEMA.md#exit-codes).
+
+- A command that owns subcommands requires one. Invoked bare or with an unknown subcommand it exits 2 with `INVALID_ARGUMENTS`.
+- Looking up one resource by identifier exits 8 with `RESOURCE_NOT_FOUND` when it does not exist, for example `monarch accounts show <unknown-id>`.
+- Listing, searching, and filtering return an empty array and exit 0 when nothing matches, for example `monarch accounts holdings <unknown-id>`.
+
 ## Safety & Audit
 
 - **Dry-run**: Every mutation supports `--dry-run` to preview changes.

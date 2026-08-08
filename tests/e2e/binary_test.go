@@ -524,6 +524,32 @@ func TestBinary_JSONValidationError(t *testing.T) {
 	}
 }
 
+func TestBinary_BareParentCommandJSON(t *testing.T) {
+	bin := buildBinary(t)
+	stdout, code := run(t, bin, "--json", "accounts")
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2; output=%s", code, stdout)
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("invalid JSON error envelope: %v; output=%s", err, stdout)
+	}
+	if envelope["ok"] != false {
+		t.Fatalf("error envelope = %#v", envelope)
+	}
+}
+
+func TestBinary_UnknownSubcommand(t *testing.T) {
+	bin := buildBinary(t)
+	stdout, code := run(t, bin, "accounts", "bogus")
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2; output=%s", code, stdout)
+	}
+	if !strings.Contains(stdout, `unknown command "bogus"`) {
+		t.Fatalf("output=%s, want unknown command error", stdout)
+	}
+}
+
 func TestBinary_JSONUnknownCommandError(t *testing.T) {
 	bin := buildBinary(t)
 	stdout, code := run(t, bin, "--json", "nonexistent")
