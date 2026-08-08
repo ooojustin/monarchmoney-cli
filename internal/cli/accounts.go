@@ -186,7 +186,7 @@ func (a *App) buildAccountsHistoryCommand() *cobra.Command {
 			}
 
 			if a.Flags.JSONMode {
-				env := a.envelopeWithWarnings("accounts.history", history, start, "uses aggregateSnapshots for account history; per-account snapshots are not currently available")
+				env := output.NewEnvelope("accounts.history", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, history, time.Since(start))
 				renderer.RenderSuccess(env)
 				return
 			}

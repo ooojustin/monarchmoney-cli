@@ -264,11 +264,14 @@ func testServiceAccountsCoreHistoryPaths(t *testing.T) {
 	})
 
 	t.Run("account history", func(t *testing.T) {
-		runGraphQLCase(t, "GetAccountHistory", map[string]any{"filters": map[string]any{"startDate": "2026-05-01", "endDate": "2026-05-31"}}, `{"aggregateSnapshots":[{"date":"2026-05-01","balance":10}]}`, func(s *Service) error {
+		runGraphQLCase(t, "GetAccountHistory", map[string]any{"id": "acc-1", "startDate": "2026-05-01"}, `{"account":{"id":"acc-1","recentBalances":[10,11,12]}}`, func(s *Service) error {
 			got, err := s.GetAccountHistory(context.Background(), "acc-1", "2026-05-01", "2026-05-31")
 			mustNoErr(t, err)
-			mustLen(t, got, 1)
+			mustLen(t, got, 3)
+			eq(t, "2026-05-01", got[0].Date)
 			eq(t, 10.0, got[0].Amount)
+			eq(t, "2026-05-03", got[2].Date)
+			eq(t, 12.0, got[2].Amount)
 			return nil
 		})
 	})
@@ -945,8 +948,8 @@ func TestServiceErrorBranches(t *testing.T) {
 		runGraphQLErrorCase(t, "Common_ForceRefreshAccountsMutation", map[string]any{}, func(s *Service) error { return s.RefreshAccounts(context.Background(), nil) })
 		runGraphQLErrorCase(t, "Common_DeleteAccount", map[string]any{"id": "acc-1"}, func(s *Service) error { return s.DeleteAccount(context.Background(), "acc-1") })
 		runGraphQLErrorCase(t, "Web_GetHoldings", nil, func(s *Service) error { _, err := s.GetAccountHoldings(context.Background(), "acc-1"); return err })
-		runGraphQLErrorCase(t, "GetAccountHistory", map[string]any{"filters": map[string]any{}}, func(s *Service) error {
-			_, err := s.GetAccountHistory(context.Background(), "acc-1", "", "")
+		runGraphQLErrorCase(t, "GetAccountHistory", map[string]any{"id": "acc-1", "startDate": "2026-05-01"}, func(s *Service) error {
+			_, err := s.GetAccountHistory(context.Background(), "acc-1", "2026-05-01", "")
 			return err
 		})
 		runGraphQLErrorCase(t, "GetAccountRecentBalances", map[string]any{"startDate": "2026-05-01"}, func(s *Service) error {
@@ -1440,4 +1443,37 @@ func TestServiceGetAccountHoldingsUnknownAccountIsEmpty(t *testing.T) {
 	if len(holdings) != 0 {
 		t.Fatalf("GetAccountHoldings() len = %d, want 0", len(holdings))
 	}
+}
+
+func TestServiceGetAccountHistoryScopesToAccount(t *testing.T) {
+	var gotID string
+	var client *mockClient
+	client = &mockClient{
+		token: "token-123",
+		handler: func(req *graphql.Request, result any) error {
+			gotID, _ = req.Variables["id"].(string)
+			return client.respond(result, `{"account":{"id":"acc-9","recentBalances":[1,2,3,4]}}`)
+		},
+	}
+
+	history, err := NewService(client).GetAccountHistory(context.Background(), "acc-9", "2026-05-01", "2026-05-02")
+	if err != nil {
+		t.Fatalf("GetAccountHistory() error = %v", err)
+	}
+	if gotID != "acc-9" {
+		t.Fatalf("request id = %q, want acc-9", gotID)
+	}
+	if len(history) != 2 {
+		t.Fatalf("len = %d, want 2 bounded by endDate", len(history))
+	}
+	if history[1].Date != "2026-05-02" || history[1].Amount != 2 {
+		t.Fatalf("history[1] = %+v, want 2026-05-02 amount 2", history[1])
+	}
+}
+
+func TestServiceGetAccountHistoryUnknownAccount(t *testing.T) {
+	runNotFoundCase(t, `{"account":null}`, func(s *Service) error {
+		_, err := s.GetAccountHistory(context.Background(), "missing", "2026-05-01", "")
+		return err
+	})
 }

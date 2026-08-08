@@ -23,7 +23,7 @@
 - `data`: The command-specific results (object or array).
 - `meta`: Diagnostic information about the request.
 - `meta.request_id`: A UUID generated per invocation, identical across every envelope emitted by a single command run.
-- `meta.warnings` (optional): Non-fatal notices about deprecated fields or migration advice. Emitted by commands that interact with legacy API fields (e.g., `transactions list`, `accounts history`).
+- `meta.warnings` (optional): Non-fatal notices about deprecated fields or migration advice. Emitted by commands that interact with legacy API fields (e.g., `transactions list`, `transactions search`).
 - `transactions export --format json` emits this envelope even without global `--json`; `--output <path>` writes the envelope to that file instead of stdout.
 - `auth session path --json` returns `{"path":"..."}` in `data` with command metadata `auth.session.path`.
 - `monarch --version --json` and `monarch version --json` emit the same `version` envelope.

@@ -7,6 +7,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"time"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
@@ -24,9 +25,12 @@ var GetAccountsRefreshStatusQuery = queries.Get("accounts/refresh_status.graphql
 var GetAccountRecentBalancesQuery = queries.Get("accounts/recent_balances.graphql")
 var GetSnapshotsByAccountTypeQuery = queries.Get("accounts/snapshots_by_type.graphql")
 var GetAggregateSnapshotsQuery = queries.Get("accounts/aggregate_snapshots.graphql")
+
 var UpdateAccountMutation = queries.Get("accounts/update.graphql")
 var DeleteAccountMutation = queries.Get("accounts/delete.graphql")
 var CreateManualAccountMutation = queries.Get("accounts/create_manual.graphql")
+
+const dateLayout = "2006-01-02"
 
 type Account struct {
 	ID                              string  `json:"id"`
@@ -151,37 +155,41 @@ func (s *Service) GetAccountHoldings(ctx context.Context, accountID string) ([]H
 
 func (s *Service) GetAccountHistory(ctx context.Context, accountID, startDate, endDate string) ([]HistoryRecord, error) {
 	var resp struct {
-		AggregateSnapshots []struct {
-			Date    string  `json:"date"`
-			Balance float64 `json:"balance"`
-		} `json:"aggregateSnapshots"`
+		Account struct {
+			ID             string    `json:"id"`
+			RecentBalances []float64 `json:"recentBalances"`
+		} `json:"account"`
 	}
 
-	filters := map[string]any{}
-	if startDate != "" {
-		filters["startDate"] = startDate
+	if startDate == "" {
+		startDate = time.Now().UTC().AddDate(-1, 0, 0).Format(dateLayout)
 	}
-	if endDate != "" {
-		filters["endDate"] = endDate
+	start, parseErr := time.Parse(dateLayout, startDate)
+	if parseErr != nil {
+		return nil, errors.New(errors.InvalidArguments, "--from must use YYYY-MM-DD", errors.CatValidation, false, parseErr)
 	}
-	variables := map[string]any{"filters": filters}
 
 	err := s.Client.Do(ctx, &graphql.Request{
 		OperationName: "GetAccountHistory",
 		Query:         GetAccountHistoryQuery,
-		Variables:     variables,
+		Variables:     map[string]any{"id": accountID, "startDate": startDate},
 	}, &resp)
 
 	if err != nil {
 		return nil, err
 	}
 
-	history := make([]HistoryRecord, len(resp.AggregateSnapshots))
-	for i, r := range resp.AggregateSnapshots {
-		history[i] = HistoryRecord{
-			Date:   r.Date,
-			Amount: r.Balance,
+	if resp.Account.ID == "" {
+		return nil, errors.New(errors.ResourceNotFound, fmt.Sprintf("account %s not found", accountID), errors.CatAPI, false, nil)
+	}
+
+	history := []HistoryRecord{}
+	for i, balance := range resp.Account.RecentBalances {
+		date := start.AddDate(0, 0, i).Format(dateLayout)
+		if endDate != "" && date > endDate {
+			break
 		}
+		history = append(history, HistoryRecord{Date: date, Amount: balance})
 	}
 
 	return history, nil
