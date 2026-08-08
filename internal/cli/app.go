@@ -5,6 +5,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -20,7 +22,6 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
-	"github.com/thedavidweng/monarchmoney-cli/internal/version"
 )
 
 type App struct {
@@ -47,6 +48,7 @@ type Flags struct {
 }
 
 type Deps struct {
+	Args          []string
 	LoadConfig    func(path string) (*config.Config, error)
 	Getenv        func(string) string
 	NewRequestID  func() string
@@ -64,6 +66,7 @@ type Deps struct {
 
 func DefaultDeps() Deps {
 	return Deps{
+		Args:         os.Args[1:],
 		LoadConfig:   config.Load,
 		Getenv:       os.Getenv,
 		NewRequestID: uuid.NewString,
@@ -117,6 +120,9 @@ func New(deps Deps) *App { //nolint:gocritic // Copying dependencies isolates ea
 		a.Deps.CleanupAudit = defaults.CleanupAudit
 	}
 	a.Root = a.buildRoot()
+	if a.Deps.Args != nil {
+		a.Root.SetArgs(a.Deps.Args)
+	}
 	return a
 }
 
@@ -124,14 +130,67 @@ func (a *App) Execute() error {
 	if !a.executed.CompareAndSwap(false, true) {
 		return clierrors.New(clierrors.InternalError, "app cannot be executed more than once", clierrors.CatInternal, false, nil)
 	}
-	return a.Root.Execute()
+	if err := a.Root.Execute(); err != nil {
+		if a.Flags.RequestID == "" {
+			a.Flags.RequestID = a.Deps.NewRequestID()
+		}
+		if !persistentFlagChanged(a.Root, "json") {
+			a.Flags.JSONMode = config.ParseBool(a.Deps.Getenv("MONARCH_JSON"))
+			if value, ok := booleanArgument(a.Deps.Args, "--json"); ok {
+				a.Flags.JSONMode = value
+			}
+		}
+		if !persistentFlagChanged(a.Root, "pretty") {
+			a.Flags.Pretty = config.ParseBool(a.Deps.Getenv("MONARCH_PRETTY"))
+			if value, ok := booleanArgument(a.Deps.Args, "--pretty"); ok {
+				a.Flags.Pretty = value
+			}
+		}
+		if !persistentFlagChanged(a.Root, "events") {
+			a.Flags.Events = config.ParseBool(a.Deps.Getenv("MONARCH_EVENTS"))
+			if value, ok := booleanArgument(a.Deps.Args, "--events"); ok {
+				a.Flags.Events = value
+			}
+		}
+		cliErr := clierrors.New(clierrors.InvalidArguments, err.Error(), clierrors.CatValidation, false, err)
+		a.handleError(output.NewRenderer(a.Deps.Stdout, a.Deps.Stderr, a.Flags.JSONMode || a.Flags.Events, a.Flags.Pretty && !a.Flags.Events), a.executionCommand(), cliErr, time.Now())
+	}
+	return nil
+}
+
+func (a *App) executionCommand() string {
+	cmd, _, err := a.Root.Find(a.Deps.Args)
+	if err != nil || cmd == nil || cmd == a.Root {
+		return "monarch"
+	}
+	return strings.ReplaceAll(strings.TrimPrefix(cmd.CommandPath(), a.Root.Name()+" "), " ", ".")
+}
+
+func booleanArgument(args []string, name string) (value, found bool) {
+	for _, arg := range args {
+		if arg == "--" {
+			break
+		}
+		if arg == name {
+			value = true
+			found = true
+			continue
+		}
+		if strings.HasPrefix(arg, name+"=") {
+			if parsed, err := strconv.ParseBool(strings.TrimPrefix(arg, name+"=")); err == nil {
+				value = parsed
+				found = true
+			}
+		}
+	}
+	return value, found
 }
 
 func (a *App) buildRoot() *cobra.Command {
+	var versionShortcut bool
 	root := &cobra.Command{
-		Use:     "monarch",
-		Short:   "A local, agent-friendly CLI for Monarch Money",
-		Version: version.GetVersion(),
+		Use:   "monarch",
+		Short: "A local, agent-friendly CLI for Monarch Money",
 		Long: `monarchmoney-cli is a single-binary command line tool for working with
 Monarch Money data from your terminal, scripts, and local agents.`,
 		Example: `  monarch accounts list --json
@@ -143,6 +202,15 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 		SilenceErrors: true,
 		PersistentPreRun: func(cmd *cobra.Command, _ []string) {
 			a.prepareRuntime(cmd)
+		},
+		Run: func(cmd *cobra.Command, _ []string) {
+			if versionShortcut {
+				if err := writeVersion(cmd.OutOrStdout(), a.Flags.Profile, a.Flags.JSONMode, a.Flags.Pretty, a.Flags.RequestID, 0); err != nil {
+					a.Deps.Exit(1)
+				}
+				return
+			}
+			_ = cmd.Help()
 		},
 	}
 	root.SetOut(a.Deps.Stdout)
@@ -163,6 +231,7 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 	root.PersistentFlags().DurationVar(&a.Flags.Timeout, "timeout", 30*time.Second, "set command timeout")
 	root.PersistentFlags().StringVar(&a.Flags.Profile, "profile", "default", "use a named profile")
 	root.PersistentFlags().BoolVar(&a.Flags.Verbose, "verbose", false, "print more diagnostics to stderr")
+	root.Flags().BoolVarP(&versionShortcut, "version", "v", false, "print version information")
 	root.AddCommand(a.buildVersion())
 	root.AddCommand(a.buildCreditCommand())
 	root.AddCommand(a.buildSubscriptionCommand())

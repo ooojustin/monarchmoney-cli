@@ -61,6 +61,46 @@ func TestAppRejectsRepeatedExecution(t *testing.T) {
 	}
 }
 
+func TestBooleanArgument(t *testing.T) {
+	tests := []struct {
+		args []string
+		name string
+		want bool
+		ok   bool
+	}{
+		{args: []string{"--json"}, name: "--json", want: true, ok: true},
+		{args: []string{"--json=true"}, name: "--json", want: true, ok: true},
+		{args: []string{"--json=false"}, name: "--json", want: false, ok: true},
+		{args: []string{"--json", "--json=false"}, name: "--json", want: false, ok: true},
+		{args: []string{"--pretty"}, name: "--json", want: false, ok: false},
+		{args: []string{"--", "--json"}, name: "--json", want: false, ok: false},
+		{args: []string{"--", "--pretty"}, name: "--pretty", want: false, ok: false},
+		{args: []string{"--", "--events"}, name: "--events", want: false, ok: false},
+	}
+	for _, test := range tests {
+		got, ok := booleanArgument(test.args, test.name)
+		if got != test.want || ok != test.ok {
+			t.Errorf("booleanArgument(%v) = %t, %t, want %t, %t", test.args, got, ok, test.want, test.ok)
+		}
+	}
+}
+
+func TestAppHumanDryRunRendersPlan(t *testing.T) {
+	app, out := newTestApp(t)
+	app.Root.SetArgs([]string{"transactions", "update", "transaction-test", "--amount", "12.5", "--notes", "hello", "--dry-run"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{"Mutation Plan", "transactions.update", "transaction-test", `"amount":12.5`, `"notes":"hello"`} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("output = %q, want %q", out.String(), want)
+		}
+	}
+	if strings.Contains(out.String(), "0x") || strings.Contains(out.String(), "<nil>") {
+		t.Fatalf("output contains Go implementation values: %q", out.String())
+	}
+}
+
 func TestAppCommandTreeTopology(t *testing.T) {
 	app, _ := newTestApp(t)
 

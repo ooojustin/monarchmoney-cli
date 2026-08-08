@@ -41,7 +41,7 @@
 - `monarch accounts refresh-status`: Check the refresh status of linked accounts.
 - `monarch networth`: Top-level alias for `accounts aggregate-snapshots`.
 - `monarch transactions list`: List latest transactions with advanced filters.
-- `monarch transactions export`: Export transactions with the same pending, report visibility, and goal filters as list.
+- `monarch transactions export`: Export transactions to stdout or `--output <path>` in JSON or CSV format.
 - `monarch transactions search <query>`: Search transactions by text.
 - `monarch transactions show <id>`: Get full transaction details.
 - `monarch transactions summary`: Get aggregated spending summary.
@@ -63,7 +63,7 @@
 - `monarch goals list`: List goals with progress, balance, and target.
 - `monarch goals budgets`: View savings goal monthly budget amounts.
 - `monarch investments portfolio`: View portfolio performance and holdings.
-- `monarch investments performance`: View historical security performance.
+- `monarch investments performance --security-id <id> --from YYYY-MM-DD --to YYYY-MM-DD`: View historical security performance.
 - `monarch analyze anomalies`: Find category spending anomalies from transaction history.
 - `monarch analyze subscriptions`: Summarize recurring subscription costs and potential overlap facts.
 - `monarch analyze merchants --compare previous-month`: Compare merchant expenses period-over-period.
@@ -76,9 +76,10 @@
 - `monarch institutions list`: List linked financial institutions.
 - `monarch subscription show`: Show Monarch subscription details.
 - `monarch auth status`: Check current authentication status.
-- `monarch auth session path`: Print the session file path.
+- `monarch auth session path`: Print the session file path; `--json` emits an `auth.session.path` envelope.
 - `monarch doctor`: Verify the selected config, session, and device identity state. Add `--connect` to check the configured API endpoint.
 - `monarch version`: Print version information.
+- `monarch --version` / `monarch -v`: Print the same version output; combine with `--json` for an envelope.
 
 ## Mutation and Remote-Action Commands
 
@@ -90,7 +91,7 @@ All mutations are protected by the [Safety Model](./safety.md).
 - `monarch accounts create-manual`: Create a manual account.
 - `monarch accounts update <id>`: Update account name or balance.
 - `monarch accounts delete <id>`: Delete an account.
-- `monarch accounts upload-history <id>`: Upload balance history for an account.
+- `monarch accounts upload-history <id> <file>`: Upload balance history for an account.
 - `monarch transactions create`: Manually add a transaction.
 - `monarch transactions update <id>`: Modify transaction fields (notes, category, amount, date, merchant, hide-from-reports, mark-reviewed).
 - `monarch transactions delete <id>`: Remove a transaction.
@@ -104,12 +105,12 @@ All mutations are protected by the [Safety Model](./safety.md).
 - `monarch rules delete <id>`: Delete a rule.
 - `monarch budgets set <category-id>`: Set budget amount for a category.
 - `monarch budgets reset`: Reset budget for a month.
-- `monarch budgets flexible set <category-id>`: Set flexible budget amount.
-- `monarch budgets flex-rollover set <category-id>`: Set flex-rollover budget amount.
+- `monarch budgets flexible set`: Set flexible budget amount.
+- `monarch budgets flex-rollover set`: Set flex-rollover budget amount.
 - `monarch categories create`: Create a new category.
 - `monarch categories update <id>`: Update a category (name, icon, budget variability, exclude from budget).
 - `monarch categories delete <id>`: Delete a category.
-- `monarch categories delete-many <id...>`: Delete multiple categories.
+- `monarch categories delete-many --file <path>`: Delete categories listed in a file.
 - `monarch recurring update <id>`: Update a recurring transaction.
 - `monarch tags create`: Create a new tag.
 - `monarch cache sync`: Sync data from Monarch to local cache. Use `--limit N` to set page size (default 1000), `--all` to paginate through all matching transactions.

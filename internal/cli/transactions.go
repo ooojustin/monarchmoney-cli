@@ -624,7 +624,11 @@ func (a *App) buildTransactionsExportCommand(startDate, endDate *string) *cobra.
 		Short: "Export transactions",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
+			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode || flags.format == "json", a.Flags.Pretty)
+			if flags.format != "json" && flags.format != "csv" {
+				a.handleError(renderer, "transactions.export", errors.New(errors.InvalidArguments, "--format must be json or csv", errors.CatValidation, false, nil), start)
+				return
+			}
 
 			svc, err := a.loadService()
 			if err != nil {
@@ -640,30 +644,49 @@ func (a *App) buildTransactionsExportCommand(startDate, endDate *string) *cobra.
 			}
 
 			out := cmd.OutOrStdout()
+			var file *os.File
 			if flags.outputFile != "" {
-				f, err := os.Create(flags.outputFile)
+				file, err = os.Create(flags.outputFile)
 				if err != nil {
 					a.handleError(renderer, "transactions.export", errors.New(errors.InternalError, "failed to create output file", errors.CatInternal, false, err), start)
 					return
 				}
-				defer func() {
-					if cerr := f.Close(); cerr != nil {
-						fmt.Fprintf(cmd.ErrOrStderr(), "warning: failed to close file: %v\n", cerr)
-					}
-				}()
-				out = f
+				out = file
 			}
 
 			if flags.format == "csv" {
 				if err := monarch.ExportTransactionsCSV(txs, out); err != nil {
+					if file != nil {
+						_ = file.Close()
+					}
 					a.handleError(renderer, "transactions.export", errors.New(errors.InternalError, "failed to export CSV", errors.CatInternal, false, err), start)
 					return
+				}
+				if file != nil {
+					if err := file.Close(); err != nil {
+						a.handleError(renderer, "transactions.export", errors.New(errors.InternalError, "failed to close output file", errors.CatInternal, false, err), start)
+					}
 				}
 				return
 			}
 
 			env := output.NewEnvelope("transactions.export", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, txs, time.Since(start))
-			renderer.RenderSuccess(env)
+			encoder := json.NewEncoder(out)
+			if a.Flags.Pretty {
+				encoder.SetIndent("", "  ")
+			}
+			if err := encoder.Encode(env); err != nil {
+				if file != nil {
+					_ = file.Close()
+				}
+				a.handleError(renderer, "transactions.export", errors.New(errors.InternalError, "failed to export JSON", errors.CatInternal, false, err), start)
+				return
+			}
+			if file != nil {
+				if err := file.Close(); err != nil {
+					a.handleError(renderer, "transactions.export", errors.New(errors.InternalError, "failed to close output file", errors.CatInternal, false, err), start)
+				}
+			}
 		},
 	}
 	flags.bind(cmd)
@@ -1132,7 +1155,7 @@ func (a *App) buildTransactionsBulkCategorizeCommand() *cobra.Command {
 func (a *App) buildTransactionsAttachmentsUploadCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "upload <transaction-id> <file>",
-		Short: "Upload an attachment for a transaction",
+		Short: "Report that attachment upload is unavailable",
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()

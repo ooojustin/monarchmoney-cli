@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/audit"
@@ -18,8 +20,33 @@ func (a *App) checkSafety(renderer *output.Renderer, command string, tier safety
 }
 
 func (a *App) renderPlan(renderer *output.Renderer, command string, plan *safety.Plan, start time.Time) {
+	if !renderer.JSON {
+		fmt.Fprintln(renderer.Stdout, "Mutation Plan")
+		for i, mutation := range plan.PlannedMutations {
+			fmt.Fprintf(renderer.Stdout, "%d. %s", i+1, mutation.Operation)
+			if mutation.ResourceID != "" {
+				fmt.Fprintf(renderer.Stdout, " %s", mutation.ResourceID)
+			}
+			fmt.Fprintln(renderer.Stdout)
+			if mutation.Before != nil {
+				fmt.Fprintf(renderer.Stdout, "   Before: %s\n", planValue(mutation.Before))
+			}
+			if mutation.After != nil {
+				fmt.Fprintf(renderer.Stdout, "   After: %s\n", planValue(mutation.After))
+			}
+		}
+		return
+	}
 	env := output.NewEnvelope(command, a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, plan, time.Since(start))
 	renderer.RenderSuccess(env)
+}
+
+func planValue(value any) string {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Sprint(value)
+	}
+	return string(data)
 }
 
 func (a *App) mutate(renderer *output.Renderer, command, resourceID string, start time.Time, fn func() (any, error), failMsg string) (any, error) {

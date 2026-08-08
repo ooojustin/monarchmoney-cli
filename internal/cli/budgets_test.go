@@ -69,12 +69,11 @@ func TestBudgetsResetJSON(t *testing.T) {
 func TestBudgetsResetValidation(t *testing.T) {
 	t.Run("missing_month", func(t *testing.T) {
 		h := newJSONCommandHarness(t, nil)
-		err := h.execute("--json", "--confirm", "budgets", "reset")
-		if err == nil || !strings.Contains(err.Error(), `required flag(s) "month" not set`) {
-			t.Fatalf("Execute() error = %v, want required-month failure", err)
+		if err := h.execute("--json", "--confirm", "budgets", "reset"); err != nil {
+			t.Fatalf("Execute() error = %v", err)
 		}
-		if h.ExitCode != 0 {
-			t.Fatalf("exitCode = %d, want Cobra validation without handler exit", h.ExitCode)
+		if h.ExitCode != 2 || !strings.Contains(h.Stdout.String(), `"INVALID_ARGUMENTS"`) || !strings.Contains(h.Stdout.String(), `required flag(s) \"month\" not set`) {
+			t.Fatalf("exitCode = %d; output=%q, want JSON required-flag error", h.ExitCode, h.Stdout.String())
 		}
 	})
 

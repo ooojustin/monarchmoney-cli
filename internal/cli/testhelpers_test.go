@@ -63,6 +63,7 @@ func TestAppHarnessIgnoresAmbientEnvironment(t *testing.T) {
 }
 
 func (h *appTestHarness) execute(args ...string) error {
+	h.App.Deps.Args = args
 	h.App.Root.SetArgs(args)
 	return h.App.Execute()
 }

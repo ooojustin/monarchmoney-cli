@@ -46,7 +46,7 @@ func (a *App) buildBudgetsCommand() *cobra.Command {
 		Use:     "budgets",
 		Short:   "Manage Monarch Money budgets",
 		GroupID: "core",
-		Example: "  monarch budgets list --month 2026-05 --json\n  monarch budgets set --category <id> --amount 500 --confirm",
+		Example: "  monarch budgets list --month 2026-05 --json\n  monarch budgets set <category-id> --amount 500 --confirm",
 	}
 	cmd.AddCommand(a.buildBudgetsListCommand())
 	cmd.AddCommand(a.buildBudgetsShowCommand())

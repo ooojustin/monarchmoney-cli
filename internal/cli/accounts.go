@@ -210,7 +210,7 @@ func (a *App) buildAccountsRefreshCommand() *cobra.Command {
 		Short: "Request a refresh of all accounts (or specific ones)",
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
-			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
+			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode || a.Flags.Events, a.Flags.Pretty && !a.Flags.Events)
 
 			if !a.checkSafety(renderer, "accounts.refresh", safety.TierRemoteAction, start) {
 				return
@@ -270,7 +270,7 @@ func (a *App) buildAccountsRefreshCommand() *cobra.Command {
 			}
 
 		complete:
-			if a.Flags.JSONMode {
+			if a.Flags.JSONMode || a.Flags.Events {
 				status := "refresh requested"
 				if wait {
 					status = "refresh complete"

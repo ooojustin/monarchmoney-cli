@@ -492,6 +492,13 @@ func TestBinary_Version_JSON(t *testing.T) {
 	assertValidEnvelope(t, stdout, "version")
 }
 
+func TestBinary_VersionShortcutJSON(t *testing.T) {
+	bin := buildBinary(t)
+	stdout, code := run(t, bin, "--json", "--version")
+	requireZero(t, code, stdout)
+	assertValidEnvelope(t, stdout, "version")
+}
+
 // ─── Edge cases ───
 
 func TestBinary_UnknownCommand(t *testing.T) {
@@ -499,6 +506,60 @@ func TestBinary_UnknownCommand(t *testing.T) {
 	stdout, code := run(t, bin, "nonexistent")
 	if code == 0 {
 		t.Fatalf("expected non-zero exit, got 0. output: %s", stdout)
+	}
+}
+
+func TestBinary_JSONValidationError(t *testing.T) {
+	bin := buildBinary(t)
+	stdout, code := run(t, bin, "--json", "accounts", "show")
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2; output=%s", code, stdout)
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("invalid JSON error envelope: %v; output=%s", err, stdout)
+	}
+	if envelope["ok"] != false {
+		t.Fatalf("error envelope = %#v", envelope)
+	}
+}
+
+func TestBinary_JSONUnknownCommandError(t *testing.T) {
+	bin := buildBinary(t)
+	stdout, code := run(t, bin, "--json", "nonexistent")
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2; output=%s", code, stdout)
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("invalid JSON error envelope: %v; output=%s", err, stdout)
+	}
+	if envelope["ok"] != false {
+		t.Fatalf("error envelope = %#v", envelope)
+	}
+}
+
+func TestBinary_EventValidationError(t *testing.T) {
+	bin := buildBinary(t)
+	stdout, code := run(t, bin, "--events", "--pretty", "accounts", "show")
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2; output=%s", code, stdout)
+	}
+	if strings.Count(strings.TrimSpace(stdout), "\n") != 0 {
+		t.Fatalf("event error is not compact NDJSON: %q", stdout)
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("invalid event error envelope: %v; output=%s", err, stdout)
+	}
+}
+
+func TestBinary_HumanDryRun(t *testing.T) {
+	bin := buildBinary(t)
+	stdout, code := run(t, bin, "accounts", "delete", "account-test", "--dry-run")
+	requireZero(t, code, stdout)
+	if !strings.Contains(stdout, "Mutation Plan") || !strings.Contains(stdout, "accounts.delete") {
+		t.Fatalf("dry-run output missing plan: %q", stdout)
 	}
 }
 

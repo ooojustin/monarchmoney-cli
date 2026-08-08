@@ -138,9 +138,9 @@ func (a *App) buildInvestmentsPerformanceCommand() *cobra.Command {
 			}
 		},
 	}
-	cmd.Flags().StringSliceVar(&securityIDs, "security-id", nil, "security id to include (repeatable)")
-	cmd.Flags().StringVar(&from, "from", "", "start date (YYYY-MM-DD)")
-	cmd.Flags().StringVar(&to, "to", "", "end date (YYYY-MM-DD)")
+	cmd.Flags().StringSliceVar(&securityIDs, "security-id", nil, "security id to include (required; repeatable)")
+	cmd.Flags().StringVar(&from, "from", "", "start date (required; YYYY-MM-DD)")
+	cmd.Flags().StringVar(&to, "to", "", "end date (required; YYYY-MM-DD)")
 	cmd.Flags().BoolVar(&includeValues, "values", false, "include chart value fields")
 	return cmd
 }

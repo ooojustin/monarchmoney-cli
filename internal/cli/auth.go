@@ -240,6 +240,11 @@ func (a *App) buildAuthCommand() *cobra.Command {
 		Use:   "path",
 		Short: "Print the path to the session file",
 		Run: func(cmd *cobra.Command, _ []string) {
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("auth.session.path", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, map[string]string{"path": a.sessionPath()}, 0)
+				output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), true, a.Flags.Pretty).RenderSuccess(env)
+				return
+			}
 			fmt.Fprintln(cmd.OutOrStdout(), a.sessionPath())
 		},
 	}

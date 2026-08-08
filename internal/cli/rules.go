@@ -75,7 +75,7 @@ func (a *App) buildRulesCommand() *cobra.Command {
 		Use:     "rules",
 		Short:   "Manage transaction auto-categorization rules",
 		GroupID: "core",
-		Example: "  monarch rules list --json\n  monarch rules create --trigger-value \"Uber\" --category-id <id> --confirm",
+		Example: "  monarch rules list --json\n  monarch rules create --merchant-operator contains --merchant-value \"Uber\" --set-category-id <id> --confirm",
 	}
 	cmd.AddCommand(a.buildRulesListCommand())
 	cmd.AddCommand(a.buildRulesCreateCommand())

@@ -35,7 +35,7 @@ monarch transactions delete tx_123 --confirm
 Before executing a mutation, you can use the `--dry-run` flag to see exactly what would happen. This generates a "Mutation Plan" but does not send the final request to the API.
 
 ```bash
-monarch budgets set --category cat_123 --amount 500 --dry-run
+monarch budgets set cat_123 --amount 500 --dry-run
 ```
 
 ### 3. Explicit Confirmation

@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/audit"
+	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
 	"github.com/thedavidweng/monarchmoney-cli/internal/testutil"
 )
 
@@ -124,12 +127,11 @@ func TestAccountsHoldingsJSON(t *testing.T) {
 
 func TestAccountsHoldingsRequiresAccountID(t *testing.T) {
 	h := newJSONCommandHarness(t, nil)
-	err := h.execute("--json", "accounts", "holdings")
-	if err == nil || !strings.Contains(err.Error(), "accepts 1 arg") {
-		t.Fatalf("Execute() error = %v, want exact-args failure", err)
+	if err := h.execute("--json", "accounts", "holdings"); err != nil {
+		t.Fatalf("Execute() error = %v", err)
 	}
-	if h.ExitCode != 0 {
-		t.Fatalf("exitCode = %d, want Cobra validation without handler exit", h.ExitCode)
+	if h.ExitCode != 2 || !strings.Contains(h.Stdout.String(), `"INVALID_ARGUMENTS"`) || !strings.Contains(h.Stdout.String(), "accepts 1 arg") {
+		t.Fatalf("exitCode = %d; output=%q, want JSON argument error", h.ExitCode, h.Stdout.String())
 	}
 }
 
@@ -156,5 +158,70 @@ func TestAccountsRefreshStatusJSON(t *testing.T) {
 	}
 	if !strings.Contains(out, `"command":"accounts.refresh-status"`) || !strings.Contains(out, `"is_complete":true`) {
 		t.Fatalf("output = %q, want completed refresh status", out)
+	}
+}
+
+func TestAccountsUploadHistorySendsDeviceIdentity(t *testing.T) {
+	sessionPath := filepath.Join(t.TempDir(), "session.json")
+	saveTestSession(t, sessionPath)
+	deviceUUID, err := auth.LoadOrCreateDeviceUUID(sessionPath)
+	if err != nil {
+		t.Fatalf("LoadOrCreateDeviceUUID() error = %v", err)
+	}
+	historyPath := filepath.Join(t.TempDir(), "history.csv")
+	if err := os.WriteFile(historyPath, []byte("date,amount\n2026-08-01,100\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	h := newAppTestHarness(t, func(deps *Deps) {
+		deps.LoadConfig = testConfigLoader(sessionPath, "")
+		deps.HTTPTransport = testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if got := req.Header.Get("device-uuid"); got != deviceUUID {
+				t.Fatalf("device-uuid = %q, want %q", got, deviceUUID)
+			}
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))}, nil
+		})
+	})
+	if err := h.execute("--json", "--confirm", "accounts", "upload-history", "acc-1", historyPath); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if h.ExitCode != 0 || !strings.Contains(h.Stdout.String(), `"status":"uploaded"`) {
+		t.Fatalf("exitCode = %d; output=%q", h.ExitCode, h.Stdout.String())
+	}
+}
+
+func TestAccountsRefreshEventsImplyJSON(t *testing.T) {
+	h := newJSONCommandHarness(t, testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		var gqlReq struct {
+			OperationName string `json:"operationName"`
+		}
+		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
+			t.Fatalf("Decode request error = %v", err)
+		}
+		if gqlReq.OperationName == "Common_ForceRefreshAccountsMutation" {
+			return testutil.JSONResponse(`{"data":{"requestAccountsRefresh":{"ok":true}}}`), nil
+		}
+		if gqlReq.OperationName == "ForceRefreshAccountsQuery" {
+			return testutil.JSONResponse(`{"data":{"accounts":[{"id":"acc-1","hasSyncInProgress":false}]}}`), nil
+		}
+		t.Fatalf("unexpected operation %q", gqlReq.OperationName)
+		return nil, nil
+	}))
+
+	if err := h.execute("--events", "--pretty", "--confirm", "accounts", "refresh", "--wait"); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if h.ExitCode != 0 {
+		t.Fatalf("exitCode = %d; output=%q", h.ExitCode, h.Stdout.String())
+	}
+	lines := strings.Split(strings.TrimSpace(h.Stdout.String()), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("event lines = %d; output=%q", len(lines), h.Stdout.String())
+	}
+	for _, line := range lines {
+		var envelope map[string]any
+		if err := json.Unmarshal([]byte(line), &envelope); err != nil {
+			t.Fatalf("event JSON error = %v; line=%q", err, line)
+		}
 	}
 }

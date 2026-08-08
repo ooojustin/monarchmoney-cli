@@ -164,6 +164,33 @@ func TestAppAuthLoginJSONUsesEnvironmentAndRequestID(t *testing.T) {
 	}
 }
 
+func TestAppAuthSessionPathJSON(t *testing.T) {
+	sessionPath := filepath.Join(t.TempDir(), "session.json")
+	app, out, errOut, exitCode := newTestAuthApp(t, sessionPath, nil)
+	app.Root.SetArgs([]string{"--json", "auth", "session", "path"})
+
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if *exitCode != 0 || errOut.Len() != 0 {
+		t.Fatalf("exitCode=%d stderr=%q", *exitCode, errOut.String())
+	}
+	var env struct {
+		Data struct {
+			Path string `json:"path"`
+		} `json:"data"`
+		Meta struct {
+			Command string `json:"command"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(bytes.TrimSpace(out.Bytes()), &env); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v; output=%q", err, out.String())
+	}
+	if env.Data.Path != sessionPath || env.Meta.Command != "auth.session.path" {
+		t.Fatalf("envelope = %#v", env)
+	}
+}
+
 func TestAppAuthLoginPromptsForMFA(t *testing.T) {
 	sessionPath := filepath.Join(t.TempDir(), "session.json")
 	requestCount := 0

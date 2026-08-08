@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -79,12 +82,11 @@ func TestTransactionsListAPIError(t *testing.T) {
 
 func TestTransactionsShowRequiresID(t *testing.T) {
 	h := newJSONCommandHarness(t, nil)
-	err := h.execute("--json", "transactions", "show")
-	if err == nil || !strings.Contains(err.Error(), "accepts 1 arg") {
-		t.Fatalf("Execute() error = %v, want exact-args failure", err)
+	if err := h.execute("--json", "transactions", "show"); err != nil {
+		t.Fatalf("Execute() error = %v", err)
 	}
-	if h.ExitCode != 0 {
-		t.Fatalf("exitCode = %d, want Cobra validation without handler exit", h.ExitCode)
+	if h.ExitCode != 2 || !strings.Contains(h.Stdout.String(), `"INVALID_ARGUMENTS"`) || !strings.Contains(h.Stdout.String(), `"command":"transactions.show"`) || !strings.Contains(h.Stdout.String(), "accepts 1 arg") {
+		t.Fatalf("exitCode = %d; output=%q, want JSON argument error", h.ExitCode, h.Stdout.String())
 	}
 }
 
@@ -142,6 +144,64 @@ func TestTransactionsExportJSON(t *testing.T) {
 	}
 	if !strings.Contains(out, `"command":"transactions.export"`) || !strings.Contains(out, "Store") {
 		t.Fatalf("output = %q, want JSON export", out)
+	}
+}
+
+func TestTransactionsExportJSONToFile(t *testing.T) {
+	h := newJSONCommandHarness(t, testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+		return testutil.JSONResponse(`{"data":{"allTransactions":{"results":[{"id":"tx-1","date":"2026-05-08","amount":-20,"merchant":{"name":"Store"},"category":{"name":"Food"},"account":{"id":"acc-1","type":{}}}],"totalCount":1}}}`), nil
+	}))
+	path := filepath.Join(t.TempDir(), "transactions.json")
+
+	if err := h.execute("transactions", "export", "--format", "json", "--output", path); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if h.ExitCode != 0 || h.Stdout.Len() != 0 {
+		t.Fatalf("exitCode = %d; stdout=%q", h.ExitCode, h.Stdout.String())
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if !strings.Contains(string(data), `"command":"transactions.export"`) || !strings.Contains(string(data), "Store") {
+		t.Fatalf("file = %q, want JSON export", data)
+	}
+}
+
+func TestTransactionsExportRejectsInvalidFormat(t *testing.T) {
+	h := newJSONCommandHarness(t, nil)
+	if err := h.execute("--json", "transactions", "export", "--format", "yaml"); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if h.ExitCode == 0 || !strings.Contains(h.Stdout.String(), `"INVALID_ARGUMENTS"`) {
+		t.Fatalf("exitCode = %d; output=%q, want INVALID_ARGUMENTS", h.ExitCode, h.Stdout.String())
+	}
+}
+
+func TestTransactionsExportJSONFormatsAPIErrors(t *testing.T) {
+	h := newJSONCommandHarness(t, testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusInternalServerError, Body: io.NopCloser(bytes.NewReader(nil))}, nil
+	}))
+	if err := h.execute("transactions", "export", "--format", "json"); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if h.ExitCode == 0 || !strings.Contains(h.Stdout.String(), `"API_ERROR"`) {
+		t.Fatalf("exitCode = %d; output=%q, want JSON API_ERROR", h.ExitCode, h.Stdout.String())
+	}
+}
+
+func TestTransactionsExportJSONReportsWriteFailure(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("requires /dev/full")
+	}
+	h := newJSONCommandHarness(t, testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+		return testutil.JSONResponse(`{"data":{"allTransactions":{"results":[],"totalCount":0}}}`), nil
+	}))
+	if err := h.execute("transactions", "export", "--format", "json", "--output", "/dev/full"); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if h.ExitCode == 0 || !strings.Contains(h.Stdout.String(), `"INTERNAL_ERROR"`) {
+		t.Fatalf("exitCode = %d; output=%q, want INTERNAL_ERROR", h.ExitCode, h.Stdout.String())
 	}
 }
 

@@ -12,7 +12,8 @@
     "command": "accounts.list",
     "profile": "default",
     "duration_ms": 125,
-    "schema_version": "2026-05-08",
+    "schema_version": "2026-08-07",
+    "request_id": "2d3f07a0-8b1e-4cc0-a995-623985ed0c52",
     "warnings": ["optional deprecation or migration notice"]
   }
 }
@@ -23,6 +24,9 @@
 - `meta`: Diagnostic information about the request.
 - `meta.request_id`: A UUID generated per invocation, identical across every envelope emitted by a single command run.
 - `meta.warnings` (optional): Non-fatal notices about deprecated fields or migration advice. Emitted by commands that interact with legacy API fields (e.g., `transactions list`, `accounts history`).
+- `transactions export --format json` emits this envelope even without global `--json`; `--output <path>` writes the envelope to that file instead of stdout.
+- `auth session path --json` returns `{"path":"..."}` in `data` with command metadata `auth.session.path`.
+- `monarch --version --json` and `monarch version --json` emit the same `version` envelope.
 
 ### Doctor Data
 
@@ -62,7 +66,8 @@ A missing optional config file has `exists: false` and `valid: true`; a config r
     "command": "accounts.list",
     "profile": "default",
     "duration_ms": 10,
-    "schema_version": "2026-05-08"
+    "schema_version": "2026-08-07",
+    "request_id": "2d3f07a0-8b1e-4cc0-a995-623985ed0c52"
   }
 }
 ```
@@ -104,10 +109,10 @@ The process exit code is derived from `error.code` (see `internal/errors`). A su
 
 ## Event Stream (NDJSON)
 
-For `accounts refresh --wait`, the CLI emits a stream of progress events when the `--events` flag is set. Each line in the stream is a valid JSON envelope.
+For `accounts refresh --wait`, the CLI emits a stream of progress events when the `--events` flag is set. `--events` implies compact structured output for progress, final, and error envelopes, so each stdout line is valid JSON even when `--pretty` is also present.
 
 ```json
-{"ok":true,"data":{"status":"syncing","percent":20},"meta":{"command":"accounts.refresh.progress"}}
-{"ok":true,"data":{"status":"syncing","percent":80},"meta":{"command":"accounts.refresh.progress"}}
-{"ok":true,"data":{"status":"complete"},"meta":{"command":"accounts.refresh"}}
+{"ok":true,"data":{"is_complete":false,"status":"syncing","accounts":[{"id":"acc_123","has_sync_in_progress":true}]},"meta":{"command":"accounts.refresh.progress","profile":"default","duration_ms":2010,"schema_version":"2026-08-07","request_id":"2d3f07a0-8b1e-4cc0-a995-623985ed0c52"}}
+{"ok":true,"data":{"is_complete":true,"status":"complete","accounts":[{"id":"acc_123","has_sync_in_progress":false}]},"meta":{"command":"accounts.refresh.progress","profile":"default","duration_ms":4012,"schema_version":"2026-08-07","request_id":"2d3f07a0-8b1e-4cc0-a995-623985ed0c52"}}
+{"ok":true,"data":{"status":"refresh complete"},"meta":{"command":"accounts.refresh","profile":"default","duration_ms":6020,"schema_version":"2026-08-07","request_id":"2d3f07a0-8b1e-4cc0-a995-623985ed0c52"}}
 ```

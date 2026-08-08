@@ -8,6 +8,12 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 )
 
+func TestSchemaVersion(t *testing.T) {
+	if SchemaVersion != "2026-08-07" {
+		t.Fatalf("SchemaVersion = %q, want 2026-08-07", SchemaVersion)
+	}
+}
+
 func TestNewEnvelope(t *testing.T) {
 	t.Run("sets ok to true and populates all fields", func(t *testing.T) {
 		data := map[string]string{"key": "value"}
