@@ -9,6 +9,7 @@ import (
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
+	"github.com/thedavidweng/monarchmoney-cli/internal/money"
 	"github.com/thedavidweng/monarchmoney-cli/queries"
 )
 
@@ -114,7 +115,11 @@ func (s *Service) ListCashflow(ctx context.Context, startDate, endDate string) (
 
 	out := make([]CashflowPeriod, 0, len(keys))
 	for _, key := range keys {
-		out = append(out, *periods[key])
+		period := *periods[key]
+		period.Income = money.Round2(period.Income)
+		period.Expense = money.Round2(period.Expense)
+		period.Savings = money.Round2(period.Savings)
+		out = append(out, period)
 	}
 
 	return out, nil
@@ -158,9 +163,9 @@ func (s *Service) GetCashflowSummary(ctx context.Context, startDate, endDate str
 	}
 
 	return &CashflowSummary{
-		Income:      resp.Aggregates[0].Summary.SumIncome,
-		Expense:     resp.Aggregates[0].Summary.SumExpense,
-		Savings:     resp.Aggregates[0].Summary.Savings,
+		Income:      money.Round2(resp.Aggregates[0].Summary.SumIncome),
+		Expense:     money.Round2(resp.Aggregates[0].Summary.SumExpense),
+		Savings:     money.Round2(resp.Aggregates[0].Summary.Savings),
 		SavingsRate: resp.Aggregates[0].Summary.SavingsRate,
 	}, nil
 }
@@ -206,7 +211,7 @@ func (s *Service) GetCashflowCategories(ctx context.Context, startDate, endDate 
 		if a.GroupBy.Category.Name != "" {
 			records = append(records, CashflowRecord{
 				Name:   a.GroupBy.Category.Name,
-				Amount: a.Summary.Sum,
+				Amount: money.Round2(a.Summary.Sum),
 			})
 		}
 	}
@@ -256,7 +261,7 @@ func (s *Service) GetCashflowMerchants(ctx context.Context, startDate, endDate s
 		if a.GroupBy.Merchant.Name != "" {
 			records = append(records, CashflowRecord{
 				Name:   a.GroupBy.Merchant.Name,
-				Amount: a.Summary.SumExpense,
+				Amount: money.Round2(a.Summary.SumExpense),
 			})
 		}
 	}
@@ -312,9 +317,9 @@ func (s *Service) GetCashflowTrends(ctx context.Context, opts *CashflowTrendOpti
 	rows := make([]CashflowTrendRow, 0, len(resp.Aggregates))
 	for _, aggregate := range resp.Aggregates {
 		row := CashflowTrendRow{
-			Sum:        aggregate.Summary.Sum,
-			SumIncome:  aggregate.Summary.SumIncome,
-			SumExpense: aggregate.Summary.SumExpense,
+			Sum:        money.Round2(aggregate.Summary.Sum),
+			SumIncome:  money.Round2(aggregate.Summary.SumIncome),
+			SumExpense: money.Round2(aggregate.Summary.SumExpense),
 		}
 		if periodRaw := aggregate.GroupBy[period]; len(periodRaw) > 0 {
 			_ = json.Unmarshal(periodRaw, &row.Period)

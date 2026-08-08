@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/thedavidweng/monarchmoney-cli/internal/money"
+
 	"golang.org/x/sync/errgroup"
 )
 
@@ -71,7 +73,7 @@ func (s *Service) GetFinancialOverview(ctx context.Context, startDate, endDate s
 
 	return &FinancialOverview{
 		AsOf:             time.Now().UTC().Format(time.RFC3339),
-		NetWorth:         netWorth,
+		NetWorth:         money.Round2(netWorth),
 		AccountCount:     visibleCount,
 		Cashflow:         cashflow,
 		Transactions:     transactions,

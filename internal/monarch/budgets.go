@@ -6,6 +6,7 @@ import (
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
+	"github.com/thedavidweng/monarchmoney-cli/internal/money"
 	"github.com/thedavidweng/monarchmoney-cli/queries"
 )
 
@@ -156,8 +157,8 @@ func (s *Service) ListBudgets(ctx context.Context, opts ListBudgetsOptions) ([]B
 			budgets = append(budgets, Budget{
 				CategoryID:   cat.Category.ID,
 				CategoryName: cat.Category.Name,
-				Planned:      m.PlannedCashFlowAmount,
-				Actual:       m.ActualAmount,
+				Planned:      money.Round2(m.PlannedCashFlowAmount),
+				Actual:       money.Round2(m.ActualAmount),
 			})
 		}
 	}
@@ -197,7 +198,7 @@ func (s *Service) SetBudget(ctx context.Context, categoryID string, amount float
 
 	return &Budget{
 		CategoryID: categoryID,
-		Planned:    resp.UpdateOrCreateBudgetItem.BudgetItem.BudgetAmount,
+		Planned:    money.Round2(resp.UpdateOrCreateBudgetItem.BudgetItem.BudgetAmount),
 	}, nil
 }
 

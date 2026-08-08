@@ -5,6 +5,7 @@ import (
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
+	"github.com/thedavidweng/monarchmoney-cli/internal/money"
 	"github.com/thedavidweng/monarchmoney-cli/queries"
 )
 
@@ -143,7 +144,7 @@ func (s *Service) ListRules(ctx context.Context) ([]Rule, error) {
 			rule.MerchantNameCriteria = append(rule.MerchantNameCriteria, RuleCriteria{Operator: mc.Operator, Value: mc.Value})
 		}
 		if r.AmountCriteria != nil {
-			rule.AmountCriteria = &RuleAmountCriteria{Operator: r.AmountCriteria.Operator, IsExpense: r.AmountCriteria.IsExpense, Value: r.AmountCriteria.Value}
+			rule.AmountCriteria = &RuleAmountCriteria{Operator: r.AmountCriteria.Operator, IsExpense: r.AmountCriteria.IsExpense, Value: money.Round2(r.AmountCriteria.Value)}
 		}
 		if r.SetCategoryAction != nil {
 			rule.SetCategoryAction = &RuleAction{ID: r.SetCategoryAction.ID, Name: r.SetCategoryAction.Name}

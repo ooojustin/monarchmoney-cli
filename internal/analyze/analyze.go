@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
+	"github.com/thedavidweng/monarchmoney-cli/internal/money"
 )
 
 type AnomalyOptions struct {
@@ -143,7 +144,7 @@ func aggregateAnomalyData(txs []monarch.Transaction, currentStart time.Time, cur
 			return nil, nil, nil, perr
 		}
 		monthKey := day.Format("2006-01")
-		amount := round2(math.Abs(tx.Amount))
+		amount := money.Round2(math.Abs(tx.Amount))
 
 		if monthKey == currentKey {
 			currentByCategory[tx.Category] += amount
@@ -183,19 +184,19 @@ func buildAnomalyList(current map[string]float64, history, merchantTotals map[st
 		if avg == 0 {
 			continue
 		}
-		ratio := round2(total / avg)
+		ratio := money.Round2(total / avg)
 		if ratio < opts.MinRatio {
 			continue
 		}
 		merchant, merchantAmount := largestMerchant(merchantTotals[category])
 		out = append(out, Anomaly{
 			Category:        category,
-			CurrentMonth:    round2(total),
-			AvgHistory:      round2(avg),
+			CurrentMonth:    money.Round2(total),
+			AvgHistory:      money.Round2(avg),
 			Ratio:           ratio,
 			Severity:        anomalySeverity(ratio),
 			LargestMerchant: merchant,
-			LargestAmount:   round2(merchantAmount),
+			LargestAmount:   money.Round2(merchantAmount),
 		})
 	}
 
@@ -286,8 +287,8 @@ func BuildSubscriptions(items []monarch.RecurringItem) SubscriptionSummary {
 	sort.Slice(out.Subscriptions, func(i, j int) bool {
 		return out.Subscriptions[i].Merchant < out.Subscriptions[j].Merchant
 	})
-	out.TotalMonthly = round2(out.TotalMonthly)
-	out.TotalAnnual = round2(out.TotalAnnual)
+	out.TotalMonthly = money.Round2(out.TotalMonthly)
+	out.TotalAnnual = money.Round2(out.TotalAnnual)
 	out.PotentialOverlaps = buildPotentialOverlaps(out.Subscriptions)
 	return out
 }
@@ -295,19 +296,19 @@ func BuildSubscriptions(items []monarch.RecurringItem) SubscriptionSummary {
 func BuildBurnRate(budgets []monarch.Budget, now time.Time) ([]BurnRateBudget, error) {
 	daysTotal := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
 	daysElapsed := now.Day()
-	timePct := round2(float64(daysElapsed) / float64(daysTotal) * 100)
+	timePct := money.Round2(float64(daysElapsed) / float64(daysTotal) * 100)
 
 	out := make([]BurnRateBudget, 0, len(budgets))
 	for _, budget := range budgets {
 		if budget.Planned <= 0 {
 			continue
 		}
-		burnPct := round2(budget.Actual / budget.Planned * 100)
+		burnPct := money.Round2(budget.Actual / budget.Planned * 100)
 		out = append(out, BurnRateBudget{
 			Category:    budget.CategoryName,
-			Budgeted:    round2(budget.Planned),
-			Spent:       round2(budget.Actual),
-			Remaining:   round2(budget.Planned - budget.Actual),
+			Budgeted:    money.Round2(budget.Planned),
+			Spent:       money.Round2(budget.Actual),
+			Remaining:   money.Round2(budget.Planned - budget.Actual),
 			DaysElapsed: daysElapsed,
 			DaysTotal:   daysTotal,
 			BurnPct:     burnPct,
@@ -358,8 +359,8 @@ func anomalySeverity(ratio float64) string {
 func merchantComparison(merchant string, current, previous float64) MerchantComparison {
 	out := MerchantComparison{
 		Merchant:        merchant,
-		ExpenseCurrent:  round2(current),
-		ExpensePrevious: round2(previous),
+		ExpenseCurrent:  money.Round2(current),
+		ExpensePrevious: money.Round2(previous),
 	}
 	switch {
 	case previous == 0 && current > 0:
@@ -369,11 +370,11 @@ func merchantComparison(merchant string, current, previous float64) MerchantComp
 		out.ChangePct = &change
 		out.Direction = "down"
 	case current > previous:
-		change := round2((current - previous) / previous * 100)
+		change := money.Round2((current - previous) / previous * 100)
 		out.ChangePct = &change
 		out.Direction = "up"
 	case current < previous:
-		change := round2((current - previous) / previous * 100)
+		change := money.Round2((current - previous) / previous * 100)
 		out.ChangePct = &change
 		out.Direction = "down"
 	default:
@@ -387,15 +388,15 @@ func merchantComparison(merchant string, current, previous float64) MerchantComp
 func subscriptionAmounts(frequency string, amount float64) (perMonth, perYear float64) {
 	switch strings.ToLower(frequency) {
 	case "yearly", "annual", "annually":
-		return round2(amount / 12), round2(amount)
+		return money.Round2(amount / 12), money.Round2(amount)
 	case "weekly":
 		annual := amount * 52
-		return round2(annual / 12), round2(annual)
+		return money.Round2(annual / 12), money.Round2(annual)
 	case "biweekly":
 		annual := amount * 26
-		return round2(annual / 12), round2(annual)
+		return money.Round2(annual / 12), money.Round2(annual)
 	default:
-		return round2(amount), round2(amount * 12)
+		return money.Round2(amount), money.Round2(amount * 12)
 	}
 }
 
@@ -421,7 +422,7 @@ func buildPotentialOverlaps(subs []Subscription) []PotentialOverlap {
 		}
 		if len(services) > 1 {
 			sort.Strings(services)
-			overlaps = append(overlaps, PotentialOverlap{Group: group, Services: services, CombinedAnnual: round2(annual)})
+			overlaps = append(overlaps, PotentialOverlap{Group: group, Services: services, CombinedAnnual: money.Round2(annual)})
 		}
 	}
 	sort.Slice(overlaps, func(i, j int) bool {
@@ -444,9 +445,5 @@ func burnStatus(burnPct, timePct float64) string {
 }
 
 func expenseValue(amount float64) float64 {
-	return round2(math.Abs(amount))
-}
-
-func round2(value float64) float64 {
-	return math.Round(value*100) / 100
+	return money.Round2(math.Abs(amount))
 }

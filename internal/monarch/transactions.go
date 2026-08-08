@@ -7,6 +7,7 @@ import (
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
+	"github.com/thedavidweng/monarchmoney-cli/internal/money"
 	"github.com/thedavidweng/monarchmoney-cli/queries"
 )
 
@@ -129,7 +130,7 @@ func (s *Service) GetTransaction(ctx context.Context, id string) (*Transaction, 
 	return &Transaction{
 		ID:                 resp.GetTransaction.ID,
 		Date:               resp.GetTransaction.Date,
-		Amount:             resp.GetTransaction.Amount,
+		Amount:             money.Round2(resp.GetTransaction.Amount),
 		Merchant:           resp.GetTransaction.Merchant.Name,
 		Category:           resp.GetTransaction.Category.Name,
 		Notes:              resp.GetTransaction.Notes,
@@ -208,13 +209,13 @@ func (s *Service) GetTransactionsSummary(ctx context.Context, startDate, endDate
 	}
 
 	return &TransactionSummaryResult{
-		Avg:        resp.Aggregates[0].Summary.Avg,
+		Avg:        money.Round2(resp.Aggregates[0].Summary.Avg),
 		Count:      resp.Aggregates[0].Summary.Count,
-		Max:        resp.Aggregates[0].Summary.Max,
-		MaxExpense: resp.Aggregates[0].Summary.MaxExpense,
-		Sum:        resp.Aggregates[0].Summary.Sum,
-		SumIncome:  resp.Aggregates[0].Summary.SumIncome,
-		SumExpense: resp.Aggregates[0].Summary.SumExpense,
+		Max:        money.Round2(resp.Aggregates[0].Summary.Max),
+		MaxExpense: money.Round2(resp.Aggregates[0].Summary.MaxExpense),
+		Sum:        money.Round2(resp.Aggregates[0].Summary.Sum),
+		SumIncome:  money.Round2(resp.Aggregates[0].Summary.SumIncome),
+		SumExpense: money.Round2(resp.Aggregates[0].Summary.SumExpense),
 		First:      resp.Aggregates[0].Summary.First,
 		Last:       resp.Aggregates[0].Summary.Last,
 	}, nil
@@ -286,7 +287,7 @@ func (s *Service) GetTransactionSplits(ctx context.Context, txID string) ([]Tran
 	for i, s := range resp.GetTransaction.SplitTransactions {
 		splits[i] = TransactionSplit{
 			ID:       s.ID,
-			Amount:   s.Amount,
+			Amount:   money.Round2(s.Amount),
 			Category: s.Category.Name,
 			Merchant: s.Merchant.Name,
 			Notes:    s.Notes,
@@ -350,7 +351,7 @@ func (s *Service) UpdateTransaction(ctx context.Context, id string, notes, categ
 
 	return &Transaction{
 		ID:              resp.UpdateTransaction.Transaction.ID,
-		Amount:          resp.UpdateTransaction.Transaction.Amount,
+		Amount:          money.Round2(resp.UpdateTransaction.Transaction.Amount),
 		Date:            resp.UpdateTransaction.Transaction.Date,
 		Notes:           resp.UpdateTransaction.Transaction.Notes,
 		Category:        resp.UpdateTransaction.Transaction.Category.Name,
@@ -465,7 +466,7 @@ func (s *Service) CreateTransaction(ctx context.Context, amount float64, merchan
 
 	return &Transaction{
 		ID:       resp.CreateTransaction.Transaction.ID,
-		Amount:   resp.CreateTransaction.Transaction.Amount,
+		Amount:   money.Round2(resp.CreateTransaction.Transaction.Amount),
 		Date:     resp.CreateTransaction.Transaction.Date,
 		Merchant: resp.CreateTransaction.Transaction.Merchant.Name,
 	}, nil
@@ -648,7 +649,7 @@ func (s *Service) ListTransactions(ctx context.Context, opts *ListTransactionsOp
 		txs[i] = Transaction{
 			ID:       r.ID,
 			Date:     r.Date,
-			Amount:   r.Amount,
+			Amount:   money.Round2(r.Amount),
 			Merchant: r.Merchant.Name,
 			Category: r.Category.Name,
 			CategoryGroup: TransactionCategoryGroup{

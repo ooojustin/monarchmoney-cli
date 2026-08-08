@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
+	"github.com/thedavidweng/monarchmoney-cli/internal/money"
 	"github.com/thedavidweng/monarchmoney-cli/queries"
 )
 
@@ -151,9 +152,9 @@ func (s *Service) GetInvestmentPortfolio(ctx context.Context, opts InvestmentPor
 
 	portfolio := &InvestmentPortfolio{
 		Performance: InvestmentPerformance{
-			TotalValue:         resp.Portfolio.Performance.TotalValue,
+			TotalValue:         money.Round2(resp.Portfolio.Performance.TotalValue),
 			TotalChangePercent: resp.Portfolio.Performance.TotalChangePercent,
-			TotalChangeDollars: resp.Portfolio.Performance.TotalChangeDollars,
+			TotalChangeDollars: money.Round2(resp.Portfolio.Performance.TotalChangeDollars),
 		},
 		Holdings: make([]InvestmentHoldingNode, 0, len(resp.Portfolio.AggregateHoldings.Edges)),
 	}
@@ -163,8 +164,8 @@ func (s *Service) GetInvestmentPortfolio(ctx context.Context, opts InvestmentPor
 		holdingNode := InvestmentHoldingNode{
 			ID:         node.ID,
 			Quantity:   node.Quantity,
-			Basis:      node.Basis,
-			TotalValue: node.TotalValue,
+			Basis:      money.Round2(node.Basis),
+			TotalValue: money.Round2(node.TotalValue),
 			Security: InvestmentSecurity{
 				ID:           node.Security.ID,
 				Ticker:       node.Security.Ticker,
@@ -182,7 +183,7 @@ func (s *Service) GetInvestmentPortfolio(ctx context.Context, opts InvestmentPor
 				Name:        holding.Name,
 				Ticker:      holding.Ticker,
 				Quantity:    holding.Quantity,
-				Value:       holding.Value,
+				Value:       money.Round2(holding.Value),
 				Account: InvestmentAccount{
 					ID:                    holding.Account.ID,
 					DisplayName:           holding.Account.DisplayName,

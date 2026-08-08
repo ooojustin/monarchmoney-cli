@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
+	"github.com/thedavidweng/monarchmoney-cli/internal/money"
 	"github.com/thedavidweng/monarchmoney-cli/queries"
 )
 
@@ -80,13 +81,13 @@ func (s *Service) ListGoals(ctx context.Context) ([]Goal, error) {
 			Name:                                  g.Name,
 			Status:                                g.Status,
 			Progress:                              g.Progress,
-			CurrentBalance:                        g.CurrentBalance,
+			CurrentBalance:                        money.Round2(g.CurrentBalance),
 			TargetDate:                            g.TargetDate,
-			TargetAmount:                          g.TargetAmount,
-			PlannedMonthlyContribution:            g.PlannedMonthlyContribution,
-			CurrentMonthPlannedContributionAmount: g.CurrentMonthPlannedContributionAmount,
-			SpendingTotal:                         g.SpendingTotal,
-			NetContribution:                       g.NetContribution,
+			TargetAmount:                          money.Round2(g.TargetAmount),
+			PlannedMonthlyContribution:            money.Round2(g.PlannedMonthlyContribution),
+			CurrentMonthPlannedContributionAmount: money.Round2(g.CurrentMonthPlannedContributionAmount),
+			SpendingTotal:                         money.Round2(g.SpendingTotal),
+			NetContribution:                       money.Round2(g.NetContribution),
 			EstimatedMonthsUntilCompletion:        g.EstimatedMonthsUntilCompletion,
 			ForecastedCompletionDate:              g.ForecastedCompletionDate,
 			IsSinkingFund:                         g.IsSinkingFund,
@@ -137,9 +138,9 @@ func (s *Service) ListSavingsGoalBudgets(ctx context.Context, startDate, endDate
 				GoalType:   item.SavingsGoal.Type,
 				GoalStatus: item.SavingsGoal.Status,
 				Month:      m.Month,
-				Planned:    m.PlannedAmount,
-				Actual:     m.ActualAmount,
-				Remaining:  m.RemainingAmount,
+				Planned:    money.Round2(m.PlannedAmount),
+				Actual:     money.Round2(m.ActualAmount),
+				Remaining:  money.Round2(m.RemainingAmount),
 			})
 		}
 	}

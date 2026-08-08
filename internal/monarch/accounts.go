@@ -11,6 +11,7 @@ import (
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
+	"github.com/thedavidweng/monarchmoney-cli/internal/money"
 	"github.com/thedavidweng/monarchmoney-cli/queries"
 )
 
@@ -145,8 +146,8 @@ func (s *Service) GetAccountHoldings(ctx context.Context, accountID string) ([]H
 		holdings = append(holdings, Holding{
 			ID:         node.ID,
 			Quantity:   node.Quantity,
-			Basis:      node.Basis,
-			TotalValue: node.TotalValue,
+			Basis:      money.Round2(node.Basis),
+			TotalValue: money.Round2(node.TotalValue),
 		})
 	}
 
@@ -189,7 +190,7 @@ func (s *Service) GetAccountHistory(ctx context.Context, accountID, startDate, e
 		if endDate != "" && date > endDate {
 			break
 		}
-		history = append(history, HistoryRecord{Date: date, Amount: balance})
+		history = append(history, HistoryRecord{Date: date, Amount: money.Round2(balance)})
 	}
 
 	return history, nil
@@ -256,10 +257,10 @@ func (s *Service) GetAccount(ctx context.Context, id string) (*Account, error) {
 		DisplayName:                     resp.Account.DisplayName,
 		AccountType:                     resp.Account.AccountType.Name,
 		AccountSubtype:                  resp.Account.Subtype.Name,
-		DisplayBalance:                  resp.Account.DisplayBalance,
-		CurrentBalance:                  resp.Account.CurrentBalance,
-		Limit:                           resp.Account.Limit,
-		DataProviderCreditLimit:         resp.Account.DataProviderCreditLimit,
+		DisplayBalance:                  money.Round2(resp.Account.DisplayBalance),
+		CurrentBalance:                  money.Round2(resp.Account.CurrentBalance),
+		Limit:                           money.Round2(resp.Account.Limit),
+		DataProviderCreditLimit:         money.Round2(resp.Account.DataProviderCreditLimit),
 		UpdatedAt:                       resp.Account.UpdatedAt,
 		DisplayLastUpdatedAt:            resp.Account.DisplayLastUpdatedAt,
 		DeactivatedAt:                   resp.Account.DeactivatedAt,
@@ -356,7 +357,7 @@ func (s *Service) GetAccountBalancesAt(ctx context.Context, date string, account
 		out = append(out, AccountBalanceAt{
 			ID:               a.ID,
 			DisplayName:      a.DisplayName,
-			DisplayBalance:   a.DisplayBalance,
+			DisplayBalance:   money.Round2(a.DisplayBalance),
 			AccountType:      a.Type.Name,
 			AccountTypeGroup: a.Type.Group,
 		})
@@ -550,10 +551,10 @@ func (s *Service) ListAccounts(ctx context.Context) ([]Account, error) {
 			DisplayName:                     a.DisplayName,
 			AccountType:                     a.AccountType.Name,
 			AccountSubtype:                  a.Subtype.Name,
-			DisplayBalance:                  a.DisplayBalance,
-			CurrentBalance:                  a.CurrentBalance,
-			Limit:                           a.Limit,
-			DataProviderCreditLimit:         a.DataProviderCreditLimit,
+			DisplayBalance:                  money.Round2(a.DisplayBalance),
+			CurrentBalance:                  money.Round2(a.CurrentBalance),
+			Limit:                           money.Round2(a.Limit),
+			DataProviderCreditLimit:         money.Round2(a.DataProviderCreditLimit),
 			UpdatedAt:                       a.UpdatedAt,
 			DisplayLastUpdatedAt:            a.DisplayLastUpdatedAt,
 			DeactivatedAt:                   a.DeactivatedAt,
@@ -609,7 +610,7 @@ func (s *Service) CreateManualAccount(ctx context.Context, name, accType string,
 	return &Account{
 		ID:             resp.CreateManualAccount.Account.ID,
 		DisplayName:    resp.CreateManualAccount.Account.DisplayName,
-		DisplayBalance: resp.CreateManualAccount.Account.DisplayBalance,
+		DisplayBalance: money.Round2(resp.CreateManualAccount.Account.DisplayBalance),
 	}, nil
 }
 
@@ -664,7 +665,7 @@ func (s *Service) UpdateAccount(ctx context.Context, id string, name *string, ba
 	return &Account{
 		ID:             resp.UpdateAccount.Account.ID,
 		DisplayName:    resp.UpdateAccount.Account.DisplayName,
-		DisplayBalance: resp.UpdateAccount.Account.DisplayBalance,
+		DisplayBalance: money.Round2(resp.UpdateAccount.Account.DisplayBalance),
 	}, nil
 }
 

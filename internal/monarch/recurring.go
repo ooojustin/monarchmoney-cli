@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
+	"github.com/thedavidweng/monarchmoney-cli/internal/money"
 	"github.com/thedavidweng/monarchmoney-cli/queries"
 )
 
@@ -51,7 +52,7 @@ func (s *Service) ListRecurring(ctx context.Context, startDate, endDate string) 
 		recurring[i] = RecurringTransaction{
 			ID:        r.Stream.ID,
 			Merchant:  r.Stream.MerchantName,
-			Amount:    r.Amount,
+			Amount:    money.Round2(r.Amount),
 			Frequency: r.Stream.Frequency,
 			NextDate:  r.Date,
 			Status:    "active",
@@ -114,15 +115,15 @@ func (s *Service) ListRecurringItems(ctx context.Context, startDate, endDate str
 			Stream: RecurringStream{
 				ID:            r.Stream.ID,
 				Frequency:     r.Stream.Frequency,
-				Amount:        r.Stream.Amount,
+				Amount:        money.Round2(r.Stream.Amount),
 				IsApproximate: r.Stream.IsApproximate,
 				MerchantName:  r.Stream.Merchant.Name,
 			},
 			Date:          r.Date,
 			IsPast:        r.IsPast,
 			TransactionID: r.TransactionID,
-			Amount:        r.Amount,
-			AmountDiff:    r.AmountDiff,
+			Amount:        money.Round2(r.Amount),
+			AmountDiff:    money.Round2(r.AmountDiff),
 			CategoryName:  r.Category.Name,
 			AccountID:     r.Account.ID,
 			AccountName:   r.Account.DisplayName,
@@ -157,6 +158,6 @@ func (s *Service) UpdateRecurring(ctx context.Context, id string, amount float64
 
 	return &RecurringTransaction{
 		ID:     resp.UpdateRecurringTransaction.RecurringTransaction.ID,
-		Amount: resp.UpdateRecurringTransaction.RecurringTransaction.Amount,
+		Amount: money.Round2(resp.UpdateRecurringTransaction.RecurringTransaction.Amount),
 	}, nil
 }

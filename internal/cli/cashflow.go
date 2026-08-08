@@ -8,6 +8,7 @@ import (
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
+	"github.com/thedavidweng/monarchmoney-cli/internal/money"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 )
 
@@ -326,9 +327,9 @@ func (a *App) buildCashflowSpendingCommand(startDate, endDate *string) *cobra.Co
 			if a.Flags.JSONMode {
 				data := map[string]any{
 					"period":         map[string]string{"start_date": resolvedStart, "end_date": resolvedEnd},
-					"total_income":   totalIncome,
-					"total_expenses": totalExpenses,
-					"net":            totalIncome - totalExpenses,
+					"total_income":   money.Round2(totalIncome),
+					"total_expenses": money.Round2(totalExpenses),
+					"net":            money.Round2(totalIncome - totalExpenses),
 					"by_category":    records,
 				}
 				env := output.NewEnvelope("cashflow.spending", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, data, time.Since(start))
