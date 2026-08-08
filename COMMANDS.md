@@ -77,14 +77,14 @@
 - `monarch subscription show`: Show Monarch subscription details.
 - `monarch auth status`: Check current authentication status.
 - `monarch auth session path`: Print the session file path.
-- `monarch doctor`: Verify the selected config and session paths. Add `--connect` to check the configured API endpoint.
+- `monarch doctor`: Verify the selected config, session, and device identity state. Add `--connect` to check the configured API endpoint.
 - `monarch version`: Print version information.
 
 ## Mutation and Remote-Action Commands
 
 All mutations are protected by the [Safety Model](./safety.md).
 
-- `monarch auth login`: Authenticate and persist session.
+- `monarch auth login`: Authenticate and persist a trusted-device session, prompting for email verification or authenticator MFA when required.
 - `monarch auth logout`: Remove the local session token.
 - `monarch accounts refresh [account-id...]`: Trigger a remote sync of all accounts (or specific ones).
 - `monarch accounts create-manual`: Create a manual account.

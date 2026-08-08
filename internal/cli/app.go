@@ -268,7 +268,17 @@ func (a *App) loadService() (*monarch.Service, error) {
 	if err != nil {
 		return nil, clierrors.New(clierrors.AuthRequired, "not logged in", clierrors.CatAuth, false, err)
 	}
-	client := graphql.NewClient(a.Config.APIEndpoint, sess.Token, a.Flags.Timeout, graphql.WithHTTPTransport(a.Deps.HTTPTransport))
+	deviceUUID, err := auth.LoadDeviceUUID(a.sessionPath())
+	if err != nil {
+		return nil, clierrors.New(clierrors.InternalError, "failed to load device identity", clierrors.CatInternal, false, err)
+	}
+	client := graphql.NewClient(
+		a.Config.APIEndpoint,
+		sess.Token,
+		a.Flags.Timeout,
+		graphql.WithHTTPTransport(a.Deps.HTTPTransport),
+		graphql.WithDeviceUUID(deviceUUID),
+	)
 	return monarch.NewService(client, monarch.WithHTTPTransport(a.Deps.HTTPTransport)), nil
 }
 

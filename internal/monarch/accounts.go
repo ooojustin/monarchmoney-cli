@@ -697,6 +697,9 @@ func (s *Service) UploadAccountBalanceHistory(ctx context.Context, id string, r 
 	if token := s.Client.TokenValue(); token != "" {
 		req.Header.Set("Authorization", "Token "+token)
 	}
+	if deviceUUID := s.Client.DeviceUUIDValue(); deviceUUID != "" {
+		req.Header.Set("device-uuid", deviceUUID)
+	}
 
 	resp, err := s.httpClient().Do(req)
 	if err != nil {

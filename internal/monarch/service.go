@@ -12,6 +12,7 @@ type graphQLClient interface {
 	Do(ctx context.Context, reqBody *graphql.Request, result any) error
 	DoMutation(ctx context.Context, reqBody *graphql.Request, result any) error
 	TokenValue() string
+	DeviceUUIDValue() string
 }
 
 type Service struct {

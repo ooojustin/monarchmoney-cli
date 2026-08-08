@@ -20,10 +20,11 @@ import (
 )
 
 type mockClient struct {
-	token   string
-	mu      sync.Mutex
-	lastReq *graphql.Request
-	handler func(req *graphql.Request, result any) error
+	token      string
+	deviceUUID string
+	mu         sync.Mutex
+	lastReq    *graphql.Request
+	handler    func(req *graphql.Request, result any) error
 }
 
 type fakeCSVWriter struct {
@@ -66,6 +67,10 @@ func (m *mockClient) DoMutation(_ context.Context, req *graphql.Request, result 
 
 func (m *mockClient) TokenValue() string {
 	return m.token
+}
+
+func (m *mockClient) DeviceUUIDValue() string {
+	return m.deviceUUID
 }
 
 func (m *mockClient) respond(result any, payload string) error {
@@ -1112,6 +1117,7 @@ func testServiceHTTPUploadBalanceHistoryPaths(t *testing.T) {
 			mustEq(t, "POST", req.Method)
 			mustEq(t, "web", req.Header.Get("Client-Platform"))
 			mustEq(t, "Token tok", req.Header.Get("Authorization"))
+			mustEq(t, "device-123", req.Header.Get("device-uuid"))
 			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(""))}, nil
 		})
 
@@ -1124,7 +1130,7 @@ func testServiceHTTPUploadBalanceHistoryPaths(t *testing.T) {
 		mustNoErr(t, err)
 		defer file.Close()
 
-		svc := NewService(&mockClient{token: "tok"}, WithHTTPTransport(transport))
+		svc := NewService(&mockClient{token: "tok", deviceUUID: "device-123"}, WithHTTPTransport(transport))
 		mustNoErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", file))
 	})
 

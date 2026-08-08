@@ -13,21 +13,27 @@ import (
 )
 
 type Result struct {
-	Version string       `json:"version"`
-	OS      string       `json:"os"`
-	Arch    string       `json:"arch"`
-	Config  ConfigReport `json:"config"`
-	Session Report       `json:"session"`
-	Network Report       `json:"network"`
-	Safety  Report       `json:"safety"`
+	Version string        `json:"version"`
+	OS      string        `json:"os"`
+	Arch    string        `json:"arch"`
+	Config  ConfigReport  `json:"config"`
+	Session SessionReport `json:"session"`
+	Network Report        `json:"network"`
+	Safety  Report        `json:"safety"`
 }
 
 type Report struct {
+	Path         string `json:"path,omitempty"`
+	Exists       bool   `json:"exists"`
+	APIReachable bool   `json:"api_reachable,omitempty"`
+}
+
+type SessionReport struct {
 	Path          string `json:"path,omitempty"`
 	Exists        bool   `json:"exists"`
 	PermissionOK  bool   `json:"permission_ok,omitempty"`
 	Authenticated bool   `json:"authenticated,omitempty"`
-	APIReachable  bool   `json:"api_reachable,omitempty"`
+	DeviceIDValid bool   `json:"device_id_valid"`
 }
 
 type ConfigReport struct {
@@ -62,7 +68,7 @@ func Check(ctx context.Context, options *Options) *Result {
 
 	store := auth.NewStore(options.SessionPath)
 	sess, err := store.Load()
-	res.Session = Report{
+	res.Session = SessionReport{
 		Path:   options.SessionPath,
 		Exists: !os.IsNotExist(err),
 	}
@@ -74,13 +80,16 @@ func Check(ctx context.Context, options *Options) *Result {
 			res.Session.PermissionOK = checkFilePermission(info)
 		}
 	}
+	deviceUUID, deviceErr := auth.LoadDeviceUUID(options.SessionPath)
+	res.Session.DeviceIDValid = deviceErr == nil
 
-	if options.Connect && res.Session.Authenticated {
+	if options.Connect && res.Session.Authenticated && res.Session.DeviceIDValid {
 		client := graphql.NewClient(
 			options.APIEndpoint,
 			sess.Token,
 			options.Timeout,
 			graphql.WithHTTPTransport(options.HTTPTransport),
+			graphql.WithDeviceUUID(deviceUUID),
 		)
 		var identity any
 		err := client.Do(ctx, &graphql.Request{

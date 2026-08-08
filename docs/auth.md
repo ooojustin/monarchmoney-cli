@@ -10,10 +10,15 @@ Run the following command to start the interactive login process:
 monarch auth login
 ```
 You will be prompted for your email and password.
+New devices may also require a one-time code sent to the account email. The CLI identifies this separately from authenticator-based MFA and prompts for the correct code.
 After login completes, the CLI prints the account email, the login timestamp, and the local session file path so you can confirm exactly which account was stored.
 
+### Email Verification
+
+Monarch may require a one-time email code when the CLI logs in from a new device, even when account MFA is disabled. The interactive login waits for the code and retries with the same device identifier. Blank input and end-of-file fail immediately without another login request. Noninteractive callers can resume with `--email-otp` or `MONARCH_EMAIL_OTP`.
+
 ### MFA Support
-If your account has Multi-Factor Authentication enabled:
+If your account has authenticator-based Multi-Factor Authentication enabled:
 1. The CLI will detect the requirement and prompt you for the 6-digit code interactively.
 2. Alternatively, you can provide the code via the `--mfa-code` flag.
 
@@ -30,7 +35,7 @@ Once authenticated, a session token is stored locally. This token is used for al
 - **Storage Path**: platform-specific; run `monarch auth session path` to inspect it.
 - **Configuration**: set `session_path` in the selected config file or `MONARCH_SESSION_PATH` in the environment.
 - **Security**: The file is saved with `0600` permissions (read/write by owner only).
-- **Contents**: The session file stores the token, account email, timestamps, and profile metadata needed for `auth status`.
+- **Contents**: The session file stores the token, account email, timestamps, and profile. A non-secret device identifier is stored beside it as `device-id`, survives logout, and binds email verification to subsequent login attempts.
 
 ### Secret Indirection (`env:NAME`)
 
@@ -85,6 +90,7 @@ The local cache lives at `~/.monarchmoney-cli/cache/monarch.sqlite`.
    - `MONARCH_PASSWORD`: Your account password.
    - `MONARCH_MFA_CODE`: A 6-digit MFA code (for single-use scripts).
    - `MONARCH_MFA_SECRET`: Your TOTP secret key for automatic code generation.
+   - `MONARCH_EMAIL_OTP`: A one-time code sent to the account email.
    - `MONARCH_SESSION_PATH`: Override the local session file path.
    - `MONARCH_USER_AGENT`: Override the default HTTP User-Agent string.
 3. **Session Safety**: Never share your `session.json` file. It contains a long-lived token that grants access to your Monarch account.

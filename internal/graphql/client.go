@@ -37,13 +37,15 @@ type Request struct {
 }
 
 type Client struct {
-	Endpoint string
-	Token    string
-	HTTP     *http.Client
+	Endpoint   string
+	Token      string
+	DeviceUUID string
+	HTTP       *http.Client
 }
 
 type clientOptions struct {
-	transport http.RoundTripper
+	transport  http.RoundTripper
+	deviceUUID string
 }
 
 type ClientOption func(*clientOptions)
@@ -56,8 +58,18 @@ func WithHTTPTransport(transport http.RoundTripper) ClientOption {
 	}
 }
 
+func WithDeviceUUID(deviceUUID string) ClientOption {
+	return func(options *clientOptions) {
+		options.deviceUUID = deviceUUID
+	}
+}
+
 func (c *Client) TokenValue() string {
 	return c.Token
+}
+
+func (c *Client) DeviceUUIDValue() string {
+	return c.DeviceUUID
 }
 
 func NewClient(endpoint, token string, timeout time.Duration, opts ...ClientOption) *Client {
@@ -82,9 +94,10 @@ func NewClient(endpoint, token string, timeout time.Duration, opts ...ClientOpti
 		httpClient.Transport = cloned
 	}
 	return &Client{
-		Endpoint: endpoint,
-		Token:    token,
-		HTTP:     httpClient,
+		Endpoint:   endpoint,
+		Token:      token,
+		DeviceUUID: options.deviceUUID,
+		HTTP:       httpClient,
 	}
 }
 
@@ -152,6 +165,9 @@ func (c *Client) doOnce(ctx context.Context, reqBody *Request, result any) error
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Client-Platform", "web")
 	req.Header.Set("User-Agent", UserAgent())
+	if c.DeviceUUID != "" {
+		req.Header.Set("device-uuid", c.DeviceUUID)
+	}
 	if c.Token != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("Token %s", c.Token))
 	}

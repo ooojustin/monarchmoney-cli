@@ -69,7 +69,7 @@ func TestAppRootRegistersAuth(t *testing.T) {
 		t.Fatalf("auth GroupID = %q, want utility", authCommand.GroupID)
 	}
 	loginCommand, _, _ := app.Root.Find([]string{"auth", "login"})
-	for _, flag := range []string{"email", "password", "mfa-code", "mfa-secret"} {
+	for _, flag := range []string{"email", "password", "mfa-code", "mfa-secret", "email-otp"} {
 		if loginCommand.Flags().Lookup(flag) == nil {
 			t.Fatalf("auth login missing --%s flag", flag)
 		}
@@ -174,7 +174,7 @@ func TestAppAuthLoginPromptsForMFA(t *testing.T) {
 			return nil, err
 		}
 		if requestCount == 1 {
-			return &http.Response{StatusCode: http.StatusUnauthorized, Body: io.NopCloser(strings.NewReader(""))}, nil
+			return &http.Response{StatusCode: http.StatusForbidden, Body: io.NopCloser(strings.NewReader(`{"error_code":"TOTP_REQUIRED"}`))}, nil
 		}
 		if body["totp"] != "123456" {
 			return nil, fmt.Errorf("MFA login body = %#v", body)
@@ -194,6 +194,141 @@ func TestAppAuthLoginPromptsForMFA(t *testing.T) {
 	}
 	if !strings.Contains(errOut.String(), "MFA Code:") {
 		t.Fatalf("stderr = %q, want MFA prompt", errOut.String())
+	}
+}
+
+func TestAppAuthLoginPromptsForEmailOTP(t *testing.T) {
+	sessionPath := filepath.Join(t.TempDir(), "session.json")
+	requestCount := 0
+	deviceUUID := ""
+	transport := testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requestCount++
+		if requestCount == 1 {
+			deviceUUID = req.Header.Get("device-uuid")
+			return &http.Response{StatusCode: http.StatusForbidden, Body: io.NopCloser(strings.NewReader(`{"detail":"code sent","error_code":"EMAIL_OTP_REQUIRED"}`))}, nil
+		}
+		var body map[string]any
+		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+			return nil, err
+		}
+		if body["email_otp"] != "654321" {
+			return nil, fmt.Errorf("email OTP login body = %#v", body)
+		}
+		if got := req.Header.Get("device-uuid"); got == "" || got != deviceUUID {
+			return nil, fmt.Errorf("device-uuid = %q, want %q", got, deviceUUID)
+		}
+		return testutil.JSONResponse(`{"token":"token-123"}`), nil
+	})
+	app, _, errOut, exitCode := newTestAuthApp(t, sessionPath, transport)
+	app.Deps.Stdin = strings.NewReader("654321\n")
+	app.Root.SetIn(app.Deps.Stdin)
+
+	app.Root.SetArgs([]string{"auth", "login", "--email", "a@example.com", "--password", "secret"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if *exitCode != 0 || requestCount != 2 {
+		t.Fatalf("exitCode=%d requests=%d", *exitCode, requestCount)
+	}
+	if !strings.Contains(errOut.String(), "Email Code:") {
+		t.Fatalf("stderr = %q, want email code prompt", errOut.String())
+	}
+	_, err := auth.NewStore(sessionPath).Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	storedDeviceUUID, err := auth.LoadDeviceUUID(sessionPath)
+	if err != nil || storedDeviceUUID != deviceUUID {
+		t.Fatalf("LoadDeviceUUID() = %q, %v; want %q", storedDeviceUUID, err, deviceUUID)
+	}
+}
+
+func TestAppAuthLoginRejectsEmptyChallengeInput(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		response  string
+		input     string
+		wantError string
+	}{
+		{"blank email OTP", `{"error_code":"EMAIL_OTP_REQUIRED"}`, "\n", "email code is required"},
+		{"email OTP EOF", `{"error_code":"EMAIL_OTP_REQUIRED"}`, "", "email code is required"},
+		{"blank MFA", `{"error_code":"TOTP_REQUIRED"}`, "   \n", "MFA code is required"},
+		{"MFA EOF", `{"error_code":"TOTP_REQUIRED"}`, "", "MFA code is required"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			requestCount := 0
+			transport := testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+				requestCount++
+				return &http.Response{StatusCode: http.StatusForbidden, Body: io.NopCloser(strings.NewReader(test.response))}, nil
+			})
+			app, _, errOut, exitCode := newTestAuthApp(t, filepath.Join(t.TempDir(), "session.json"), transport)
+			app.Deps.Stdin = strings.NewReader(test.input)
+			app.Root.SetIn(app.Deps.Stdin)
+			app.Root.SetArgs([]string{"auth", "login", "--email", "a@example.com", "--password", "secret"})
+
+			if err := app.Execute(); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			if *exitCode != 2 || requestCount != 1 || !strings.Contains(errOut.String(), test.wantError) {
+				t.Fatalf("exitCode=%d requests=%d stderr=%q", *exitCode, requestCount, errOut.String())
+			}
+		})
+	}
+}
+
+func TestAppAuthLoginJSONReturnsEmailOTPChallenge(t *testing.T) {
+	sessionPath := filepath.Join(t.TempDir(), "session.json")
+	requestCount := 0
+	deviceUUID := ""
+	transport := testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requestCount++
+		deviceUUID = req.Header.Get("device-uuid")
+		return &http.Response{StatusCode: http.StatusForbidden, Body: io.NopCloser(strings.NewReader(`{"error_code":"EMAIL_OTP_REQUIRED"}`))}, nil
+	})
+	app, out, errOut, exitCode := newTestAuthApp(t, sessionPath, transport)
+	app.Root.SetArgs([]string{"--json", "auth", "login", "--email", "a@example.com", "--password", "secret"})
+
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if *exitCode != 3 || requestCount != 1 || errOut.Len() != 0 {
+		t.Fatalf("exitCode=%d requests=%d stderr=%q", *exitCode, requestCount, errOut.String())
+	}
+	if !strings.Contains(out.String(), `"code":"AUTH_EMAIL_OTP_REQUIRED"`) {
+		t.Fatalf("stdout = %q", out.String())
+	}
+	storedDeviceUUID, err := auth.LoadDeviceUUID(sessionPath)
+	if err != nil || storedDeviceUUID != deviceUUID {
+		t.Fatalf("LoadDeviceUUID() = %q, %v; want %q", storedDeviceUUID, err, deviceUUID)
+	}
+
+	transport = testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if got := req.Header.Get("device-uuid"); got != deviceUUID {
+			return nil, fmt.Errorf("device-uuid = %q, want %q", got, deviceUUID)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+			return nil, err
+		}
+		if body["email_otp"] != "654321" {
+			return nil, fmt.Errorf("email OTP login body = %#v", body)
+		}
+		return testutil.JSONResponse(`{"token":"token-123"}`), nil
+	})
+	app, out, errOut, exitCode = newTestAuthApp(t, sessionPath, transport)
+	app.Deps.Getenv = func(key string) string {
+		return map[string]string{
+			"MONARCH_EMAIL":     "a@example.com",
+			"MONARCH_PASSWORD":  "secret",
+			"MONARCH_EMAIL_OTP": "654321",
+		}[key]
+	}
+	app.Root.SetArgs([]string{"--json", "auth", "login"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("continuation Execute() error = %v", err)
+	}
+	if *exitCode != 0 || errOut.Len() != 0 || !strings.Contains(out.String(), `"status":"logged in"`) {
+		t.Fatalf("exitCode=%d stderr=%q stdout=%q", *exitCode, errOut.String(), out.String())
 	}
 }
 
@@ -267,6 +402,10 @@ func TestAppAuthLocalCommandsUseConfiguredPathDespiteConfigError(t *testing.T) {
 	if err := auth.NewStore(sessionPath).Save(&auth.Session{Token: "token"}); err != nil {
 		t.Fatalf("Save() error = %v", err)
 	}
+	deviceUUID, err := auth.LoadOrCreateDeviceUUID(sessionPath)
+	if err != nil {
+		t.Fatalf("LoadOrCreateDeviceUUID() error = %v", err)
+	}
 	app, out, _, _ := newTestAuthApp(t, sessionPath, nil)
 	app.Deps.LoadConfig = func(string) (*config.Config, error) {
 		cfg := config.Default()
@@ -296,5 +435,8 @@ func TestAppAuthLocalCommandsUseConfiguredPathDespiteConfigError(t *testing.T) {
 	}
 	if _, err := os.Stat(sessionPath); !os.IsNotExist(err) {
 		t.Fatalf("session stat error = %v, want missing", err)
+	}
+	if got, err := auth.LoadDeviceUUID(sessionPath); err != nil || got != deviceUUID {
+		t.Fatalf("LoadDeviceUUID() = %q, %v; want %q", got, err, deviceUUID)
 	}
 }

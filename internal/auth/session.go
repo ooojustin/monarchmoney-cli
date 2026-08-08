@@ -36,7 +36,23 @@ func (s *Store) Save(sess *Session) error {
 		return err
 	}
 
-	return os.WriteFile(s.Path, data, 0o600)
+	file, err := os.OpenFile(s.Path, os.O_WRONLY|os.O_CREATE, 0o600)
+	if err != nil {
+		return err
+	}
+	if err := file.Chmod(0o600); err != nil {
+		_ = file.Close()
+		return err
+	}
+	if err := file.Truncate(0); err != nil {
+		_ = file.Close()
+		return err
+	}
+	if _, err := file.Write(data); err != nil {
+		_ = file.Close()
+		return err
+	}
+	return file.Close()
 }
 
 func (s *Store) Load() (*Session, error) {

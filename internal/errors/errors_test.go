@@ -32,9 +32,12 @@ func TestExitCode(t *testing.T) {
 		want int
 	}{
 		{"auth required", AuthRequired, 3},
+		{"login failed", AuthLoginFailed, 3},
 		{"session expired", AuthSessionExpired, 3},
 		{"mfa required", AuthMFARequired, 3},
 		{"mfa invalid", AuthMFAInvalid, 3},
+		{"email OTP required", AuthEmailOTPRequired, 3},
+		{"email OTP invalid", AuthEmailOTPInvalid, 3},
 		{"read only", ReadOnlyViolation, 4},
 		{"network unreachable", NetworkUnreachable, 5},
 		{"network timeout", NetworkTimeout, 5},

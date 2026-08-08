@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	clierrors "github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/testutil"
 )
 
@@ -114,6 +115,18 @@ func TestStoreSaveReplacesExistingSession(t *testing.T) {
 	}
 }
 
+func TestStoreSaveRestrictsExistingSessionPermissions(t *testing.T) {
+	store := NewStore(filepath.Join(t.TempDir(), "session.json"))
+	if err := os.WriteFile(store.Path, []byte("{}"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	if err := store.Save(&Session{Profile: "default"}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	assertFilePerms(t, store.Path, 0o600)
+}
+
 func TestStoreDeleteMissing(t *testing.T) {
 	store := NewStore(filepath.Join(t.TempDir(), "missing.json"))
 	if err := store.Delete(); !errors.Is(err, os.ErrNotExist) {
@@ -172,6 +185,14 @@ func mustErrContains(t *testing.T, err error, want string) {
 	}
 }
 
+func mustErrorCode(t *testing.T, err error, want clierrors.Code) {
+	t.Helper()
+	cliErr, ok := err.(*clierrors.Error)
+	if !ok || cliErr.Code != want {
+		t.Fatalf("error = %#v, want code %s", err, want)
+	}
+}
+
 func testAuthenticateInputValidation(t *testing.T) {
 	t.Helper()
 
@@ -179,8 +200,8 @@ func testAuthenticateInputValidation(t *testing.T) {
 		client := NewClient(testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 			t.Fatal("invalid MFA secret should fail before the request")
 			return nil, nil
-		}))
-		_, err := client.Authenticate(context.Background(), Credentials{Email: "a@example.com", Password: "password", MFASecret: "not-base32"})
+		}), "")
+		_, err := client.Authenticate(context.Background(), &Credentials{Email: "a@example.com", Password: "password", MFASecret: "not-base32"})
 		mustErrContains(t, err, "failed to generate MFA code")
 	})
 }
@@ -191,41 +212,93 @@ func testAuthenticateFailureResponses(t *testing.T) {
 	t.Run("network unreachable", func(t *testing.T) {
 		client := NewClient(testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 			return nil, errors.New("network down")
-		}))
-		_, err := client.Authenticate(context.Background(), Credentials{Email: "a@example.com", Password: "password"})
+		}), "")
+		_, err := client.Authenticate(context.Background(), &Credentials{Email: "a@example.com", Password: "password"})
 		mustErrContains(t, err, "failed to reach Monarch API")
+	})
+
+	t.Run("email OTP required", func(t *testing.T) {
+		client := NewClient(testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: 403, Body: io.NopCloser(bytes.NewBufferString(`{"detail":"code sent","error_code":"EMAIL_OTP_REQUIRED"}`))}, nil
+		}), "")
+		_, err := client.Authenticate(context.Background(), &Credentials{Email: "a@example.com", Password: "password"})
+		mustErrorCode(t, err, clierrors.AuthEmailOTPRequired)
+		mustErrContains(t, err, "email verification code required")
+	})
+
+	t.Run("email OTP invalid", func(t *testing.T) {
+		client := NewClient(testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: 403, Body: io.NopCloser(bytes.NewBufferString(`{"detail":"code expired","error_code":"EMAIL_OTP_REQUIRED"}`))}, nil
+		}), "")
+		_, err := client.Authenticate(context.Background(), &Credentials{Email: "a@example.com", Password: "password", EmailOTP: "123456"})
+		mustErrorCode(t, err, clierrors.AuthEmailOTPInvalid)
+		mustErrContains(t, err, "code expired")
 	})
 
 	t.Run("mfa required", func(t *testing.T) {
 		client := NewClient(testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
-			return &http.Response{StatusCode: 401, Body: io.NopCloser(bytes.NewBufferString(""))}, nil
-		}))
-		_, err := client.Authenticate(context.Background(), Credentials{Email: "a@example.com", Password: "password"})
-		mustErrContains(t, err, "MFA code required")
+			return &http.Response{StatusCode: 403, Body: io.NopCloser(bytes.NewBufferString(`{"error_code":"TOTP_REQUIRED"}`))}, nil
+		}), "")
+		_, err := client.Authenticate(context.Background(), &Credentials{Email: "a@example.com", Password: "password"})
+		mustErrorCode(t, err, clierrors.AuthMFARequired)
 	})
 
-	t.Run("invalid credentials with mfa", func(t *testing.T) {
+	t.Run("mfa invalid", func(t *testing.T) {
+		client := NewClient(testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: 403, Body: io.NopCloser(bytes.NewBufferString(`{"error_code":"TOTP_REQUIRED"}`))}, nil
+		}), "")
+		_, err := client.Authenticate(context.Background(), &Credentials{Email: "a@example.com", Password: "password", MFACode: "123456"})
+		mustErrorCode(t, err, clierrors.AuthMFAInvalid)
+	})
+
+	t.Run("unknown denial with mfa", func(t *testing.T) {
 		client := NewClient(testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 			return &http.Response{StatusCode: 401, Body: io.NopCloser(bytes.NewBufferString(""))}, nil
-		}))
-		_, err := client.Authenticate(context.Background(), Credentials{Email: "a@example.com", Password: "password", MFACode: "123456"})
-		mustErrContains(t, err, "invalid credentials or MFA code")
+		}), "")
+		_, err := client.Authenticate(context.Background(), &Credentials{Email: "a@example.com", Password: "password", MFACode: "123456"})
+		mustErrorCode(t, err, clierrors.AuthLoginFailed)
+	})
+
+	t.Run("invalid credentials", func(t *testing.T) {
+		client := NewClient(testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: 401, Body: io.NopCloser(bytes.NewBufferString(`{"detail":"invalid login"}`))}, nil
+		}), "")
+		_, err := client.Authenticate(context.Background(), &Credentials{Email: "a@example.com", Password: "password"})
+		mustErrorCode(t, err, clierrors.AuthLoginFailed)
+		mustErrContains(t, err, "invalid login")
+	})
+
+	t.Run("invalid credentials code", func(t *testing.T) {
+		client := NewClient(testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: 404, Body: io.NopCloser(bytes.NewBufferString(`{"error_code":"INVALID_CREDENTIALS"}`))}, nil
+		}), "")
+		_, err := client.Authenticate(context.Background(), &Credentials{Email: "a@example.com", Password: "password"})
+		mustErrorCode(t, err, clierrors.AuthLoginFailed)
+		mustErrContains(t, err, "invalid email or password")
 	})
 
 	t.Run("api error", func(t *testing.T) {
 		client := NewClient(testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 			return &http.Response{StatusCode: 500, Body: io.NopCloser(bytes.NewBufferString(""))}, nil
-		}))
-		_, err := client.Authenticate(context.Background(), Credentials{Email: "a@example.com", Password: "password", MFACode: "123456"})
+		}), "")
+		_, err := client.Authenticate(context.Background(), &Credentials{Email: "a@example.com", Password: "password", MFACode: "123456"})
 		mustErrContains(t, err, "API returned status 500")
 	})
 
 	t.Run("schema changed", func(t *testing.T) {
 		client := NewClient(testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
 			return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString("not-json"))}, nil
-		}))
-		_, err := client.Authenticate(context.Background(), Credentials{Email: "a@example.com", Password: "password", MFACode: "123456"})
+		}), "")
+		_, err := client.Authenticate(context.Background(), &Credentials{Email: "a@example.com", Password: "password", MFACode: "123456"})
 		mustErrContains(t, err, "failed to parse login response")
+	})
+
+	t.Run("missing token", func(t *testing.T) {
+		client := NewClient(testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString(`{}`))}, nil
+		}), "")
+		_, err := client.Authenticate(context.Background(), &Credentials{Email: "a@example.com", Password: "password"})
+		mustErrContains(t, err, "did not include a token")
 	})
 }
 
@@ -233,14 +306,23 @@ func testAuthenticateSuccessResponses(t *testing.T) {
 	t.Helper()
 
 	t.Run("success", func(t *testing.T) {
+		const deviceUUID = "7ebee331-91b5-4a70-8c6f-b28818f1a8cf"
 		client := NewClient(testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
 			body, _ := io.ReadAll(req.Body)
-			if !strings.Contains(string(body), `"username":"a@example.com"`) {
-				t.Errorf("request body = %q, want username", string(body))
+			for _, want := range []string{`"username":"a@example.com"`, `"supports_email_otp":true`} {
+				if !strings.Contains(string(body), want) {
+					t.Errorf("request body = %q, want %s", string(body), want)
+				}
+			}
+			if got := req.Header.Get("device-uuid"); got != deviceUUID {
+				t.Errorf("device-uuid = %q, want %q", got, deviceUUID)
+			}
+			if req.Header.Get("Origin") == "" || req.Header.Get("Referer") == "" || req.Header.Get("Accept") != "application/json" {
+				t.Errorf("login headers = %#v", req.Header)
 			}
 			return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString(`{"token":"token-123"}`))}, nil
-		}))
-		sess, err := client.Authenticate(context.Background(), Credentials{Email: "a@example.com", Password: "password", MFACode: "123456"})
+		}), deviceUUID)
+		sess, err := client.Authenticate(context.Background(), &Credentials{Email: "a@example.com", Password: "password", MFACode: "123456"})
 		if err != nil {
 			t.Fatalf("Authenticate() error = %v", err)
 		}
@@ -265,8 +347,8 @@ func testAuthenticateSuccessResponses(t *testing.T) {
 				t.Errorf("request body = %q, want totp", string(body))
 			}
 			return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString(`{"token":"token-456"}`))}, nil
-		}))
-		sess, err := client.Authenticate(context.Background(), Credentials{Email: "a@example.com", Password: "password", MFASecret: "JBSWY3DPEHPK3PXP"})
+		}), "")
+		sess, err := client.Authenticate(context.Background(), &Credentials{Email: "a@example.com", Password: "password", MFASecret: "JBSWY3DPEHPK3PXP"})
 		if err != nil {
 			t.Fatalf("Authenticate() error = %v", err)
 		}

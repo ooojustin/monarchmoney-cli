@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -30,6 +32,7 @@ func (a *App) buildAuthCommand() *cobra.Command {
 	var loginPassword string
 	var loginMFACode string
 	var loginMFASecret string
+	var loginEmailOTP string
 
 	authCommand := &cobra.Command{
 		Use:     "auth",
@@ -41,9 +44,22 @@ func (a *App) buildAuthCommand() *cobra.Command {
 	loginCommand := &cobra.Command{
 		Use:   "login",
 		Short: "Log in to Monarch Money",
+		Long:  "Log in to Monarch Money. New devices may require a code sent to the account email; TOTP-enabled accounts require an authenticator code.",
 		Run: func(cmd *cobra.Command, _ []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
+			input := bufio.NewScanner(cmd.InOrStdin())
+			readInput := func(prompt, field string) (string, *errors.Error) {
+				fmt.Fprint(cmd.ErrOrStderr(), prompt)
+				if !input.Scan() {
+					return "", errors.New(errors.InvalidArguments, field+" is required", errors.CatValidation, false, input.Err())
+				}
+				value := strings.TrimSpace(input.Text())
+				if value == "" {
+					return "", errors.New(errors.InvalidArguments, field+" is required", errors.CatValidation, false, nil)
+				}
+				return value, nil
+			}
 			if a.ConfigErr != nil {
 				a.handleError(renderer, "auth.login", errors.New(errors.InternalError, "failed to load config", errors.CatInternal, false, a.ConfigErr), start)
 				return
@@ -53,11 +69,13 @@ func (a *App) buildAuthCommand() *cobra.Command {
 			resolvedPassword := firstNonEmpty(loginPassword, a.Deps.Getenv("MONARCH_PASSWORD"))
 			resolvedMFACode := firstNonEmpty(loginMFACode, a.Deps.Getenv("MONARCH_MFA_CODE"))
 			resolvedMFASecret := firstNonEmpty(loginMFASecret, a.Deps.Getenv("MONARCH_MFA_SECRET"))
+			resolvedEmailOTP := firstNonEmpty(loginEmailOTP, a.Deps.Getenv("MONARCH_EMAIL_OTP"))
 
 			if resolvedEmail == "" {
-				fmt.Fprint(cmd.ErrOrStderr(), "Email: ")
-				if _, err := fmt.Fscan(cmd.InOrStdin(), &resolvedEmail); err != nil {
-					a.handleError(renderer, "auth.login", errors.New(errors.InvalidArguments, "failed to read email", errors.CatValidation, false, err), start)
+				var inputErr *errors.Error
+				resolvedEmail, inputErr = readInput("Email: ", "email")
+				if inputErr != nil {
+					a.handleError(renderer, "auth.login", inputErr, start)
 					return
 				}
 			}
@@ -73,21 +91,36 @@ func (a *App) buildAuthCommand() *cobra.Command {
 				resolvedPassword = string(passwordBytes)
 			}
 
-			client := auth.NewClient(a.Deps.HTTPTransport)
+			store := auth.NewStore(a.sessionPath())
+			deviceUUID, err := auth.LoadOrCreateDeviceUUID(a.sessionPath())
+			if err != nil {
+				a.handleError(renderer, "auth.login", errors.New(errors.InternalError, "failed to load device identity", errors.CatInternal, false, err), start)
+				return
+			}
+			client := auth.NewClient(a.Deps.HTTPTransport, deviceUUID)
 			credentials := auth.Credentials{
 				Email:     resolvedEmail,
 				Password:  resolvedPassword,
 				MFACode:   resolvedMFACode,
 				MFASecret: resolvedMFASecret,
+				EmailOTP:  resolvedEmailOTP,
 			}
-			sess, err := client.Authenticate(cmd.Context(), credentials)
-			if cliErr, ok := err.(*errors.Error); ok && cliErr.Code == errors.AuthMFARequired && !a.Flags.JSONMode {
-				fmt.Fprint(cmd.ErrOrStderr(), "MFA Code: ")
-				if _, scanErr := fmt.Fscan(cmd.InOrStdin(), &credentials.MFACode); scanErr != nil {
-					a.handleError(renderer, "auth.login", errors.New(errors.InvalidArguments, "failed to read MFA code", errors.CatValidation, false, scanErr), start)
+			sess, err := client.Authenticate(cmd.Context(), &credentials)
+			if cliErr, ok := err.(*errors.Error); ok && !a.Flags.JSONMode {
+				var inputErr *errors.Error
+				switch cliErr.Code {
+				case errors.AuthEmailOTPRequired:
+					credentials.EmailOTP, inputErr = readInput("Email Code: ", "email code")
+				case errors.AuthMFARequired:
+					credentials.MFACode, inputErr = readInput("MFA Code: ", "MFA code")
+				}
+				if inputErr != nil {
+					a.handleError(renderer, "auth.login", inputErr, start)
 					return
 				}
-				sess, err = client.Authenticate(cmd.Context(), credentials)
+				if credentials.EmailOTP != "" || credentials.MFACode != "" {
+					sess, err = client.Authenticate(cmd.Context(), &credentials)
+				}
 			}
 			if err != nil {
 				cliErr, ok := err.(*errors.Error)
@@ -99,7 +132,7 @@ func (a *App) buildAuthCommand() *cobra.Command {
 			}
 
 			sess.Profile = a.Flags.Profile
-			if err := auth.NewStore(a.sessionPath()).Save(sess); err != nil {
+			if err := store.Save(sess); err != nil {
 				a.handleError(renderer, "auth.login", errors.New(errors.InternalError, "failed to save session", errors.CatInternal, false, err), start)
 				return
 			}
@@ -126,6 +159,7 @@ func (a *App) buildAuthCommand() *cobra.Command {
 	loginCommand.Flags().StringVar(&loginPassword, "password", "", "password")
 	loginCommand.Flags().StringVar(&loginMFACode, "mfa-code", "", "6-digit MFA code")
 	loginCommand.Flags().StringVar(&loginMFASecret, "mfa-secret", "", "TOTP secret key for automatic MFA")
+	loginCommand.Flags().StringVar(&loginEmailOTP, "email-otp", "", "one-time code sent to the account email")
 
 	statusCommand := &cobra.Command{
 		Use:   "status",
@@ -139,7 +173,12 @@ func (a *App) buildAuthCommand() *cobra.Command {
 				return
 			}
 
-			identity, err := a.fetchIdentity(cmd.Context(), sess.Token)
+			deviceUUID, err := auth.LoadDeviceUUID(a.sessionPath())
+			if err != nil {
+				a.handleError(renderer, "auth.status", errors.New(errors.InternalError, "failed to load device identity", errors.CatInternal, false, err), start)
+				return
+			}
+			identity, err := a.fetchIdentity(cmd.Context(), sess.Token, deviceUUID)
 			if err != nil {
 				cliErr, ok := err.(*errors.Error)
 				if !ok {
@@ -209,7 +248,7 @@ func (a *App) buildAuthCommand() *cobra.Command {
 	return authCommand
 }
 
-func (a *App) fetchIdentity(ctx context.Context, token string) (*identityResult, error) {
+func (a *App) fetchIdentity(ctx context.Context, token, deviceUUID string) (*identityResult, error) {
 	if a.ConfigErr != nil {
 		return nil, errors.New(errors.InternalError, "failed to load config", errors.CatInternal, false, a.ConfigErr)
 	}
@@ -217,7 +256,13 @@ func (a *App) fetchIdentity(ctx context.Context, token string) (*identityResult,
 		return nil, errors.New(errors.InternalError, "configuration not initialized", errors.CatInternal, false, nil)
 	}
 
-	client := graphql.NewClient(a.Config.APIEndpoint, token, a.Flags.Timeout, graphql.WithHTTPTransport(a.Deps.HTTPTransport))
+	client := graphql.NewClient(
+		a.Config.APIEndpoint,
+		token,
+		a.Flags.Timeout,
+		graphql.WithHTTPTransport(a.Deps.HTTPTransport),
+		graphql.WithDeviceUUID(deviceUUID),
+	)
 	var response struct {
 		Me struct {
 			Email string `json:"email"`

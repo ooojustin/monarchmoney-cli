@@ -16,6 +16,7 @@ func (a *App) buildDoctorCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:     "doctor",
 		Short:   "Check local configuration and connectivity",
+		Long:    "Check local configuration, session and device identity state, and optional API connectivity.",
 		GroupID: "utility",
 		Example: "  monarch doctor",
 		Run: func(cmd *cobra.Command, _ []string) {
@@ -44,7 +45,7 @@ func (a *App) buildDoctorCommand() *cobra.Command {
 			fmt.Fprintf(cmd.OutOrStdout(), "Version: %s\n", result.Version)
 			fmt.Fprintf(cmd.OutOrStdout(), "OS/Arch: %s/%s\n", result.OS, result.Arch)
 			fmt.Fprintf(cmd.OutOrStdout(), "Config Path: %s (Exists: %v, Valid: %v)\n", result.Config.Path, result.Config.Exists, result.Config.Valid)
-			fmt.Fprintf(cmd.OutOrStdout(), "Session Path: %s (Exists: %v, Auth: %v, PermOK: %v)\n", result.Session.Path, result.Session.Exists, result.Session.Authenticated, result.Session.PermissionOK)
+			fmt.Fprintf(cmd.OutOrStdout(), "Session Path: %s (Exists: %v, Auth: %v, PermOK: %v, DeviceIDValid: %v)\n", result.Session.Path, result.Session.Exists, result.Session.Authenticated, result.Session.PermissionOK, result.Session.DeviceIDValid)
 			if checkConnectivity {
 				fmt.Fprintf(cmd.OutOrStdout(), "API Connected: %v\n", result.Network.APIReachable)
 			}

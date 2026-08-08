@@ -39,12 +39,13 @@
     "path": "/path/to/session.json",
     "exists": true,
     "authenticated": true,
-    "permission_ok": true
+    "permission_ok": true,
+    "device_id_valid": true
   }
 }
 ```
 
-A missing optional config file has `exists: false` and `valid: true`; a config read or parse failure has `valid: false`.
+A missing optional config file has `exists: false` and `valid: true`; a config read or parse failure has `valid: false`. `session.device_id_valid` reports whether the persisted trusted-device identifier is absent or valid; a malformed identifier prevents `doctor --connect` from making a misleading probe without it.
 
 ## Error Envelope
 
@@ -72,6 +73,7 @@ A missing optional config file has `exists: false` and `valid: true`; a config r
 - `error.category`: High-level error grouping (`auth`, `network`, `api`, `validation`, `safety`, `internal`).
 - `error.retryable`: Boolean indicating if the operation can be safely retried.
 - `error.retry_after_ms`: Present on `RATE_LIMITED` and retryable 5xx errors when the server supplies a `Retry-After` header. Milliseconds to wait before retrying.
+- Login challenge codes distinguish rejected credentials (`AUTH_LOGIN_FAILED`), email verification (`AUTH_EMAIL_OTP_REQUIRED`, `AUTH_EMAIL_OTP_INVALID`), and authenticator MFA (`AUTH_MFA_REQUIRED`, `AUTH_MFA_INVALID`).
 
 ## Exit Codes
 
@@ -84,7 +86,10 @@ The process exit code is derived from `error.code` (see `internal/errors`). A su
 | 1 | `RESOURCE_NOT_FOUND` | api |
 | 2 | `INVALID_ARGUMENTS` | validation |
 | 3 | `AUTH_REQUIRED` | auth |
+| 3 | `AUTH_LOGIN_FAILED` | auth |
 | 3 | `AUTH_SESSION_EXPIRED` | auth |
+| 3 | `AUTH_EMAIL_OTP_REQUIRED` | auth |
+| 3 | `AUTH_EMAIL_OTP_INVALID` | auth |
 | 3 | `AUTH_MFA_REQUIRED` | auth |
 | 3 | `AUTH_MFA_INVALID` | auth |
 | 4 | `READ_ONLY_VIOLATION` | safety |

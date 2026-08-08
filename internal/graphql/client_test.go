@@ -37,16 +37,19 @@ func TestNewClientUsesInjectedTransport(t *testing.T) {
 	}
 }
 
-func TestTokenValue(t *testing.T) {
-	client := NewClient("https://example.invalid/graphql", "token", time.Second)
+func TestCredentialValues(t *testing.T) {
+	client := NewClient("https://example.invalid/graphql", "token", time.Second, WithDeviceUUID("device-123"))
 	if got := client.TokenValue(); got != "token" {
 		t.Fatalf("TokenValue() = %q, want %q", got, "token")
+	}
+	if got := client.DeviceUUIDValue(); got != "device-123" {
+		t.Fatalf("DeviceUUIDValue() = %q, want %q", got, "device-123")
 	}
 }
 
 func TestDoSuccessAndHeaders(t *testing.T) {
 	var gotReq *http.Request
-	client := NewClient("https://example.invalid/graphql", "abc123", time.Second)
+	client := NewClient("https://example.invalid/graphql", "abc123", time.Second, WithDeviceUUID("device-123"))
 	client.HTTP = &http.Client{Transport: testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		gotReq = req
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString(`{"data":{"foo":"bar"}}`))}, nil
@@ -73,6 +76,9 @@ func TestDoSuccessAndHeaders(t *testing.T) {
 	}
 	if got := gotReq.Header.Get("User-Agent"); got != UserAgent() {
 		t.Fatalf("User-Agent = %q, want %q", got, UserAgent())
+	}
+	if got := gotReq.Header.Get("device-uuid"); got != "device-123" {
+		t.Fatalf("device-uuid = %q, want device-123", got)
 	}
 }
 

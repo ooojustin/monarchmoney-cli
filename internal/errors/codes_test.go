@@ -11,9 +11,12 @@ func TestCodeConstants(t *testing.T) {
 		expected string
 	}{
 		{"AuthRequired", AuthRequired, "AUTH_REQUIRED"},
+		{"AuthLoginFailed", AuthLoginFailed, "AUTH_LOGIN_FAILED"},
 		{"AuthSessionExpired", AuthSessionExpired, "AUTH_SESSION_EXPIRED"},
 		{"AuthMFARequired", AuthMFARequired, "AUTH_MFA_REQUIRED"},
 		{"AuthMFAInvalid", AuthMFAInvalid, "AUTH_MFA_INVALID"},
+		{"AuthEmailOTPRequired", AuthEmailOTPRequired, "AUTH_EMAIL_OTP_REQUIRED"},
+		{"AuthEmailOTPInvalid", AuthEmailOTPInvalid, "AUTH_EMAIL_OTP_INVALID"},
 		{"NetworkUnreachable", NetworkUnreachable, "NETWORK_UNREACHABLE"},
 		{"NetworkTimeout", NetworkTimeout, "NETWORK_TIMEOUT"},
 		{"RateLimited", RateLimited, "RATE_LIMITED"},

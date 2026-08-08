@@ -47,6 +47,10 @@ func TestCheckWithSessionAndConnectivity(t *testing.T) {
 	if err := auth.NewStore(sessionPath).Save(sess); err != nil {
 		t.Fatalf("Save() session error = %v", err)
 	}
+	deviceUUID, err := auth.LoadOrCreateDeviceUUID(sessionPath)
+	if err != nil {
+		t.Fatalf("LoadOrCreateDeviceUUID() error = %v", err)
+	}
 	if err := os.Chmod(sessionPath, 0o644); err != nil {
 		t.Fatalf("Chmod() error = %v", err)
 	}
@@ -54,6 +58,9 @@ func TestCheckWithSessionAndConnectivity(t *testing.T) {
 	transport := testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		if req.URL.String() != apiEndpoint {
 			t.Fatalf("request URL = %q, want %q", req.URL.String(), apiEndpoint)
+		}
+		if got := req.Header.Get("device-uuid"); got != deviceUUID {
+			t.Fatalf("device-uuid = %q, want %q", got, deviceUUID)
 		}
 		body, _ := io.ReadAll(req.Body)
 		if !bytes.Contains(body, []byte("GetIdentity")) {
@@ -70,8 +77,40 @@ func TestCheckWithSessionAndConnectivity(t *testing.T) {
 		Timeout:       time.Second,
 		HTTPTransport: transport,
 	})
-	if !res.Config.Exists || !res.Config.Valid || !res.Session.Exists || !res.Session.Authenticated || res.Session.PermissionOK || !res.Network.APIReachable {
+	if !res.Config.Exists || !res.Config.Valid || !res.Session.Exists || !res.Session.Authenticated || res.Session.PermissionOK || !res.Session.DeviceIDValid || !res.Network.APIReachable {
 		t.Fatalf("Check() returned unexpected state: %#v", res)
+	}
+}
+
+func TestCheckRejectsInvalidDeviceIdentity(t *testing.T) {
+	sessionPath := filepath.Join(t.TempDir(), "session.json")
+	if err := auth.NewStore(sessionPath).Save(&auth.Session{Token: "token-123"}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	if err := os.WriteFile(auth.DevicePath(sessionPath), []byte("invalid\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	res := Check(context.Background(), &Options{
+		Connect:     true,
+		ConfigPath:  filepath.Join(t.TempDir(), "config.yaml"),
+		SessionPath: sessionPath,
+		APIEndpoint: "https://example.invalid/graphql",
+		Timeout:     time.Second,
+		HTTPTransport: testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+			t.Fatal("invalid device identity must prevent connectivity request")
+			return nil, nil
+		}),
+	})
+	if !res.Session.Authenticated || res.Session.DeviceIDValid || res.Network.APIReachable {
+		t.Fatalf("Check() returned unexpected state: %#v", res)
+	}
+	data, err := json.Marshal(res)
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	if bytes.Count(data, []byte(`"device_id_valid"`)) != 1 {
+		t.Fatalf("device_id_valid must appear only in session report: %s", data)
 	}
 }
 
