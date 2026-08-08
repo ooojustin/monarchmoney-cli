@@ -9,8 +9,8 @@ import (
 )
 
 func TestSchemaVersion(t *testing.T) {
-	if SchemaVersion != "2026-08-07" {
-		t.Fatalf("SchemaVersion = %q, want 2026-08-07", SchemaVersion)
+	if SchemaVersion != "2026-08-08" {
+		t.Fatalf("SchemaVersion = %q, want 2026-08-08", SchemaVersion)
 	}
 }
 
