@@ -18,13 +18,12 @@ var nonMonetaryJSONKeys = map[string]struct{}{
 	"return_percent":       {},
 	"quantity":             {},
 	"current_price":        {},
-	"count":                {},
-	"total":                {},
-	"transaction_total":    {},
-	"account_count":        {},
-	"order":                {},
-	"transactions_count":   {},
-	"holdings_count":       {},
+}
+
+func TestMoneyInvariantDoesNotExcludeGenericTotals(t *testing.T) {
+	if _, excluded := nonMonetaryJSONKeys["total"]; excluded {
+		t.Fatal("generic total fields must be checked as monetary values")
+	}
 }
 
 func decimalPlaces(number json.Number) int {
@@ -122,6 +121,41 @@ func TestJSONMoneyFieldsCarryAtMostTwoDecimals(t *testing.T) {
 			args: []string{"--json", "cashflow", "spending", "--from", "2026-05-01", "--to", "2026-05-31"},
 			payloads: map[string]string{
 				"GetCashflowCategories": `{"data":{"aggregates":[{"groupBy":{"category":{"id":"c1","name":"Food"}},"summary":{"sum":-28.560000000000002}},{"groupBy":{"category":{"id":"c2","name":"Pay"}},"summary":{"sum":107150.61000000002}}]}}`,
+			},
+		},
+		{
+			name: "category rollover",
+			args: []string{"--json", "categories", "rollover", "c1"},
+			payloads: map[string]string{
+				"GetCategoryRollover": `{"data":{"category":{"id":"c1","name":"Food","rolloverPeriod":{"startMonth":"2026-01-01","startingBalance":100.10000000000001,"targetAmount":500.50000000000006}}}}`,
+			},
+		},
+		{
+			name: "investment performance values",
+			args: []string{"--json", "investments", "performance", "--security-id", "s1", "--from", "2026-05-01", "--to", "2026-05-02", "--values"},
+			payloads: map[string]string{
+				"Web_GetInvestmentsHoldingDrawerHistoricalPerformance": `{"data":{"securityHistoricalPerformance":[{"security":{"id":"s1","ticker":"ACME","name":"Acme"},"historicalChart":[{"date":"2026-05-01","returnPercent":0.1234567,"value":159.92000000000002}]}]}}`,
+			},
+		},
+		{
+			name: "recent balances",
+			args: []string{"--json", "accounts", "recent-balances", "--from", "2026-05-01"},
+			payloads: map[string]string{
+				"GetAccountRecentBalances": `{"data":{"accounts":[{"id":"a1","displayName":"Checking","type":{"group":"asset"},"recentBalances":[159.92000000000002]}]}}`,
+			},
+		},
+		{
+			name: "snapshots by account type",
+			args: []string{"--json", "accounts", "snapshots", "--from", "2026-05-01"},
+			payloads: map[string]string{
+				"GetSnapshotsByAccountType": `{"data":{"snapshotsByAccountType":[{"accountType":"bank","month":"2026-05","balance":159.92000000000002}],"accountTypes":[{"name":"bank","group":"asset"}]}}`,
+			},
+		},
+		{
+			name: "aggregate snapshots",
+			args: []string{"--json", "accounts", "aggregate-snapshots", "--from", "2026-05-01", "--to", "2026-05-02"},
+			payloads: map[string]string{
+				"GetAggregateSnapshots": `{"data":{"aggregateSnapshots":[{"date":"2026-05-01","balance":159.92000000000002}]}}`,
 			},
 		},
 		{

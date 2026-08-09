@@ -253,8 +253,9 @@ func (s *Service) GetSecurityPerformance(ctx context.Context, opts SecurityPerfo
 				Date:          point.Date,
 				ReturnPercent: point.ReturnPercent,
 			}
-			if opts.IncludeValues {
-				outPoint.Value = point.Value
+			if opts.IncludeValues && point.Value != nil {
+				value := money.Round2(*point.Value)
+				outPoint.Value = &value
 			}
 			performance.HistoricalChart = append(performance.HistoricalChart, outPoint)
 		}

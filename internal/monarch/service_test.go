@@ -281,12 +281,13 @@ func testServiceAccountsCoreHistoryPaths(t *testing.T) {
 	})
 
 	t.Run("recent balances", func(t *testing.T) {
-		runGraphQLCase(t, "GetAccountRecentBalances", map[string]any{"startDate": "2026-05-01"}, `{"accounts":[{"id":"acc-1","displayName":"Checking","type":{"group":"asset"},"recentBalances":[1,2,3]}]}`, func(s *Service) error {
+		runGraphQLCase(t, "GetAccountRecentBalances", map[string]any{"startDate": "2026-05-01"}, `{"accounts":[{"id":"acc-1","displayName":"Checking","type":{"group":"asset"},"recentBalances":[1.2300000000000002,2,3]}]}`, func(s *Service) error {
 			got, err := s.GetAccountRecentBalances(context.Background(), "2026-05-01")
 			mustNoErr(t, err)
 			mustLen(t, got, 1)
 			eq(t, "Checking", got[0].DisplayName)
 			eq(t, "asset", got[0].AccountTypeGroup)
+			eq(t, 1.23, got[0].RecentBalances[0])
 			mustNotNil(t, got[0].RecentBalances)
 			return nil
 		})
@@ -311,20 +312,22 @@ func testServiceAccountsCoreSnapshotPaths(t *testing.T) {
 	t.Helper()
 
 	t.Run("snapshots by type", func(t *testing.T) {
-		runGraphQLCase(t, "GetSnapshotsByAccountType", map[string]any{"startDate": "2026-05-01", "timeframe": "month"}, `{"snapshotsByAccountType":[{"accountType":"bank","month":"2026-05","balance":1}],"accountTypes":[{"name":"bank","group":"asset"}]}`, func(s *Service) error {
+		runGraphQLCase(t, "GetSnapshotsByAccountType", map[string]any{"startDate": "2026-05-01", "timeframe": "month"}, `{"snapshotsByAccountType":[{"accountType":"bank","month":"2026-05","balance":1.2300000000000002}],"accountTypes":[{"name":"bank","group":"asset"}]}`, func(s *Service) error {
 			got, err := s.GetSnapshotsByAccountType(context.Background(), "2026-05-01", "month")
 			mustNoErr(t, err)
 			b, _ := json.Marshal(got)
-			hasSubstr(t, string(b), "snapshotsByAccountType")
+			eq(t, `{"snapshotsByAccountType":[{"accountType":"bank","month":"2026-05","balance":1.23}],"accountTypes":[{"name":"bank","group":"asset"}]}`, string(b))
 			return nil
 		})
 	})
 
 	t.Run("aggregate snapshots", func(t *testing.T) {
-		runGraphQLCase(t, "GetAggregateSnapshots", map[string]any{"filters": map[string]any{"startDate": "2026-05-01", "endDate": "2026-05-31", "accountType": "bank"}}, `{"aggregateSnapshots":[{"date":"2026-05-01","balance":1}]}`, func(s *Service) error {
+		runGraphQLCase(t, "GetAggregateSnapshots", map[string]any{"filters": map[string]any{"startDate": "2026-05-01", "endDate": "2026-05-31", "accountType": "bank"}}, `{"aggregateSnapshots":[{"date":"2026-05-01","balance":1.2300000000000002}]}`, func(s *Service) error {
 			got, err := s.GetAggregateSnapshots(context.Background(), "2026-05-01", "2026-05-31", "bank")
 			mustNoErr(t, err)
 			mustLen(t, got, 1)
+			b, _ := json.Marshal(got)
+			eq(t, `[{"date":"2026-05-01","balance":1.23}]`, string(b))
 			return nil
 		})
 	})
@@ -587,13 +590,14 @@ func testServiceTagAndCategoryCRUDPaths(t *testing.T) {
 	})
 
 	t.Run("get category rollover", func(t *testing.T) {
-		runGraphQLCase(t, "GetCategoryRollover", map[string]any{"id": "c1"}, `{"category":{"id":"c1","name":"Food","rolloverPeriod":{"id":"rp1","startMonth":"2026-01-01","startingBalance":100,"type":"monthly","frequency":"monthly","targetAmount":500}}}`, func(s *Service) error {
+		runGraphQLCase(t, "GetCategoryRollover", map[string]any{"id": "c1"}, `{"category":{"id":"c1","name":"Food","rolloverPeriod":{"id":"rp1","startMonth":"2026-01-01","startingBalance":100.10000000000001,"type":"monthly","frequency":"monthly","targetAmount":500.50000000000006}}}`, func(s *Service) error {
 			got, err := s.GetCategoryRollover(context.Background(), "c1")
 			mustNoErr(t, err)
 			mustNotNil(t, got)
 			eq(t, "Food", got.Name)
 			eq(t, "2026-01-01", got.StartMonth)
-			eq(t, 100.0, got.StartingBalance)
+			eq(t, 100.1, got.StartingBalance)
+			eq(t, 500.5, got.TargetAmount)
 			return nil
 		})
 	})
@@ -894,14 +898,14 @@ func TestServiceInvestments(t *testing.T) {
 	})
 
 	t.Run("security performance", func(t *testing.T) {
-		runGraphQLCase(t, "Web_GetInvestmentsHoldingDrawerHistoricalPerformance", map[string]any{"input": map[string]any{"securityIds": []string{"sec-1"}, "startDate": "2026-01-01", "endDate": "2026-05-10"}}, `{"securityHistoricalPerformance":[{"security":{"id":"sec-1","ticker":"ABC","name":"ABC Fund"},"historicalChart":[{"date":"2026-01-01","returnPercent":0.1,"value":100}]}]}`, func(s *Service) error {
+		runGraphQLCase(t, "Web_GetInvestmentsHoldingDrawerHistoricalPerformance", map[string]any{"input": map[string]any{"securityIds": []string{"sec-1"}, "startDate": "2026-01-01", "endDate": "2026-05-10"}}, `{"securityHistoricalPerformance":[{"security":{"id":"sec-1","ticker":"ABC","name":"ABC Fund"},"historicalChart":[{"date":"2026-01-01","returnPercent":0.1,"value":100.10000000000001}]}]}`, func(s *Service) error {
 			got, err := s.GetSecurityPerformance(context.Background(), SecurityPerformanceOptions{SecurityIDs: []string{"sec-1"}, StartDate: "2026-01-01", EndDate: "2026-05-10", IncludeValues: true})
 			mustNoErr(t, err)
 			mustLen(t, got, 1)
 			eq(t, "ABC", got[0].Security.Ticker)
 			mustLen(t, got[0].HistoricalChart, 1)
 			mustNotNil(t, got[0].HistoricalChart[0].Value)
-			eq(t, 100.0, *got[0].HistoricalChart[0].Value)
+			eq(t, 100.1, *got[0].HistoricalChart[0].Value)
 			return nil
 		})
 	})
@@ -1253,13 +1257,6 @@ func isTrue(t *testing.T, cond bool) {
 	t.Helper()
 	if !cond {
 		t.Error("got false, want true")
-	}
-}
-
-func hasSubstr(t *testing.T, s, sub string) {
-	t.Helper()
-	if !strings.Contains(s, sub) {
-		t.Errorf("%q does not contain %q", s, sub)
 	}
 }
 

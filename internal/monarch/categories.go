@@ -8,6 +8,7 @@ import (
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
+	"github.com/thedavidweng/monarchmoney-cli/internal/money"
 	"github.com/thedavidweng/monarchmoney-cli/queries"
 )
 
@@ -283,10 +284,10 @@ func (s *Service) GetCategoryRollover(ctx context.Context, categoryID string) (*
 	r := &CategoryRollover{ID: resp.Category.ID, Name: resp.Category.Name}
 	if resp.Category.RolloverPeriod != nil {
 		r.StartMonth = resp.Category.RolloverPeriod.StartMonth
-		r.StartingBalance = resp.Category.RolloverPeriod.StartingBalance
+		r.StartingBalance = money.Round2(resp.Category.RolloverPeriod.StartingBalance)
 		r.Type = resp.Category.RolloverPeriod.Type
 		r.Frequency = resp.Category.RolloverPeriod.Frequency
-		r.TargetAmount = resp.Category.RolloverPeriod.TargetAmount
+		r.TargetAmount = money.Round2(resp.Category.RolloverPeriod.TargetAmount)
 	}
 	return r, nil
 }

@@ -16,7 +16,7 @@ Every monetary amount the CLI emits is rounded to two decimal places at the poin
 
 Rounding applies to values Monarch reports as well as values the CLI computes. An artifact on the wire is a representation error, not a figure the provider intends, so rounding it is more faithful to the reported amount than preserving it.
 
-Sums are accumulated at full precision and rounded once, where the total is emitted. Rounding inside an accumulation loop would compound error across every transaction.
+Locally computed sums accumulate their available input values and are rounded once where the total is emitted. Service-layer monetary fields are already rounded when another command consumes them, which keeps aggregates equal to the values exposed by their source command.
 
 `internal/money` owns the helper. It is reachable from the service layer, the command layer, and the analysis layer, and it names the output policy rather than any one of them.
 
@@ -25,7 +25,7 @@ Rounding is applied per assignment rather than by a transform over the encoded p
 ## Consequences
 
 - No monetary field in JSON output carries more than two decimal places, whichever layer produced it.
-- A regression test walks emitted payloads and fails on any numeric leaf with more than two decimals, except for an explicit set of non-monetary keys. That set is the reviewable statement of what is not money, and new monetary fields are covered without being enumerated.
+- A regression test walks emitted payloads and fails on any numeric leaf with more than two decimals, except for an explicit set of non-monetary floating-point keys. Integers and counts need no exception because they carry no fractional precision. The set is the reviewable statement of what is not money, and new monetary fields are covered without being enumerated.
 - Values that Monarch reports with representation artifacts no longer match Monarch's bytes exactly.
 - Holding quantities stay unrounded, so a cash holding, whose quantity is denominated in currency rather than shares, can still carry an artifact. Rounding quantities would truncate fractional share counts, which is the larger loss.
 - Adding a monetary field to a response requires rounding it at the assignment. Omitting that is caught by the regression test rather than by a reader.

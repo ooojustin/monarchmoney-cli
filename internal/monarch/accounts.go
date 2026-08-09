@@ -67,10 +67,10 @@ type Account struct {
 }
 
 type AccountRecentBalance struct {
-	ID               string `json:"id"`
-	DisplayName      string `json:"display_name"`
-	AccountTypeGroup string `json:"account_type_group"`
-	RecentBalances   any    `json:"recent_balances"`
+	ID               string    `json:"id"`
+	DisplayName      string    `json:"display_name"`
+	AccountTypeGroup string    `json:"account_type_group"`
+	RecentBalances   []float64 `json:"recent_balances"`
 }
 
 type AccountBalanceAt struct {
@@ -304,7 +304,7 @@ func (s *Service) GetAccountRecentBalances(ctx context.Context, startDate string
 			Type        struct {
 				Group string `json:"group"`
 			} `json:"type"`
-			RecentBalances any `json:"recentBalances"`
+			RecentBalances []float64 `json:"recentBalances"`
 		} `json:"accounts"`
 	}
 
@@ -320,11 +320,15 @@ func (s *Service) GetAccountRecentBalances(ctx context.Context, startDate string
 
 	out := make([]AccountRecentBalance, len(resp.Accounts))
 	for i, a := range resp.Accounts {
+		balances := make([]float64, len(a.RecentBalances))
+		for j, balance := range a.RecentBalances {
+			balances[j] = money.Round2(balance)
+		}
 		out[i] = AccountRecentBalance{
 			ID:               a.ID,
 			DisplayName:      a.DisplayName,
 			AccountTypeGroup: a.Type.Group,
-			RecentBalances:   a.RecentBalances,
+			RecentBalances:   balances,
 		}
 	}
 
@@ -401,6 +405,9 @@ func (s *Service) GetSnapshotsByAccountType(ctx context.Context, startDate, time
 	if err != nil {
 		return nil, err
 	}
+	for i := range resp.SnapshotsByAccountType {
+		resp.SnapshotsByAccountType[i].Balance = money.Round2(resp.SnapshotsByAccountType[i].Balance)
+	}
 
 	return resp, nil
 }
@@ -432,6 +439,9 @@ func (s *Service) GetAggregateSnapshots(ctx context.Context, startDate, endDate,
 
 	if err != nil {
 		return nil, err
+	}
+	for i := range resp.AggregateSnapshots {
+		resp.AggregateSnapshots[i].Balance = money.Round2(resp.AggregateSnapshots[i].Balance)
 	}
 
 	return resp.AggregateSnapshots, nil
