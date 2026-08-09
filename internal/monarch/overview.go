@@ -68,7 +68,7 @@ func (s *Service) GetFinancialOverview(ctx context.Context, startDate, endDate s
 	}
 
 	return &FinancialOverview{
-		AsOf:             time.Now().UTC().Format(time.RFC3339),
+		AsOf:             time.Now().Format(time.RFC3339),
 		StartDate:        startDate,
 		EndDate:          endDate,
 		NetWorth:         money.Round2(netWorth),
