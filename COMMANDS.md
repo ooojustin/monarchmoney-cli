@@ -33,7 +33,7 @@
 - `monarch accounts show <id>`: Show detailed account info.
 - `monarch accounts types`: List available account types.
 - `monarch accounts balance-at --date YYYY-MM-DD`: Get account balances as of a specific date.
-- `monarch accounts history <id>`: Get balance history with `--from`/`--to`.
+- `monarch accounts history <id>`: Get balance history with `--from`/`--to`; defaults to one year ago through today.
 - `monarch accounts holdings <id>`: List investment holdings.
 - `monarch accounts aggregate-snapshots`: Get net worth history over time.
 - `monarch accounts snapshots`: Get net worth by account type.

@@ -22,7 +22,7 @@ Commands validate the resolved pair rather than the typed flags. A lone `--to`, 
 
 The window follows the user's calendar day, not UTC. Deriving it from a UTC clock would end the default window on tomorrow's date for anyone west of Greenwich during their evening, which is the same class of silent substitution this decision removes. The helper takes the current time as a parameter so a test can pin the behaviour at an hour where the two dates disagree.
 
-Services perform no date defaulting. They query the range the command layer resolved.
+Services perform no date defaulting. They query the range the command layer resolved. The account-history command defaults to one year ago through today because its upstream series is a bounded lookback rather than a current-month report.
 
 A response scoped to a date range reports the range it used, for humans and in JSON.
 
@@ -36,5 +36,6 @@ Commands whose empty date already means "no filter" keep passing it through: the
 - One resolution rule covers six commands, so changing the default window is one edit rather than six.
 - `overview` with no flags ends at today rather than at the end of the current month. No emitted figure changes.
 - The default end date is a local calendar date. A test fixture set in the evening of a western time zone pins it, because the failure it prevents is invisible for most of the day.
-- Callers of the service package resolve their own dates. Passing an empty bound sends an empty bound.
+- Callers of the service package resolve their own dates. Account history requires both bounds; transaction filters preserve an empty bound as no filter.
+- Monarch's account `recentBalances` response contains values without dates. The series ends on the caller's current local date and may omit days before an account's first balance, so account history assigns dates backward from today before applying the requested inclusive range.
 - An ADR whose central decision still holds is corrected in place rather than superseded. ADR 0007's statement of the overview default now points here.

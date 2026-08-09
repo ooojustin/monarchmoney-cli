@@ -162,12 +162,19 @@ func (s *Service) GetAccountHistory(ctx context.Context, accountID, startDate, e
 		} `json:"account"`
 	}
 
-	if startDate == "" {
-		startDate = time.Now().UTC().AddDate(-1, 0, 0).Format(dateLayout)
+	if startDate == "" || endDate == "" {
+		return nil, errors.New(errors.InvalidArguments, "account history requires start and end dates", errors.CatValidation, false, nil)
 	}
-	start, parseErr := time.Parse(dateLayout, startDate)
+	start, parseErr := time.ParseInLocation(dateLayout, startDate, time.Local)
 	if parseErr != nil {
 		return nil, errors.New(errors.InvalidArguments, "--from must use YYYY-MM-DD", errors.CatValidation, false, parseErr)
+	}
+	end, parseErr := time.ParseInLocation(dateLayout, endDate, time.Local)
+	if parseErr != nil {
+		return nil, errors.New(errors.InvalidArguments, "--to must use YYYY-MM-DD", errors.CatValidation, false, parseErr)
+	}
+	if start.After(end) {
+		return nil, errors.New(errors.InvalidArguments, "start date must not be after end date", errors.CatValidation, false, nil)
 	}
 
 	err := s.Client.Do(ctx, &graphql.Request{
@@ -184,13 +191,16 @@ func (s *Service) GetAccountHistory(ctx context.Context, accountID, startDate, e
 		return nil, errors.New(errors.ResourceNotFound, fmt.Sprintf("account %s not found", accountID), errors.CatAPI, false, nil)
 	}
 
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	firstDate := today.AddDate(0, 0, -len(resp.Account.RecentBalances)+1)
 	history := []HistoryRecord{}
 	for i, balance := range resp.Account.RecentBalances {
-		date := start.AddDate(0, 0, i).Format(dateLayout)
-		if endDate != "" && date > endDate {
-			break
+		date := firstDate.AddDate(0, 0, i)
+		if date.Before(start) || date.After(end) {
+			continue
 		}
-		history = append(history, HistoryRecord{Date: date, Amount: money.Round2(balance)})
+		history = append(history, HistoryRecord{Date: date.Format(dateLayout), Amount: money.Round2(balance)})
 	}
 
 	return history, nil

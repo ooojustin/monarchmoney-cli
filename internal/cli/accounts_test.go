@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/audit"
 	"github.com/thedavidweng/monarchmoney-cli/internal/auth"
@@ -132,6 +133,37 @@ func TestAccountsHoldingsRequiresAccountID(t *testing.T) {
 	}
 	if h.ExitCode != 2 || !strings.Contains(h.Stdout.String(), `"INVALID_ARGUMENTS"`) || !strings.Contains(h.Stdout.String(), "accepts 1 arg") {
 		t.Fatalf("exitCode = %d; output=%q, want JSON argument error", h.ExitCode, h.Stdout.String())
+	}
+}
+
+func TestAccountsHistoryResolvesDefaultRange(t *testing.T) {
+	now := time.Now()
+	wantFrom := now.AddDate(-1, 0, 0).Format(dateFlagLayout)
+	wantTo := now.Format(dateFlagLayout)
+	h := newJSONCommandHarness(t, testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		var gqlReq struct {
+			OperationName string         `json:"operationName"`
+			Variables     map[string]any `json:"variables"`
+		}
+		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
+			t.Fatalf("Decode request error = %v", err)
+		}
+		if gqlReq.OperationName != "GetAccountHistory" || gqlReq.Variables["startDate"] != wantFrom {
+			t.Fatalf("request = %#v, want startDate %s", gqlReq, wantFrom)
+		}
+		return testutil.JSONResponse(`{"data":{"account":{"id":"acc-1","recentBalances":[12.345]}}}`), nil
+	}))
+
+	if err := h.execute("--json", "accounts", "history", "acc-1"); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if h.ExitCode != 0 {
+		t.Fatalf("exitCode = %d; output=%q", h.ExitCode, h.Stdout.String())
+	}
+	for _, want := range []string{`"command":"accounts.history"`, `"date":"` + wantTo + `"`, `"amount":12.35`} {
+		if !strings.Contains(h.Stdout.String(), want) {
+			t.Fatalf("output = %q, want %s", h.Stdout.String(), want)
+		}
 	}
 }
 

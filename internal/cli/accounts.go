@@ -173,7 +173,16 @@ func (a *App) buildAccountsHistoryCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			if err := validateDateRange(from, to); err != nil {
+			now := time.Now()
+			resolvedFrom := from
+			if resolvedFrom == "" {
+				resolvedFrom = now.AddDate(-1, 0, 0).Format(dateFlagLayout)
+			}
+			resolvedTo := to
+			if resolvedTo == "" {
+				resolvedTo = now.Format(dateFlagLayout)
+			}
+			if err := validateDateRange(resolvedFrom, resolvedTo); err != nil {
 				a.handleError(renderer, "accounts.history", err, start)
 				return
 			}
@@ -184,7 +193,7 @@ func (a *App) buildAccountsHistoryCommand() *cobra.Command {
 				return
 			}
 
-			history, err := svc.GetAccountHistory(cmd.Context(), args[0], from, to)
+			history, err := svc.GetAccountHistory(cmd.Context(), args[0], resolvedFrom, resolvedTo)
 			if err != nil {
 				a.handleError(renderer, "accounts.history", wrapError(err, "failed to get history"), start)
 				return
@@ -202,8 +211,8 @@ func (a *App) buildAccountsHistoryCommand() *cobra.Command {
 			}
 		},
 	}
-	cmd.Flags().StringVar(&from, "from", "", "start date (YYYY-MM-DD)")
-	cmd.Flags().StringVar(&to, "to", "", "end date (YYYY-MM-DD)")
+	cmd.Flags().StringVar(&from, "from", "", "start date (YYYY-MM-DD, defaults to one year ago)")
+	cmd.Flags().StringVar(&to, "to", "", "end date (YYYY-MM-DD, defaults to today)")
 	return cmd
 }
 

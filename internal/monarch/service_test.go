@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	clierrors "github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
@@ -264,13 +265,16 @@ func testServiceAccountsCoreHistoryPaths(t *testing.T) {
 	})
 
 	t.Run("account history", func(t *testing.T) {
-		runGraphQLCase(t, "GetAccountHistory", map[string]any{"id": "acc-1", "startDate": "2026-05-01"}, `{"account":{"id":"acc-1","recentBalances":[10,11,12]}}`, func(s *Service) error {
-			got, err := s.GetAccountHistory(context.Background(), "acc-1", "2026-05-01", "2026-05-31")
+		now := time.Now()
+		today := now.Format(dateLayout)
+		first := now.AddDate(0, 0, -2).Format(dateLayout)
+		runGraphQLCase(t, "GetAccountHistory", map[string]any{"id": "acc-1", "startDate": first}, `{"account":{"id":"acc-1","recentBalances":[10,11,12]}}`, func(s *Service) error {
+			got, err := s.GetAccountHistory(context.Background(), "acc-1", first, today)
 			mustNoErr(t, err)
 			mustLen(t, got, 3)
-			eq(t, "2026-05-01", got[0].Date)
+			eq(t, first, got[0].Date)
 			eq(t, 10.0, got[0].Amount)
-			eq(t, "2026-05-03", got[2].Date)
+			eq(t, today, got[2].Date)
 			eq(t, 12.0, got[2].Amount)
 			return nil
 		})
@@ -949,7 +953,7 @@ func TestServiceErrorBranches(t *testing.T) {
 		runGraphQLErrorCase(t, "Common_DeleteAccount", map[string]any{"id": "acc-1"}, func(s *Service) error { return s.DeleteAccount(context.Background(), "acc-1") })
 		runGraphQLErrorCase(t, "Web_GetHoldings", nil, func(s *Service) error { _, err := s.GetAccountHoldings(context.Background(), "acc-1"); return err })
 		runGraphQLErrorCase(t, "GetAccountHistory", map[string]any{"id": "acc-1", "startDate": "2026-05-01"}, func(s *Service) error {
-			_, err := s.GetAccountHistory(context.Background(), "acc-1", "2026-05-01", "")
+			_, err := s.GetAccountHistory(context.Background(), "acc-1", "2026-05-01", "2026-05-31")
 			return err
 		})
 		runGraphQLErrorCase(t, "GetAccountRecentBalances", map[string]any{"startDate": "2026-05-01"}, func(s *Service) error {
@@ -1473,26 +1477,81 @@ func TestServiceGetAccountHistoryScopesToAccount(t *testing.T) {
 		},
 	}
 
-	history, err := NewService(client).GetAccountHistory(context.Background(), "acc-9", "2026-05-01", "2026-05-02")
+	today := time.Now()
+	from := today.AddDate(0, 0, -1).Format(dateLayout)
+	history, err := NewService(client).GetAccountHistory(context.Background(), "acc-9", from, from)
 	if err != nil {
 		t.Fatalf("GetAccountHistory() error = %v", err)
 	}
 	if gotID != "acc-9" {
 		t.Fatalf("request id = %q, want acc-9", gotID)
 	}
-	if len(history) != 2 {
-		t.Fatalf("len = %d, want 2 bounded by endDate", len(history))
+	if len(history) != 1 {
+		t.Fatalf("len = %d, want 1 bounded by the requested range", len(history))
 	}
-	if history[1].Date != "2026-05-02" || history[1].Amount != 2 {
-		t.Fatalf("history[1] = %+v, want 2026-05-02 amount 2", history[1])
+	if history[0].Date != from || history[0].Amount != 3 {
+		t.Fatalf("history[0] = %+v, want %s amount 3", history[0], from)
+	}
+}
+
+func TestServiceGetAccountHistoryAnchorsClampedSeriesToToday(t *testing.T) {
+	now := time.Now()
+	from := now.AddDate(0, 0, -30).Format(dateLayout)
+	today := now.Format(dateLayout)
+	var client *mockClient
+	client = &mockClient{handler: func(_ *graphql.Request, result any) error {
+		return client.respond(result, `{"account":{"id":"acc-1","recentBalances":[1,2,3]}}`)
+	}}
+
+	history, err := NewService(client).GetAccountHistory(context.Background(), "acc-1", from, today)
+	if err != nil {
+		t.Fatalf("GetAccountHistory() error = %v", err)
+	}
+	if len(history) != 3 {
+		t.Fatalf("len = %d, want 3", len(history))
+	}
+	wantFirst := now.AddDate(0, 0, -2).Format(dateLayout)
+	if history[0].Date != wantFirst || history[2].Date != today {
+		t.Fatalf("dates = %s through %s, want %s through %s", history[0].Date, history[2].Date, wantFirst, today)
+	}
+}
+
+func TestServiceGetAccountHistoryEmptySeries(t *testing.T) {
+	var client *mockClient
+	client = &mockClient{handler: func(_ *graphql.Request, result any) error {
+		return client.respond(result, `{"account":{"id":"acc-1","recentBalances":[]}}`)
+	}}
+
+	today := time.Now().Format(dateLayout)
+	history, err := NewService(client).GetAccountHistory(context.Background(), "acc-1", today, today)
+	if err != nil {
+		t.Fatalf("GetAccountHistory() error = %v", err)
+	}
+	if history == nil || len(history) != 0 {
+		t.Fatalf("history = %#v, want non-nil empty slice", history)
 	}
 }
 
 func TestServiceGetAccountHistoryUnknownAccount(t *testing.T) {
 	runNotFoundCase(t, `{"account":null}`, func(s *Service) error {
-		_, err := s.GetAccountHistory(context.Background(), "missing", "2026-05-01", "")
+		_, err := s.GetAccountHistory(context.Background(), "missing", "2026-05-01", "2026-05-31")
 		return err
 	})
+}
+
+func TestServiceGetAccountHistoryRequiresExplicitRange(t *testing.T) {
+	client := &mockClient{handler: func(*graphql.Request, any) error {
+		t.Fatal("GetAccountHistory must validate the range before requesting data")
+		return nil
+	}}
+
+	for _, dates := range [][2]string{{"", "2026-05-31"}, {"2026-05-01", ""}, {"2026-06-01", "2026-05-31"}} {
+		_, err := NewService(client).GetAccountHistory(context.Background(), "acc-1", dates[0], dates[1])
+		var cliErr *clierrors.Error
+		if !errors.As(err, &cliErr) || cliErr.Code != clierrors.InvalidArguments {
+			t.Fatalf("GetAccountHistory(%q, %q) error = %v, want INVALID_ARGUMENTS", dates[0], dates[1], err)
+		}
+	}
 }
 
 func TestServiceListCashflowRejectsInvertedRange(t *testing.T) {
