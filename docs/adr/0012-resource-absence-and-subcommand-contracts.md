@@ -24,7 +24,7 @@ Absence detection is worthless if the code is discarded in transit, so `wrapErro
 
 A command that owns subcommands and no action of its own requires a subcommand. Invoked bare or with an unknown subcommand it fails with `INVALID_ARGUMENTS` and exit code 2. Human invocations still render help before failing; structured invocations emit only the error envelope. The rule is applied by walking the built command tree rather than by annotating each builder, so nested and future parents are covered and a command that owns both an action and subcommands keeps its action.
 
-`output.SchemaVersion` is a `YYYY-MM-DD` stamp, not a semantic version. It moves, in the commit that causes the change, when the envelope structure changes, when the set of `error.code` or `error.category` values changes, when the code-to-exit mapping changes, when a previously succeeding invocation starts failing, or when an existing `meta.command` changes. It does not move for new commands, new fields inside one command's payload, message wording, or documentation.
+`output.SchemaVersion` is a `YYYY-MM-DD` stamp, not a semantic version. It moves, in the commit that causes the change, when the envelope structure changes, when the set of `error.code` or `error.category` values changes, when the code-to-exit mapping changes, when the retryable classification of an existing `error.code` changes, when a previously succeeding invocation starts failing, or when an existing `meta.command` changes. It does not move for new commands, new fields inside one command's payload, message wording, or documentation.
 
 ## Consequences
 
@@ -36,3 +36,4 @@ A command that owns subcommands and no action of its own requires a subcommand. 
 - Parent commands become runnable, so their help gains the usage line that the root command already renders.
 - Unknown subcommands of a parent do not offer spelling suggestions; the root command still does.
 - The schema stamp is a change marker, not a compatibility promise. `TestSchemaVersion` pins the literal so the bump is a deliberate edit.
+- The retryable classification of an existing code is part of the contract, because callers branch on it exactly as they branch on an exit code. ADR 0015 is the first change to exercise that rule.

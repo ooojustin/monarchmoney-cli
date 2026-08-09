@@ -420,3 +420,36 @@ func TestRetrySleepReceivesGrowingBackoff(t *testing.T) {
 		}
 	}
 }
+
+func TestDoDoesNotRetryExpiredSession(t *testing.T) {
+	attempts := 0
+	sleeps := 0
+	client := NewClient("https://example.invalid/graphql", "expired", time.Second,
+		WithHTTPTransport(testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+			attempts++
+			return &http.Response{StatusCode: 401, Body: io.NopCloser(strings.NewReader("{}"))}, nil
+		})),
+		WithRetrySleep(func(context.Context, time.Duration) error {
+			sleeps++
+			return nil
+		}))
+
+	err := client.Do(context.Background(), &Request{OperationName: "GetIdentity"}, &struct{}{})
+
+	var clierr *clierrors.Error
+	if !errors.As(err, &clierr) {
+		t.Fatalf("Do() error = %v (%T), want *errors.Error", err, err)
+	}
+	if clierr.Code != clierrors.AuthSessionExpired {
+		t.Fatalf("code = %q, want %q", clierr.Code, clierrors.AuthSessionExpired)
+	}
+	if clierr.Retryable {
+		t.Fatal("retryable = true; every attempt resends a byte-identical dead token")
+	}
+	if attempts != 1 {
+		t.Fatalf("attempts = %d, want exactly 1", attempts)
+	}
+	if sleeps != 0 {
+		t.Fatalf("backoff sleeps = %d, want 0 (no retry was scheduled)", sleeps)
+	}
+}

@@ -418,7 +418,7 @@ func TestAppAuthStatusErrors(t *testing.T) {
 		if err := app.Execute(); err != nil {
 			t.Fatalf("Execute() error = %v", err)
 		}
-		if *exitCode != 3 || !strings.Contains(out.String(), string(clierrors.AuthSessionExpired)) || !strings.Contains(out.String(), "a@example.com") || !strings.Contains(out.String(), sessionPath) {
+		if *exitCode != 3 || !strings.Contains(out.String(), string(clierrors.AuthSessionExpired)) || !strings.Contains(out.String(), `"retryable":false`) || !strings.Contains(out.String(), "a@example.com") || !strings.Contains(out.String(), sessionPath) {
 			t.Fatalf("exitCode=%d output=%q", *exitCode, out.String())
 		}
 	})
