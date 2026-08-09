@@ -46,7 +46,7 @@ func validateDateRange(from, to string) *errors.Error {
 		return err
 	}
 	if from != "" && to != "" && from > to {
-		return errors.New(errors.InvalidArguments, "--from must not be after --to", errors.CatValidation, false, nil)
+		return errors.New(errors.InvalidArguments, "start date must not be after end date", errors.CatValidation, false, nil)
 	}
 	return nil
 }

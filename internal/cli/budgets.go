@@ -64,15 +64,15 @@ func (a *App) buildBudgetsListCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			svc, err := a.loadService()
-			if err != nil {
-				a.handleError(renderer, "budgets.list", wrapError(err, "failed to load service"), start)
-				return
-			}
-
 			opts, cliErr := appBudgetListOptions(month, time.Now())
 			if cliErr != nil {
 				a.handleError(renderer, "budgets.list", cliErr, start)
+				return
+			}
+
+			svc, err := a.loadService()
+			if err != nil {
+				a.handleError(renderer, "budgets.list", wrapError(err, "failed to load service"), start)
 				return
 			}
 
@@ -278,15 +278,15 @@ func (a *App) buildBudgetsExportCommand() *cobra.Command {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), true, a.Flags.Pretty)
 
-			svc, err := a.loadService()
-			if err != nil {
-				a.handleError(renderer, "budgets.export", wrapError(err, "failed to load service"), start)
-				return
-			}
-
 			opts, cliErr := appBudgetListOptions(month, time.Now())
 			if cliErr != nil {
 				a.handleError(renderer, "budgets.export", cliErr, start)
+				return
+			}
+
+			svc, err := a.loadService()
+			if err != nil {
+				a.handleError(renderer, "budgets.export", wrapError(err, "failed to load service"), start)
 				return
 			}
 
@@ -394,6 +394,11 @@ func (a *App) buildBudgetsFlexRolloverSetCommand() *cobra.Command {
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
 			if !a.checkSafety(renderer, "budgets.flex-rollover.set", safety.TierMutation, start) {
+				return
+			}
+
+			if cliErr := validateRequiredDateFlag("month", month); cliErr != nil {
+				a.handleError(renderer, "budgets.flex-rollover.set", cliErr, start)
 				return
 			}
 

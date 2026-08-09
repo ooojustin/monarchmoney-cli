@@ -124,7 +124,7 @@ All mutations are protected by the [Safety Model](./safety.md).
 
 Exit codes are listed in [JSON_SCHEMA.md](JSON_SCHEMA.md#exit-codes).
 
-- Date flags must use `YYYY-MM-DD`, and `--from` must not be after `--to`. Both are checked locally, before any request.
+- Date flags must use `YYYY-MM-DD`, and a start date must not be after its end date. Both are checked locally, before any request.
 - On `overview` and the `cashflow` subcommands an omitted `--from` means the first of the current month and an omitted `--to` means today, resolved against your local calendar. A lone `--from` therefore reads as "through today"; a lone `--to` resolves to an inverted range and exits 2.
 - `--limit` must be at least 1 and `--offset` must not be negative.
 - A command that owns subcommands requires one. Invoked bare or with an unknown subcommand it exits 2 with `INVALID_ARGUMENTS`.

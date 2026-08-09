@@ -2,6 +2,7 @@ package cli
 
 import (
 	"net/http"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -25,19 +26,19 @@ func TestDateFlagsValidateBeforeRequests(t *testing.T) {
 		command string
 		message string
 	}{
-		{"spending inverted", []string{"--json", "cashflow", "spending", "--from", "2026-07-31", "--to", "2026-07-01"}, "cashflow.spending", "--from must not be after --to"},
+		{"spending inverted", []string{"--json", "cashflow", "spending", "--from", "2026-07-31", "--to", "2026-07-01"}, "cashflow.spending", "start date must not be after end date"},
 		{"spending malformed", []string{"--json", "cashflow", "spending", "--from", "notadate"}, "cashflow.spending", "--from must use YYYY-MM-DD"},
-		{"summary inverted", []string{"--json", "cashflow", "summary", "--from", "2026-07-31", "--to", "2026-07-01"}, "cashflow.summary", "--from must not be after --to"},
-		{"list inverted", []string{"--json", "cashflow", "list", "--from", "2026-07-31", "--to", "2026-07-01"}, "cashflow.list", "--from must not be after --to"},
-		{"transactions inverted", []string{"--json", "transactions", "list", "--from", "2026-07-31", "--to", "2026-07-01"}, "transactions.list", "--from must not be after --to"},
+		{"summary inverted", []string{"--json", "cashflow", "summary", "--from", "2026-07-31", "--to", "2026-07-01"}, "cashflow.summary", "start date must not be after end date"},
+		{"list inverted", []string{"--json", "cashflow", "list", "--from", "2026-07-31", "--to", "2026-07-01"}, "cashflow.list", "start date must not be after end date"},
+		{"transactions inverted", []string{"--json", "transactions", "list", "--from", "2026-07-31", "--to", "2026-07-01"}, "transactions.list", "start date must not be after end date"},
 		{"transactions malformed", []string{"--json", "transactions", "list", "--from", "notadate"}, "transactions.list", "--from must use YYYY-MM-DD"},
-		{"overview inverted", []string{"--json", "overview", "--from", "2026-07-31", "--to", "2026-07-01"}, "overview", "--from must not be after --to"},
-		{"accounts history inverted", []string{"--json", "accounts", "history", "acc-1", "--from", "2026-07-31", "--to", "2026-07-01"}, "accounts.history", "--from must not be after --to"},
+		{"overview inverted", []string{"--json", "overview", "--from", "2026-07-31", "--to", "2026-07-01"}, "overview", "start date must not be after end date"},
+		{"accounts history inverted", []string{"--json", "accounts", "history", "acc-1", "--from", "2026-07-31", "--to", "2026-07-01"}, "accounts.history", "start date must not be after end date"},
 		{"networth malformed", []string{"--json", "networth", "--to", "notadate"}, "networth", "--to must use YYYY-MM-DD"},
 		{"balance-at malformed", []string{"--json", "accounts", "balance-at", "--date", "notadate"}, "accounts.balance-at", "--date must use YYYY-MM-DD"},
-		{"overview lone to", []string{"--json", "overview", "--to", "2020-01-01"}, "overview", "--from must not be after --to"},
-		{"overview future from", []string{"--json", "overview", "--from", "2999-01-01"}, "overview", "--from must not be after --to"},
-		{"cashflow spending lone to", []string{"--json", "cashflow", "spending", "--to", "2020-01-01"}, "cashflow.spending", "--from must not be after --to"},
+		{"overview lone to", []string{"--json", "overview", "--to", "2020-01-01"}, "overview", "start date must not be after end date"},
+		{"overview future from", []string{"--json", "overview", "--from", "2999-01-01"}, "overview", "start date must not be after end date"},
+		{"cashflow spending lone to", []string{"--json", "cashflow", "spending", "--to", "2020-01-01"}, "cashflow.spending", "start date must not be after end date"},
 	}
 
 	for _, tt := range tests {
@@ -126,19 +127,43 @@ func TestNumericFlagsValidateBeforeRequests(t *testing.T) {
 }
 
 func TestMonthFlagRejectsMalformedValues(t *testing.T) {
-	for _, args := range [][]string{
-		{"--json", "budgets", "list", "--month", "abc-def"},
-		{"--json", "budgets", "show", "cat-1", "--month", "2026-13"},
-		{"--json", "goals", "budgets", "--month", "abc-def"},
+	for _, tt := range []struct {
+		args    []string
+		message string
+	}{
+		{[]string{"--json", "budgets", "list", "--month", "abc-def"}, "--month must use YYYY-MM"},
+		{[]string{"--json", "budgets", "show", "cat-1", "--month", "2026-13"}, "--month must use YYYY-MM"},
+		{[]string{"--json", "goals", "budgets", "--month", "abc-def"}, "--month must use YYYY-MM"},
+		{[]string{"--json", "--dry-run", "budgets", "flex-rollover", "set", "--month", "abc-def", "--amount", "1"}, "--month must use YYYY-MM-DD"},
 	} {
-		t.Run(strings.Join(args[1:3], "."), func(t *testing.T) {
+		t.Run(strings.Join(tt.args[1:3], "."), func(t *testing.T) {
 			h := noRequestHarness(t)
-			if err := h.execute(args...); err != nil {
+			if err := h.execute(tt.args...); err != nil {
 				t.Fatalf("Execute() error = %v", err)
 			}
 			out := h.Stdout.String()
-			if h.ExitCode != 2 || !strings.Contains(out, "--month must use YYYY-MM") {
+			if h.ExitCode != 2 || !strings.Contains(out, tt.message) || strings.Contains(out, "planned_mutations") {
 				t.Fatalf("exitCode = %d, output=%q, want month validation error", h.ExitCode, out)
+			}
+		})
+	}
+}
+
+func TestBudgetMonthValidationPrecedesServiceLoading(t *testing.T) {
+	missingSession := filepath.Join(t.TempDir(), "missing-session.json")
+	for _, args := range [][]string{
+		{"--json", "budgets", "list", "--month", "abc-def"},
+		{"--json", "budgets", "export", "--month", "abc-def"},
+	} {
+		t.Run(args[2], func(t *testing.T) {
+			h := newAppTestHarness(t, func(deps *Deps) {
+				deps.LoadConfig = testConfigLoader(missingSession, "")
+			})
+			if err := h.execute(args...); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			if h.ExitCode != 2 || !strings.Contains(h.Stdout.String(), `"code":"INVALID_ARGUMENTS"`) || strings.Contains(h.Stdout.String(), "AUTH_REQUIRED") {
+				t.Fatalf("exitCode = %d, output=%q, want validation before session loading", h.ExitCode, h.Stdout.String())
 			}
 		})
 	}
