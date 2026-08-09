@@ -20,12 +20,13 @@ func (a *App) buildOverviewCommand() *cobra.Command {
 		Use:     "overview",
 		Short:   "Get a compact financial overview",
 		GroupID: "core",
-		Example: "  monarch overview\n  monarch overview --from 2026-01-01 --to 2026-01-31 --json",
+		Example: "  monarch overview\n  monarch overview --from 2026-01-01\n  monarch overview --from 2026-01-01 --to 2026-01-31 --json",
 		Run: func(cmd *cobra.Command, _ []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			if err := validateDateRange(from, to); err != nil {
+			resolvedFrom, resolvedTo := resolveDateRange(from, to, time.Now())
+			if err := validateDateRange(resolvedFrom, resolvedTo); err != nil {
 				a.handleError(renderer, "overview", err, start)
 				return
 			}
@@ -36,7 +37,7 @@ func (a *App) buildOverviewCommand() *cobra.Command {
 				return
 			}
 
-			overview, err := svc.GetFinancialOverview(cmd.Context(), from, to)
+			overview, err := svc.GetFinancialOverview(cmd.Context(), resolvedFrom, resolvedTo)
 			if err != nil {
 				a.handleError(renderer, "overview", errors.New(errors.APIError, fmt.Sprintf("failed to get financial overview: %v", err), errors.CatAPI, false, err), start)
 				return
@@ -51,13 +52,14 @@ func (a *App) buildOverviewCommand() *cobra.Command {
 			renderFinancialOverview(cmd.OutOrStdout(), overview)
 		},
 	}
-	cmd.Flags().StringVar(&from, "from", "", "start date (YYYY-MM-DD, defaults to current month)")
-	cmd.Flags().StringVar(&to, "to", "", "end date (YYYY-MM-DD, defaults to current month)")
+	cmd.Flags().StringVar(&from, "from", "", "start date (YYYY-MM-DD, defaults to the first of the current month)")
+	cmd.Flags().StringVar(&to, "to", "", "end date (YYYY-MM-DD, defaults to today)")
 	return cmd
 }
 
 func renderFinancialOverview(out io.Writer, overview *monarch.FinancialOverview) {
 	fmt.Fprintf(out, "Financial Overview (as of %s)\n\n", overview.AsOf)
+	fmt.Fprintf(out, "Period:          %s to %s\n", overview.StartDate, overview.EndDate)
 	fmt.Fprintf(out, "Net Worth:       %.2f\n", overview.NetWorth)
 	fmt.Fprintf(out, "Accounts:        %d\n", overview.AccountCount)
 	if overview.Cashflow != nil {

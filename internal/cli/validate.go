@@ -8,6 +8,18 @@ import (
 
 const dateFlagLayout = "2006-01-02"
 
+// The window follows the caller's calendar day. A UTC clock ends it on tomorrow's
+// date for anyone west of Greenwich during their evening.
+func resolveDateRange(startDate, endDate string, now time.Time) (resolvedStartDate, resolvedEndDate string) {
+	if startDate == "" {
+		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).Format(dateFlagLayout)
+	}
+	if endDate == "" {
+		endDate = now.Format(dateFlagLayout)
+	}
+	return startDate, endDate
+}
+
 func validateDateFlag(name, value string) *errors.Error {
 	if value == "" {
 		return nil

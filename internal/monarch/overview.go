@@ -11,6 +11,8 @@ import (
 
 type FinancialOverview struct {
 	AsOf             string           `json:"as_of"`
+	StartDate        string           `json:"start_date"`
+	EndDate          string           `json:"end_date"`
 	NetWorth         float64          `json:"net_worth"`
 	AccountCount     int              `json:"account_count"`
 	Cashflow         *CashflowSummary `json:"cashflow"`
@@ -19,12 +21,6 @@ type FinancialOverview struct {
 }
 
 func (s *Service) GetFinancialOverview(ctx context.Context, startDate, endDate string) (*FinancialOverview, error) {
-	if startDate == "" || endDate == "" {
-		now := time.Now()
-		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).Format("2006-01-02")
-		endDate = time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, now.Location()).Format("2006-01-02")
-	}
-
 	var accounts []Account
 	var cashflow *CashflowSummary
 	var transactions []Transaction
@@ -73,6 +69,8 @@ func (s *Service) GetFinancialOverview(ctx context.Context, startDate, endDate s
 
 	return &FinancialOverview{
 		AsOf:             time.Now().UTC().Format(time.RFC3339),
+		StartDate:        startDate,
+		EndDate:          endDate,
 		NetWorth:         money.Round2(netWorth),
 		AccountCount:     visibleCount,
 		Cashflow:         cashflow,

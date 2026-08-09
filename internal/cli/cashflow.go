@@ -12,16 +12,6 @@ import (
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 )
 
-func resolveCashflowDates(startDate, endDate string, now time.Time) (resolvedStartDate, resolvedEndDate string) {
-	if startDate == "" {
-		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).Format("2006-01-02")
-	}
-	if endDate == "" {
-		endDate = now.Format("2006-01-02")
-	}
-	return startDate, endDate
-}
-
 func (a *App) buildCashflowCommand() *cobra.Command {
 	var (
 		startDate   string
@@ -38,8 +28,8 @@ func (a *App) buildCashflowCommand() *cobra.Command {
 		GroupID: "core",
 		Example: "  monarch cashflow summary --from 2026-01-01 --to 2026-03-31\n  monarch cashflow spending --from 2026-01-01 --json",
 	}
-	cmd.PersistentFlags().StringVar(&startDate, "from", "", "start date (YYYY-MM-DD)")
-	cmd.PersistentFlags().StringVar(&endDate, "to", "", "end date (YYYY-MM-DD)")
+	cmd.PersistentFlags().StringVar(&startDate, "from", "", "start date (YYYY-MM-DD, defaults to the first of the current month)")
+	cmd.PersistentFlags().StringVar(&endDate, "to", "", "end date (YYYY-MM-DD, defaults to today)")
 
 	trendsCmd := a.buildCashflowTrendsCommand(&startDate, &endDate, &groupBy, &period, &accountIDs, &categoryIDs)
 	trendsCmd.Flags().StringVar(&startDate, "from", "", "start date (YYYY-MM-DD)")
@@ -72,7 +62,7 @@ func (a *App) buildCashflowSummaryCommand(startDate, endDate *string) *cobra.Com
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			resolvedStart, resolvedEnd := resolveCashflowDates(*startDate, *endDate, time.Now())
+			resolvedStart, resolvedEnd := resolveDateRange(*startDate, *endDate, time.Now())
 			if err := validateDateRange(resolvedStart, resolvedEnd); err != nil {
 				a.handleError(renderer, "cashflow.summary", err, start)
 				return
@@ -112,7 +102,7 @@ func (a *App) buildCashflowCategoriesCommand(startDate, endDate *string) *cobra.
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			resolvedStart, resolvedEnd := resolveCashflowDates(*startDate, *endDate, time.Now())
+			resolvedStart, resolvedEnd := resolveDateRange(*startDate, *endDate, time.Now())
 			if err := validateDateRange(resolvedStart, resolvedEnd); err != nil {
 				a.handleError(renderer, "cashflow.categories", err, start)
 				return
@@ -151,7 +141,7 @@ func (a *App) buildCashflowMerchantsCommand(startDate, endDate *string) *cobra.C
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			resolvedStart, resolvedEnd := resolveCashflowDates(*startDate, *endDate, time.Now())
+			resolvedStart, resolvedEnd := resolveDateRange(*startDate, *endDate, time.Now())
 			if err := validateDateRange(resolvedStart, resolvedEnd); err != nil {
 				a.handleError(renderer, "cashflow.merchants", err, start)
 				return
@@ -259,7 +249,7 @@ func (a *App) buildCashflowListCommand(startDate, endDate *string) *cobra.Comman
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			resolvedStart, resolvedEnd := resolveCashflowDates(*startDate, *endDate, time.Now())
+			resolvedStart, resolvedEnd := resolveDateRange(*startDate, *endDate, time.Now())
 			if err := validateDateRange(resolvedStart, resolvedEnd); err != nil {
 				a.handleError(renderer, "cashflow.list", err, start)
 				return
@@ -298,7 +288,7 @@ func (a *App) buildCashflowSpendingCommand(startDate, endDate *string) *cobra.Co
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
 
-			resolvedStart, resolvedEnd := resolveCashflowDates(*startDate, *endDate, time.Now())
+			resolvedStart, resolvedEnd := resolveDateRange(*startDate, *endDate, time.Now())
 			if err := validateDateRange(resolvedStart, resolvedEnd); err != nil {
 				a.handleError(renderer, "cashflow.spending", err, start)
 				return

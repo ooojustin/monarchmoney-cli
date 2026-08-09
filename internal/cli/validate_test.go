@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/testutil"
 )
@@ -34,6 +35,9 @@ func TestDateFlagsValidateBeforeRequests(t *testing.T) {
 		{"accounts history inverted", []string{"--json", "accounts", "history", "acc-1", "--from", "2026-07-31", "--to", "2026-07-01"}, "accounts.history", "--from must not be after --to"},
 		{"networth malformed", []string{"--json", "networth", "--to", "notadate"}, "networth", "--to must use YYYY-MM-DD"},
 		{"balance-at malformed", []string{"--json", "accounts", "balance-at", "--date", "notadate"}, "accounts.balance-at", "--date must use YYYY-MM-DD"},
+		{"overview lone to", []string{"--json", "overview", "--to", "2020-01-01"}, "overview", "--from must not be after --to"},
+		{"overview future from", []string{"--json", "overview", "--from", "2999-01-01"}, "overview", "--from must not be after --to"},
+		{"cashflow spending lone to", []string{"--json", "cashflow", "spending", "--to", "2020-01-01"}, "cashflow.spending", "--from must not be after --to"},
 	}
 
 	for _, tt := range tests {
@@ -135,6 +139,35 @@ func TestMonthFlagRejectsMalformedValues(t *testing.T) {
 			out := h.Stdout.String()
 			if h.ExitCode != 2 || !strings.Contains(out, "--month must use YYYY-MM") {
 				t.Fatalf("exitCode = %d, output=%q, want month validation error", h.ExitCode, out)
+			}
+		})
+	}
+}
+
+func TestResolveDateRange(t *testing.T) {
+	// 21:13 EDT on the 8th is 01:13 UTC on the 9th: a UTC clock would end the
+	// default window a day later than the day the caller is living in.
+	now := time.Date(2026, 8, 8, 21, 13, 0, 0, time.FixedZone("EDT", -4*60*60))
+
+	tests := []struct {
+		name     string
+		from     string
+		to       string
+		wantFrom string
+		wantTo   string
+	}{
+		{"both empty", "", "", "2026-08-01", "2026-08-08"},
+		{"lone from", "2020-01-01", "", "2020-01-01", "2026-08-08"},
+		{"lone to", "", "2026-01-31", "2026-08-01", "2026-01-31"},
+		{"both supplied", "2026-01-01", "2026-01-31", "2026-01-01", "2026-01-31"},
+		{"malformed passes through to validation", "notadate", "", "notadate", "2026-08-08"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotFrom, gotTo := resolveDateRange(tt.from, tt.to, now)
+			if gotFrom != tt.wantFrom || gotTo != tt.wantTo {
+				t.Fatalf("resolveDateRange(%q, %q) = (%q, %q), want (%q, %q)", tt.from, tt.to, gotFrom, gotTo, tt.wantFrom, tt.wantTo)
 			}
 		})
 	}

@@ -1314,11 +1314,18 @@ func TestGetFinancialOverview(t *testing.T) {
 	}
 }
 
-func TestGetFinancialOverviewDefaultsToCurrentMonth(t *testing.T) {
+func TestGetFinancialOverviewEchoesRequestedRange(t *testing.T) {
+	var mu sync.Mutex
+	filters := make(map[string]map[string]any)
 	var client *mockClient
 	client = &mockClient{
 		token: "token-123",
 		handler: func(req *graphql.Request, result any) error {
+			mu.Lock()
+			if f, ok := req.Variables["filters"].(map[string]any); ok {
+				filters[req.OperationName] = f
+			}
+			mu.Unlock()
 			switch req.OperationName {
 			case "GetAccounts":
 				return client.respond(result, `{"accounts":[]}`)
@@ -1332,10 +1339,20 @@ func TestGetFinancialOverviewDefaultsToCurrentMonth(t *testing.T) {
 		},
 	}
 
-	ov, err := NewService(client).GetFinancialOverview(context.Background(), "", "")
+	ov, err := NewService(client).GetFinancialOverview(context.Background(), "2020-01-01", "2020-12-31")
 	mustNoErr(t, err)
 	mustNotNil(t, ov)
 	eq(t, 0, ov.AccountCount)
+	eq(t, "2020-01-01", ov.StartDate)
+	eq(t, "2020-12-31", ov.EndDate)
+
+	mu.Lock()
+	defer mu.Unlock()
+	for _, operation := range []string{"GetCashflowSummary", "GetTransactionsList"} {
+		if filters[operation]["startDate"] != "2020-01-01" || filters[operation]["endDate"] != "2020-12-31" {
+			t.Fatalf("%s filters = %#v, want the dates passed in", operation, filters[operation])
+		}
+	}
 }
 
 func TestGetFinancialOverviewPropagatesErrors(t *testing.T) {

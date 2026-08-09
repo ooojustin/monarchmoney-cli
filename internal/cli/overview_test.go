@@ -158,3 +158,55 @@ func TestAppOverviewHuman(t *testing.T) {
 		}
 	}
 }
+
+func TestAppOverviewResolvesLoneFromThroughToday(t *testing.T) {
+	var mu sync.Mutex
+	requests := make(map[string]map[string]any)
+	transport := testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		var gqlReq overviewGraphQLRequest
+		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
+			return nil, fmt.Errorf("decode GraphQL request: %w", err)
+		}
+		mu.Lock()
+		requests[gqlReq.OperationName] = gqlReq.Variables
+		mu.Unlock()
+		return overviewGraphQLResponse(gqlReq.OperationName)
+	})
+
+	app, out, exitCode := newTestOverviewApp(t, transport)
+	app.Root.SetArgs([]string{"--json", "overview", "--from", "2020-01-01"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if *exitCode != 0 {
+		t.Fatalf("exitCode = %d; output=%q", *exitCode, out.String())
+	}
+
+	var env struct {
+		Data struct {
+			StartDate string `json:"start_date"`
+			EndDate   string `json:"end_date"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(bytes.TrimSpace(out.Bytes()), &env); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v; output=%q", err, out.String())
+	}
+	if env.Data.StartDate != "2020-01-01" {
+		t.Fatalf("start_date = %q, want the requested 2020-01-01; a lone --from must not reset the range", env.Data.StartDate)
+	}
+	if env.Data.EndDate == "" || env.Data.EndDate < env.Data.StartDate {
+		t.Fatalf("end_date = %q, want a resolved date at or after the start", env.Data.EndDate)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	for _, operation := range []string{"GetCashflowSummary", "GetTransactionsList"} {
+		filters, _ := requests[operation]["filters"].(map[string]any)
+		if filters["startDate"] != "2020-01-01" {
+			t.Fatalf("%s startDate = %v, want 2020-01-01", operation, filters["startDate"])
+		}
+		if filters["endDate"] != env.Data.EndDate {
+			t.Fatalf("%s endDate = %v, want the echoed %q", operation, filters["endDate"], env.Data.EndDate)
+		}
+	}
+}

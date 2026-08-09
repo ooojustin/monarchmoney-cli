@@ -24,7 +24,7 @@ Four changes, each narrowly scoped:
 
 3. **Rate-limit and Retry-After.** HTTP 429 produces a new `RATE_LIMITED` error code with the parsed `Retry-After` value (seconds or HTTP-date) stored in a new `Error.RetryAfterMS` field. 5xx responses also parse `Retry-After` and stay retryable. The retry loop honours `RetryAfterMS` when present, capped at 10 seconds to avoid pathological waits. A new `errors.NewWithRetryAfter` constructor populates the field. `RATE_LIMITED` shares exit code 5 with the network errors, since both mean "try again later".
 
-4. **`monarch overview` command.** A new `Service.GetFinancialOverview` fetches accounts, cashflow summary, and the 10 most recent transactions concurrently via `golang.org/x/sync/errgroup`, then computes net worth from visible, net-worth-included accounts. The `overview` CLI command renders the aggregate for humans or emits the JSON envelope. `--from`/`--to` default to the current month.
+4. **`monarch overview` command.** A new `Service.GetFinancialOverview` fetches accounts, cashflow summary, and the 10 most recent transactions concurrently via `golang.org/x/sync/errgroup`, then computes net worth from visible, net-worth-included accounts. The `overview` CLI command renders the aggregate for humans or emits the JSON envelope. `--from`/`--to` defaulting is described in ADR 0014.
 
 A new dependency, `golang.org/x/sync/errgroup`, is introduced for the concurrent fetch. It is the standard library's recommended primitive for "N goroutines, fail on first error" and carries no transitive dependencies beyond `golang.org/x/sync`.
 
