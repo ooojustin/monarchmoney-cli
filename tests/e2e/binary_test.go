@@ -539,6 +539,14 @@ func TestBinary_BareParentCommandJSON(t *testing.T) {
 	}
 }
 
+func TestBinary_TrailingParentHelp(t *testing.T) {
+	bin := buildBinary(t)
+	stdout, code := run(t, bin, "accounts", "help")
+	if code != 0 || !strings.Contains(stdout, "Usage:") || !strings.Contains(stdout, "Available Commands") {
+		t.Fatalf("exit code = %d; output=%s, want account help", code, stdout)
+	}
+}
+
 func TestBinary_UnknownSubcommand(t *testing.T) {
 	bin := buildBinary(t)
 	stdout, code := run(t, bin, "accounts", "bogus")

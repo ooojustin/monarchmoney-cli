@@ -268,9 +268,18 @@ func (a *App) requireSubcommands(parent *cobra.Command) {
 			if cmd.Args == nil {
 				cmd.Args = cobra.NoArgs
 			}
-			continue
+		} else {
+			cmd.RunE = a.runSubcommandRequired
 		}
-		cmd.RunE = a.runSubcommandRequired
+		target := cmd
+		cmd.AddCommand(&cobra.Command{
+			Use:    "help",
+			Hidden: true,
+			Args:   cobra.NoArgs,
+			Run: func(*cobra.Command, []string) {
+				_ = target.Help()
+			},
+		})
 	}
 }
 

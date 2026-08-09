@@ -22,7 +22,7 @@ A read that resolves exactly one resource from a caller-supplied identifier repo
 
 Absence detection is worthless if the code is discarded in transit, so `wrapError` traverses wrapped errors and `errors.Error` exposes its cause.
 
-A command that owns subcommands and no action of its own requires a subcommand. Invoked bare or with an unknown subcommand it fails with `INVALID_ARGUMENTS` and exit code 2. Human invocations still render help before failing; structured invocations emit only the error envelope. The rule is applied by walking the built command tree rather than by annotating each builder, so nested and future parents are covered and a command that owns both an action and subcommands keeps its action.
+A command that owns subcommands and no action of its own requires a subcommand. Invoked bare or with an unknown subcommand it fails with `INVALID_ARGUMENTS` and exit code 2. Human bare invocations render help before failing; structured invocations emit only the error envelope. Every parent also accepts an exact trailing `help` subcommand as an explicit human-help request and exits 0, including under `--json`. The rule is applied by walking the built command tree rather than by annotating each builder, so nested and future parents are covered and a command that owns both an action and subcommands keeps its action.
 
 `output.SchemaVersion` is a `YYYY-MM-DD` stamp, not a semantic version. It moves, in the commit that causes the change, when the envelope structure changes, when the set of `error.code` or `error.category` values changes, when the code-to-exit mapping changes, when the retryable classification of an existing `error.code` changes, when a previously succeeding invocation starts failing, or when an existing `meta.command` changes. It does not move for new commands, new fields inside one command's payload, message wording, or documentation.
 
@@ -32,7 +32,7 @@ A command that owns subcommands and no action of its own requires a subcommand. 
 - `budgets show` on a category with no budget reports absence instead of dereferencing a nil pointer.
 - A missing attachment moves from exit 1 to exit 8.
 - `accounts holdings` and other collections keep returning an empty array and exit 0 for an unknown identifier, because a client-side filter cannot prove absence.
-- Parent commands exit 2 instead of 0. Their help output is unchanged, and `--help` still exits 0.
+- Bare parent commands exit 2 instead of 0. `--help`, `help <parent>`, and `<parent> help` exit 0.
 - Parent commands become runnable, so their help gains the usage line that the root command already renders.
 - Unknown subcommands of a parent do not offer spelling suggestions; the root command still does.
 - The schema stamp is a change marker, not a compatibility promise. `TestSchemaVersion` pins the literal so the bump is a deliberate edit.

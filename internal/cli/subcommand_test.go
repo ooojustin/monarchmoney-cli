@@ -7,22 +7,35 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func TestAppParentCommandsRejectStrayArguments(t *testing.T) {
+func parentCommandCases(t *testing.T) []struct {
+	path      []string
+	hasAction bool
+} {
+	t.Helper()
 	app, _ := newTestApp(t)
-
+	var cases []struct {
+		path      []string
+		hasAction bool
+	}
 	var walk func(*cobra.Command)
 	walk = func(parent *cobra.Command) {
 		for _, cmd := range parent.Commands() {
+			if cmd.Hidden {
+				continue
+			}
 			walk(cmd)
 			if !cmd.HasSubCommands() {
 				continue
 			}
-			if cmd.RunE == nil && cmd.Args == nil {
-				t.Errorf("%q has subcommands but accepts stray arguments", cmd.CommandPath())
-			}
+			path := strings.Fields(strings.TrimPrefix(cmd.CommandPath(), app.Root.Name()+" "))
+			cases = append(cases, struct {
+				path      []string
+				hasAction bool
+			}{path: path, hasAction: cmd.Run != nil})
 		}
 	}
 	walk(app.Root)
+	return cases
 }
 
 func TestParentCommandsRequireSubcommandJSON(t *testing.T) {
@@ -91,5 +104,68 @@ func TestParentCommandHelpFlagSucceeds(t *testing.T) {
 	}
 	if !strings.Contains(h.Stdout.String(), "Available Commands") {
 		t.Fatalf("stdout=%q, want help text", h.Stdout.String())
+	}
+}
+
+func TestParentCommandContracts(t *testing.T) {
+	for _, tt := range parentCommandCases(t) {
+		name := strings.Join(tt.path, ".")
+
+		t.Run(name+" trailing help", func(t *testing.T) {
+			h := newAppTestHarness(t, nil)
+			args := append(append([]string{}, tt.path...), "help")
+			if err := h.execute(args...); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			if h.ExitCode != 0 || !strings.Contains(h.Stdout.String(), "Usage:") {
+				t.Fatalf("exitCode = %d; stdout=%q, want help", h.ExitCode, h.Stdout.String())
+			}
+		})
+
+		t.Run(name+" structured trailing help", func(t *testing.T) {
+			h := newAppTestHarness(t, nil)
+			args := append([]string{"--json"}, tt.path...)
+			args = append(args, "help")
+			if err := h.execute(args...); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			if h.ExitCode != 0 || !strings.Contains(h.Stdout.String(), "Usage:") || strings.Contains(h.Stdout.String(), `"ok":`) {
+				t.Fatalf("exitCode = %d; stdout=%q, want explicit human help", h.ExitCode, h.Stdout.String())
+			}
+		})
+
+		t.Run(name+" help rejects arguments", func(t *testing.T) {
+			h := newAppTestHarness(t, nil)
+			args := append(append([]string{"--json"}, tt.path...), "help", "extra")
+			if err := h.execute(args...); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			if h.ExitCode != 2 || !strings.Contains(h.Stdout.String(), `"code":"INVALID_ARGUMENTS"`) {
+				t.Fatalf("exitCode = %d; output=%q, want argument error", h.ExitCode, h.Stdout.String())
+			}
+		})
+
+		t.Run(name+" unknown child", func(t *testing.T) {
+			h := newAppTestHarness(t, nil)
+			args := append(append([]string{"--json"}, tt.path...), "not-a-command")
+			if err := h.execute(args...); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			if h.ExitCode != 2 || !strings.Contains(h.Stdout.String(), `"code":"INVALID_ARGUMENTS"`) || strings.Contains(h.Stdout.String(), "Available Commands") {
+				t.Fatalf("exitCode = %d; output=%q, want structured argument error", h.ExitCode, h.Stdout.String())
+			}
+		})
+
+		if !tt.hasAction {
+			t.Run(name+" bare", func(t *testing.T) {
+				h := newAppTestHarness(t, nil)
+				if err := h.execute(tt.path...); err != nil {
+					t.Fatalf("Execute() error = %v", err)
+				}
+				if h.ExitCode != 2 || !strings.Contains(h.Stdout.String(), "Available Commands") {
+					t.Fatalf("exitCode = %d; stdout=%q, want help and exit 2", h.ExitCode, h.Stdout.String())
+				}
+			})
+		}
 	}
 }
