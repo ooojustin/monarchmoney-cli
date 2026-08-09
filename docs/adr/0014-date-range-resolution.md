@@ -6,7 +6,7 @@ Accepted.
 
 ## Context
 
-Commands that accept `--from` and `--to` filled in missing values in two different places under two different rules. The cashflow subcommands resolved each end independently in the command layer, then validated the resolved pair. `overview` resolved in the service layer, below validation, and reset both ends whenever either was absent.
+Commands that accept `--from` and `--to` filled in missing values in two different places under two different rules. Five cashflow reporting subcommands resolved each end independently in the command layer, then validated the resolved pair; `cashflow trends` required both bounds. `overview` resolved in the service layer, below validation, and reset both ends whenever either was absent.
 
 The joint reset made a one-sided range unanswerable. `overview --from 2026-01-01` reported the current month: sixty transactions and no income, where the same range stated explicitly reported one thousand one hundred and ninety-nine transactions and eighty-seven thousand dollars of income. The command exited zero. A future start date behaved the same way.
 
