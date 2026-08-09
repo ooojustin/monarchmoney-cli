@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/monarch"
 	"github.com/thedavidweng/monarchmoney-cli/internal/output"
 )
@@ -39,7 +38,7 @@ func (a *App) buildOverviewCommand() *cobra.Command {
 
 			overview, err := svc.GetFinancialOverview(cmd.Context(), resolvedFrom, resolvedTo)
 			if err != nil {
-				a.handleError(renderer, "overview", errors.New(errors.APIError, fmt.Sprintf("failed to get financial overview: %v", err), errors.CatAPI, false, err), start)
+				a.handleError(renderer, "overview", wrapError(err, "failed to get financial overview"), start)
 				return
 			}
 

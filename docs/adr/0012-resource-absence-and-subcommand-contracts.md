@@ -18,7 +18,7 @@ Cobra validates unknown subcommands only on the root command. `legacyArgs` retur
 
 `RESOURCE_NOT_FOUND` maps to exit code 8. `INTERNAL_ERROR` maps to exit code 1 explicitly, so the default branch means an unrecognized code.
 
-A read that resolves exactly one resource from a caller-supplied identifier reports `RESOURCE_NOT_FOUND` when the API resolves that identifier to null. Lists, searches, filters, and client-side projections are collections: they succeed with an empty array. Mutations continue to surface the API's own error, because the server is authoritative about whether a write target exists. The check belongs in the service layer, which is the only layer that knows the response shape and its identity field.
+A read that resolves exactly one resource from a caller-supplied identifier reports `RESOURCE_NOT_FOUND` when the API resolves that identifier to null or returns its canonical `Not found` GraphQL error for that lookup. Lists, searches, filters, and client-side projections are collections: they succeed with an empty array. Mutations continue to surface the API's own error, because the server is authoritative about whether a write target exists. The check belongs in the service layer, which is the only layer that knows the response shape and its identity field. GraphQL error translation stays local to a lookup until another endpoint proves the same server contract.
 
 Absence detection is worthless if the code is discarded in transit, so `wrapError` traverses wrapped errors and `errors.Error` exposes its cause.
 

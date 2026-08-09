@@ -159,6 +159,19 @@ func TestAppOverviewHuman(t *testing.T) {
 	}
 }
 
+func TestAppOverviewPreservesStructuredServiceError(t *testing.T) {
+	app, out, exitCode := newTestOverviewApp(t, testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusUnauthorized, Body: http.NoBody}, nil
+	}))
+	app.Root.SetArgs([]string{"--json", "overview"})
+	if err := app.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if *exitCode != 3 || !strings.Contains(out.String(), `"code":"AUTH_SESSION_EXPIRED"`) || !strings.Contains(out.String(), `"retryable":false`) {
+		t.Fatalf("exitCode = %d; output=%q, want preserved auth error", *exitCode, out.String())
+	}
+}
+
 func TestAppOverviewResolvesLoneFromThroughToday(t *testing.T) {
 	var mu sync.Mutex
 	requests := make(map[string]map[string]any)

@@ -69,7 +69,7 @@ func (a *App) buildCacheSyncCommand() *cobra.Command {
 			renderer.PrintDiagnostic("Syncing accounts...")
 			accounts, err := svc.ListAccounts(cmd.Context())
 			if err != nil {
-				a.handleError(renderer, "cache.sync", errors.New(errors.APIError, fmt.Sprintf("failed to sync accounts: %v", err), errors.CatAPI, false, err), start)
+				a.handleError(renderer, "cache.sync", wrapError(err, "failed to sync accounts"), start)
 				return
 			}
 			cacheAccs := make([]cache.Account, 0, len(accounts))
@@ -101,7 +101,7 @@ func (a *App) buildCacheSyncCommand() *cobra.Command {
 				txs, _, err = svc.ListTransactions(cmd.Context(), &monarch.ListTransactionsOptions{Limit: limit, StartDate: from})
 			}
 			if err != nil {
-				a.handleError(renderer, "cache.sync", errors.New(errors.APIError, fmt.Sprintf("failed to sync transactions: %v", err), errors.CatAPI, false, err), start)
+				a.handleError(renderer, "cache.sync", wrapError(err, "failed to sync transactions"), start)
 				return
 			}
 			cacheTxs := make([]cache.Transaction, 0, len(txs))

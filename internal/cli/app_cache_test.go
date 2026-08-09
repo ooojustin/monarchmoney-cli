@@ -330,7 +330,7 @@ func TestAppCacheSyncFailsWhenTransactionsAPIFails(t *testing.T) {
 			return testutil.JSONResponse(`{"data":{"accounts":[{"id":"acc_1","displayName":"Checking","type":{"name":"cash"},"subtype":{"name":"checking"},"displayBalance":1250.5,"updatedAt":"2026-05-09"}]}}`), nil
 		case "GetTransactionsList":
 			return &http.Response{
-				StatusCode: http.StatusInternalServerError,
+				StatusCode: http.StatusBadRequest,
 				Body:       io.NopCloser(bytes.NewReader(nil)),
 			}, nil
 		default:
@@ -346,8 +346,8 @@ func TestAppCacheSyncFailsWhenTransactionsAPIFails(t *testing.T) {
 	if exitCode == 0 {
 		t.Fatalf("exitCode = 0, want API failure; output=%q", out.String())
 	}
-	if got := out.String(); !strings.Contains(got, `"command":"cache.sync"`) || !strings.Contains(got, "failed to sync transactions") {
-		t.Fatalf("output = %q, want transaction sync failure", got)
+	if got := out.String(); !strings.Contains(got, `"command":"cache.sync"`) || !strings.Contains(got, `"code":"API_ERROR"`) || !strings.Contains(got, "API returned status 400") {
+		t.Fatalf("output = %q, want preserved transaction service error", got)
 	}
 }
 

@@ -41,6 +41,19 @@ func TestCategoriesGroupsJSON(t *testing.T) {
 	}
 }
 
+func TestCategoriesRolloverMapsGraphQLNotFound(t *testing.T) {
+	h := newJSONCommandHarness(t, testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+		return testutil.JSONResponse(`{"data":{"category":null},"errors":[{"message":"Not found","path":["category"]}]}`), nil
+	}))
+
+	if err := h.execute("--json", "categories", "rollover", "missing"); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if h.ExitCode != 8 || !strings.Contains(h.Stdout.String(), `"code":"RESOURCE_NOT_FOUND"`) {
+		t.Fatalf("exitCode = %d; output=%q, want RESOURCE_NOT_FOUND", h.ExitCode, h.Stdout.String())
+	}
+}
+
 func TestCategoriesDeleteJSON(t *testing.T) {
 	h := newJSONCommandHarness(t, testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		var gqlReq struct {

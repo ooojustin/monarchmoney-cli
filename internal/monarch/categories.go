@@ -2,7 +2,9 @@ package monarch
 
 import (
 	"context"
+	stderrors "errors"
 	"fmt"
+	"strings"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
@@ -267,6 +269,10 @@ func (s *Service) GetCategoryRollover(ctx context.Context, categoryID string) (*
 		Variables:     map[string]any{"id": categoryID},
 	}, &resp)
 	if err != nil {
+		var cliErr *errors.Error
+		if stderrors.As(err, &cliErr) && cliErr.Code == errors.APIError && strings.TrimSpace(cliErr.Message) == "Not found" {
+			return nil, errors.New(errors.ResourceNotFound, fmt.Sprintf("category %s not found", categoryID), errors.CatAPI, false, err)
+		}
 		return nil, err
 	}
 

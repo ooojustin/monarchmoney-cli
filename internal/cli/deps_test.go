@@ -22,9 +22,12 @@ func TestWrapError(t *testing.T) {
 	})
 
 	t.Run("structured error passthrough", func(t *testing.T) {
-		structured := clierrors.New(clierrors.NetworkUnreachable, "cannot reach API", clierrors.CatNetwork, true, nil)
+		structured := clierrors.NewWithRetryAfter(clierrors.RateLimited, "rate limited", clierrors.CatAPI, true, 3*time.Second, nil)
 		if wrapped := wrapError(structured, "ignored message"); wrapped != structured {
 			t.Fatalf("wrapError() = %v, want same structured error", wrapped)
+		}
+		if structured.RetryAfterMS != 3000 {
+			t.Fatalf("RetryAfterMS = %d, want 3000", structured.RetryAfterMS)
 		}
 	})
 

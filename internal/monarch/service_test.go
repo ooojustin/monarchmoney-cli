@@ -1427,6 +1427,30 @@ func TestServiceReportsMissingSingleResources(t *testing.T) {
 	}
 }
 
+func TestServiceGetCategoryRolloverMapsGraphQLNotFound(t *testing.T) {
+	apiErr := clierrors.New(clierrors.APIError, "Not found", clierrors.CatAPI, false, nil)
+	client := &mockClient{handler: func(*graphql.Request, any) error { return apiErr }}
+
+	_, err := NewService(client).GetCategoryRollover(context.Background(), "missing")
+	var cliErr *clierrors.Error
+	if !errors.As(err, &cliErr) || cliErr.Code != clierrors.ResourceNotFound || cliErr.ExitCode() != 8 {
+		t.Fatalf("error = %v, want RESOURCE_NOT_FOUND exit 8", err)
+	}
+	if !errors.Is(err, apiErr) {
+		t.Fatalf("error = %v, want original API error preserved as cause", err)
+	}
+}
+
+func TestServiceGetCategoryRolloverPreservesOtherGraphQLErrors(t *testing.T) {
+	apiErr := clierrors.New(clierrors.APIError, "permission denied", clierrors.CatAPI, false, nil)
+	client := &mockClient{handler: func(*graphql.Request, any) error { return apiErr }}
+
+	_, err := NewService(client).GetCategoryRollover(context.Background(), "category-1")
+	if err != apiErr {
+		t.Fatalf("error = %v, want original API error", err)
+	}
+}
+
 func TestServiceGetBudgetWithoutMonthlyAmounts(t *testing.T) {
 	var client *mockClient
 	client = &mockClient{
