@@ -25,7 +25,6 @@ var (
 	confirm   bool
 	timeout   time.Duration
 	profile   string
-	verbose   bool
 	requestID string
 )
 
@@ -57,7 +56,6 @@ Monarch Money data from your terminal, scripts, and local agents.`,
 		readOnly = readOnly || envBool("MONARCH_READONLY") || envBool("MONARCH_READ_ONLY")
 		dryRun = dryRun || envBool("MONARCH_DRY_RUN")
 		confirm = confirm || envBool("MONARCH_CONFIRM")
-		verbose = verbose || envBool("MONARCH_VERBOSE")
 
 		if !persistentFlagChanged(cmd, "profile") {
 			profile = cfg.Profile
@@ -108,7 +106,6 @@ func init() {
 	RootCmd.PersistentFlags().BoolVar(&confirm, "confirm", false, "explicitly execute a remote write")
 	RootCmd.PersistentFlags().DurationVar(&timeout, "timeout", 30*time.Second, "set command timeout")
 	RootCmd.PersistentFlags().StringVar(&profile, "profile", "default", "use a named profile")
-	RootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "print more diagnostics to stderr")
 
 	RootCmd.AddCommand(versionCmd)
 }

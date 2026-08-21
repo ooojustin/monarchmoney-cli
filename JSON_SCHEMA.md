@@ -71,7 +71,6 @@ The process exit code is derived from `error.code` (see `internal/errors`). A su
 | 5 | `RATE_LIMITED` | api |
 | 6 | `API_ERROR` | api |
 | 6 | `API_SCHEMA_CHANGED` | api |
-| 6 | `FEATURE_UNAVAILABLE` | api |
 | 7 | `VALIDATION_FAILED` | validation |
 | 10 | `CONFIRMATION_REQUIRED` | safety |
 
