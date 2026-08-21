@@ -239,6 +239,63 @@ func TestCacheSyncRegeneratesBackupWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestCacheSyncBackupFailureSurfacesWarningWithoutFailingSync(t *testing.T) {
+	dir := t.TempDir()
+	sessionPath := filepath.Join(dir, "session.json")
+	cachePath := filepath.Join(dir, "cache.sqlite")
+	backupPath := filepath.Join(dir, "absent-dir", "auto.journal")
+	exitCode := withCacheCommandTestDefaults(t, sessionPath, cachePath)
+	saveTestSession(t, sessionPath)
+	t.Setenv("MONARCH_BACKUP_PATH", backupPath)
+
+	http.DefaultTransport = testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		var gqlReq struct {
+			OperationName string `json:"operationName"`
+		}
+		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
+			t.Fatalf("Decode request error = %v", err)
+		}
+		switch gqlReq.OperationName {
+		case "GetAccounts":
+			return testutil.JSONResponse(`{"data":{"accounts":[{"id":"acc_1","displayName":"Checking","type":{"name":"cash","group":"asset"},"displayBalance":10,"currentBalance":10,"updatedAt":"2026-05-09T10:00:00Z"}]}}`), nil
+		case "GetTransactionsList":
+			return testutil.JSONResponse(`{"data":{"allTransactions":{"results":[{"id":"tx_1","date":"2026-05-09","amount":-5,"merchant":{"name":"Cafe"},"category":{"name":"Dining"},"account":{"id":"acc_1"}}],"totalCount":1}}}`), nil
+		case "Web_GetHoldings":
+			return testutil.JSONResponse(`{"data":{"portfolio":{"aggregateHoldings":{"edges":[]}}}}`), nil
+		default:
+			t.Fatalf("unexpected operation %q", gqlReq.OperationName)
+		}
+		return nil, nil
+	})
+
+	out := captureStdout(t, func() {
+		cacheSyncCmd.Run(cacheSyncCmd, nil)
+	})
+
+	if *exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0 (regeneration failure must not fail sync); output=%q", *exitCode, out)
+	}
+	var env struct {
+		OK   bool           `json:"ok"`
+		Data map[string]any `json:"data"`
+		Meta struct {
+			Warnings []string `json:"warnings"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal([]byte(out), &env); err != nil {
+		t.Fatalf("parse envelope: %v\n%s", err, out)
+	}
+	if !env.OK {
+		t.Fatalf("envelope ok = false, want true; output=%q", out)
+	}
+	if _, ok := env.Data["backup"]; ok {
+		t.Fatalf("envelope data.backup = %v, want key absent when regeneration failed", env.Data["backup"])
+	}
+	if len(env.Meta.Warnings) != 1 || !strings.Contains(env.Meta.Warnings[0], "ledger backup regeneration failed") {
+		t.Fatalf("warnings = %v, want ledger backup failure warning", env.Meta.Warnings)
+	}
+}
+
 func TestCacheSyncSkipsBackupWhenNotConfigured(t *testing.T) {
 	dir := t.TempDir()
 	sessionPath := filepath.Join(dir, "session.json")

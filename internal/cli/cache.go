@@ -180,27 +180,30 @@ and closing balances. A cache created by an older version is rebuilt automatical
 
 		cacheStore.RecordSync(len(cacheAccs), len(cacheTxs)) //nolint:errcheck // best-effort sync record
 
-		var backupWritten bool
+		var backupPath string
+		var backupWarnings []string
 		if cfg.BackupPath != "" {
 			renderer.PrintDiagnostic("Regenerating ledger backup...")
 			if _, err := writeJournal(cacheStore, cfg.BackupPath); err != nil {
-				handleError(renderer, "cache.sync", errors.New(errors.InternalError, "sync completed but ledger backup regeneration failed", errors.CatInternal, false, err), start)
-				return
+				backupWarnings = append(backupWarnings, fmt.Sprintf("ledger backup regeneration failed: %v", err))
+				renderer.PrintDiagnostic(fmt.Sprintf("Ledger backup regeneration failed: %v", err))
+			} else {
+				backupPath = cfg.BackupPath
 			}
-			backupWritten = true
 		}
 
 		if jsonMode {
 			data := map[string]any{"status": "sync complete", "accounts": len(cacheAccs), "transactions": len(cacheTxs), "holdings": len(cacheHoldings)}
-			if backupWritten {
-				data["backup"] = cfg.BackupPath
+			if backupPath != "" {
+				data["backup"] = backupPath
 			}
 			env := output.NewEnvelope("cache.sync", profile, output.SchemaVersion, requestID, data, time.Since(start))
+			env.Meta.Warnings = backupWarnings
 			renderer.RenderSuccess(env)
 		} else {
 			fmt.Printf("Sync complete. %d accounts, %d transactions, %d holdings.\n", len(cacheAccs), len(cacheTxs), len(cacheHoldings))
-			if backupWritten {
-				fmt.Printf("Ledger backup written to %s.\n", cfg.BackupPath)
+			if backupPath != "" {
+				fmt.Printf("Ledger backup written to %s.\n", backupPath)
 			}
 		}
 	},
