@@ -22,7 +22,28 @@
 - `data`: The command-specific results (object or array).
 - `meta`: Diagnostic information about the request.
 - `meta.request_id`: A UUID generated per invocation, identical across every envelope emitted by a single command run.
-- `meta.warnings` (optional): Non-fatal notices about deprecated fields or migration advice. Emitted by commands that interact with legacy API fields (e.g., `transactions list`, `accounts history`).
+- `meta.warnings` (optional): Non-fatal notices about deprecated fields or migration advice. Emitted by commands that interact with legacy API fields (e.g., `transactions list`, `accounts history`), and by `cache sync` when automatic ledger-backup regeneration fails (the sync itself still succeeds).
+
+## Command-Specific Data
+
+### `hledger backup`
+
+```json
+{
+  "status": "backup complete",
+  "file": "./monarch.journal",
+  "accounts": 69,
+  "transactions": 3394,
+  "holdings": 3
+}
+```
+
+- `file`: The journal path written (the positional `[FILE]` argument, or the `./monarch.journal` default).
+- `accounts` / `transactions` / `holdings`: Row counts read from the cache and rendered into the journal.
+
+### `cache sync`
+
+With no `backup_path` configured, `data` contains only `status`, `accounts`, `transactions`, and `holdings`. When `backup_path` is set and a successful sync regenerates the ledger backup, `data.backup` holds the journal path. If regeneration fails, `data.backup` is absent and `meta.warnings` explains the failure while the command still exits `0`.
 
 ## Error Envelope
 

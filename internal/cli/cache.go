@@ -22,7 +22,11 @@ func parseCacheDate(value string) (time.Time, error) {
 }
 
 func openCache(renderer *output.Renderer, command string, start time.Time) (*cache.Store, bool) {
-	cfg, _ := config.Load(cfgFile)
+	cfg, err := config.Load(cfgFile)
+	if err != nil {
+		handleError(renderer, command, errors.New(errors.InternalError, "failed to load config", errors.CatInternal, false, err), start)
+		return nil, false
+	}
 	store, err := cache.NewStore(cfg.CachePath)
 	if err != nil {
 		msg := "failed to open cache"
@@ -157,9 +161,11 @@ and closing balances. A cache created by an older version is rebuilt automatical
 			}
 			cacheTxs = append(cacheTxs, ct)
 		}
-		if err := cacheStore.SaveTransactions(cacheTxs); err != nil {
-			handleError(renderer, "cache.sync", errors.New(errors.InternalError, "failed to save transactions to cache", errors.CatInternal, false, err), start)
-			return
+		if len(cacheTxs) > 0 {
+			if err := cacheStore.SaveTransactions(cacheTxs); err != nil {
+				handleError(renderer, "cache.sync", errors.New(errors.InternalError, "failed to save transactions to cache", errors.CatInternal, false, err), start)
+				return
+			}
 		}
 
 		renderer.PrintDiagnostic("Syncing holdings...")
@@ -178,7 +184,10 @@ and closing balances. A cache created by an older version is rebuilt automatical
 			return
 		}
 
-		cacheStore.RecordSync(len(cacheAccs), len(cacheTxs)) //nolint:errcheck // best-effort sync record
+		if err := cacheStore.RecordSync(len(cacheAccs), len(cacheTxs)); err != nil {
+			handleError(renderer, "cache.sync", errors.New(errors.InternalError, "failed to record sync metadata", errors.CatInternal, false, err), start)
+			return
+		}
 
 		var backupPath string
 		var backupWarnings []string

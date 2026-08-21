@@ -64,7 +64,6 @@ func Generate(data *Data) string {
 		if !ok || strings.EqualFold(acc.TypeGroup, "investment") {
 			continue
 		}
-		g.txIndex[t.ID] = len(g.txs)
 		g.txs = append(g.txs, *t)
 	}
 	sort.SliceStable(g.txs, func(i, j int) bool {
@@ -73,6 +72,9 @@ func Generate(data *Data) string {
 		}
 		return g.txs[i].ID < g.txs[j].ID
 	})
+	for i := range g.txs {
+		g.txIndex[g.txs[i].ID] = i
+	}
 
 	for _, h := range data.Holdings {
 		if _, ok := g.byID[h.AccountID]; ok {
@@ -256,6 +258,9 @@ func (g *generator) writePrices(b *strings.Builder) {
 	sort.Strings(tickers)
 	for _, t := range tickers {
 		p := prices[t]
+		if p.qty == 0 {
+			continue
+		}
 		fmt.Fprintf(b, "P %s %s %s\n", g.anchor.Format("2006-01-02"), t, baseCommodity+price(p.value/p.qty))
 	}
 	if len(tickers) > 0 {

@@ -57,7 +57,7 @@ financial history offline:
 
 ```bash
 monarch hledger backup /tmp/snapshot.journal --json
-hledger bal -f /tmp/snapshot.journal --json
+hledger bal -f /tmp/snapshot.journal -O json
 ```
 
 ### Mutation with User Gate

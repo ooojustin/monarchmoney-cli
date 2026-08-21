@@ -429,10 +429,13 @@ func TestGenerateIsDeterministicRegardlessOfInputOrder(t *testing.T) {
 		accounts := []cache.Account{
 			{ID: "acc_1", DisplayName: "Checking", TypeGroup: "asset", CurrentBalance: 88.12},
 			{ID: "acc_2", DisplayName: "Brokerage", TypeGroup: "investment"},
+			{ID: "acc_3", DisplayName: "Savings", TypeGroup: "asset"},
 		}
 		transactions := []cache.Transaction{
 			{ID: "tx_a", Date: d("2026-05-01"), Amount: -100, Merchant: "To Brokerage", Category: "Transfer", CategoryGroupType: "transfer", AccountID: "acc_1"},
 			{ID: "tx_b", Date: d("2026-05-01"), Amount: -7.5, Merchant: "Coffee", Category: "Dining", CategoryGroupType: "expense", AccountID: "acc_1"},
+			{ID: "tx_d", Date: d("2026-05-02"), Amount: 50, Merchant: "From Checking", Category: "Transfer", CategoryGroupType: "transfer", AccountID: "acc_3"},
+			{ID: "tx_c", Date: d("2026-05-02"), Amount: -50, Merchant: "To Savings", Category: "Transfer", CategoryGroupType: "transfer", AccountID: "acc_1"},
 		}
 		holdings := []cache.Holding{
 			{ID: "h_1", Ticker: "VTI", Quantity: 3, Basis: 600, Value: 660, AccountID: "acc_2"},
@@ -459,5 +462,8 @@ func TestGenerateIsDeterministicRegardlessOfInputOrder(t *testing.T) {
 	}
 	if first == "" {
 		t.Fatal("Generate() produced empty output")
+	}
+	if !strings.Contains(first, "; transfer-partner: tx_d") || !strings.Contains(first, "assets:monarch:savings  $50.00") {
+		t.Fatalf("paired transfer resolved incorrectly:\n%s", first)
 	}
 }

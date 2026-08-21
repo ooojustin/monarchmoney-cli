@@ -328,7 +328,8 @@ func (s *Store) Holdings() ([]Holding, error) {
 func (s *Store) SearchTransactions(query string) ([]Transaction, error) {
 	like := "%" + query + "%"
 	rows, err := s.db.Query(
-		`SELECT id, date, amount, merchant, category, notes, account_id
+		`SELECT id, date, amount, merchant, plaid_name, provider_description, category, category_group, category_group_type,
+		        notes, pending, review_status, needs_review, goal_id, goal_name, account_id
 		 FROM transactions
 		 WHERE merchant LIKE ? OR notes LIKE ? OR category LIKE ? OR plaid_name LIKE ? OR provider_description LIKE ?
 		    OR EXISTS (SELECT 1 FROM transaction_tags tt WHERE tt.transaction_id = transactions.id AND tt.name LIKE ?)
@@ -343,10 +344,14 @@ func (s *Store) SearchTransactions(query string) ([]Transaction, error) {
 	var txs []Transaction
 	for rows.Next() {
 		var (
-			t    Transaction
-			date string
+			t           Transaction
+			date        string
+			pending     int
+			needsReview int
 		)
-		if err := rows.Scan(&t.ID, &date, &t.Amount, &t.Merchant, &t.Category, &t.Notes, &t.AccountID); err != nil {
+		if err := rows.Scan(&t.ID, &date, &t.Amount, &t.Merchant, &t.PlaidName, &t.ProviderDescription, &t.Category,
+			&t.CategoryGroup, &t.CategoryGroupType, &t.Notes, &pending, &t.ReviewStatus, &needsReview,
+			&t.GoalID, &t.GoalName, &t.AccountID); err != nil {
 			return nil, err
 		}
 		parsed, err := time.Parse(time.RFC3339, date)
@@ -354,9 +359,18 @@ func (s *Store) SearchTransactions(query string) ([]Transaction, error) {
 			return nil, err
 		}
 		t.Date = parsed
+		t.Pending = pending == 1
+		t.NeedsReview = needsReview == 1
 		txs = append(txs, t)
 	}
-	return txs, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if err := s.attachTags(txs); err != nil {
+		return nil, err
+	}
+	return txs, s.attachSplits(txs)
 }
 
 func (s *Store) Cleanup(before string) (int64, error) {
