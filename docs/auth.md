@@ -62,7 +62,7 @@ monarch auth logout
 
 - The session token is stored at `~/.monarchmoney-cli/session.json` by default.
 - `auth status` reports the stored email, the last login time, and whether the session is still valid.
-- Cache-backed commands such as `cache stats`, `cache search`, and `networth` continue to work from local data without requiring a live session check.
+- Cache-backed commands such as `cache stats`, `cache search`, and `hledger backup` work entirely from local data without a session or network access. Everything else talks to the Monarch API and requires a valid session.
 
 ## Local Cache Database
 

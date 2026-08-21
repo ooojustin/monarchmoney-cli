@@ -23,6 +23,7 @@
 | **Subscription** | Show Monarch subscription details | `monarch subscription show` |
 | **Attachments** | List, upload, download | `monarch transactions attachments` |
 | **Receipts** | Upload receipts to the inbox for AI categorization and matching | `monarch receipts` |
+| **Auth** | Login, logout, MFA, session status and management | `monarch auth` |
 | **Cache** | Local data cache (sync, search, stats, cleanup) | `monarch cache` |
 | **Ledger Backup** | One-way regenerating plain-text ledger for hledger | `monarch hledger` |
 | **Audit** | Audit log cleanup and management | `monarch audit` |
