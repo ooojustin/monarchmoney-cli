@@ -30,7 +30,6 @@ query GetAccounts {
     dataProvider
     dataProviderAccountId
     isManual
-    isHidden
     transactionsCount
     manualInvestmentsTrackingMethod
     order

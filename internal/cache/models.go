@@ -158,7 +158,7 @@ func Rebuild(db *sql.DB) error {
 		return err
 	}
 	if legacy {
-		if _, err := db.Exec(`DROP TABLE IF EXISTS accounts; DROP TABLE IF EXISTS transactions; DROP TABLE IF EXISTS sync_meta;`); err != nil {
+		if _, err := db.Exec(`DROP TABLE IF EXISTS accounts; DROP TABLE IF EXISTS transactions; DROP TABLE IF EXISTS transaction_tags; DROP TABLE IF EXISTS transaction_splits; DROP TABLE IF EXISTS sync_meta;`); err != nil {
 			return err
 		}
 	}

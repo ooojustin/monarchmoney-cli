@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -103,12 +104,31 @@ func writeJournal(store *cache.Store, path string) (backupResult, error) {
 		Holdings:     holdings,
 		Anchor:       backupAnchor(store, txs),
 	})
-	if err := os.WriteFile(path, []byte(journal), 0o600); err != nil {
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp-*")
+	if err != nil {
 		return backupResult{}, err
 	}
-	if err := os.Chmod(path, 0o600); err != nil {
+	tmpPath := tmp.Name()
+	committed := false
+	defer func() {
+		if !committed {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+	if _, err := tmp.WriteString(journal); err != nil {
+		_ = tmp.Close()
 		return backupResult{}, err
 	}
+	if err := tmp.Close(); err != nil {
+		return backupResult{}, err
+	}
+	if err := os.Chmod(tmpPath, 0o600); err != nil {
+		return backupResult{}, err
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return backupResult{}, err
+	}
+	committed = true
 	return backupResult{accounts: len(accounts), transactions: len(txs), holdings: len(holdings)}, nil
 }
 

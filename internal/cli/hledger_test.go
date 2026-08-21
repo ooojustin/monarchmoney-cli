@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -113,8 +114,10 @@ func TestHledgerBackupJournalContentAndPermissions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("journal not written: %v", err)
 	}
-	if perm := info.Mode().Perm(); perm != 0o600 {
-		t.Fatalf("journal permissions = %o, want 600", perm)
+	if runtime.GOOS != "windows" {
+		if perm := info.Mode().Perm(); perm != 0o600 {
+			t.Fatalf("journal permissions = %o, want 600", perm)
+		}
 	}
 
 	content, err := os.ReadFile(journalPath)
@@ -179,6 +182,107 @@ func TestHledgerBackupOnOutdatedCachePromptsResync(t *testing.T) {
 	}
 	if !strings.Contains(out, "run 'monarch cache sync' to rebuild it") {
 		t.Fatalf("output = %q, want re-sync guidance", out)
+	}
+}
+
+func TestCacheSyncSucceedsWithZeroTransactions(t *testing.T) {
+	dir := t.TempDir()
+	sessionPath := filepath.Join(dir, "session.json")
+	cachePath := filepath.Join(dir, "cache.sqlite")
+	exitCode := withCacheCommandTestDefaults(t, sessionPath, cachePath)
+	saveTestSession(t, sessionPath)
+
+	http.DefaultTransport = testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		var gqlReq struct {
+			OperationName string `json:"operationName"`
+		}
+		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
+			t.Fatalf("Decode request error = %v", err)
+		}
+		switch gqlReq.OperationName {
+		case "GetAccounts":
+			return testutil.JSONResponse(`{"data":{"accounts":[{"id":"acc_1","displayName":"Checking","type":{"name":"cash","group":"asset"},"displayBalance":10,"currentBalance":10,"updatedAt":"2026-05-09T10:00:00Z"}]}}`), nil
+		case "GetTransactionsList":
+			return testutil.JSONResponse(`{"data":{"allTransactions":{"results":[],"totalCount":0}}}`), nil
+		case "Web_GetHoldings":
+			return testutil.JSONResponse(`{"data":{"portfolio":{"aggregateHoldings":{"edges":[]}}}}`), nil
+		default:
+			t.Fatalf("unexpected operation %q", gqlReq.OperationName)
+		}
+		return nil, nil
+	})
+
+	out := captureStdout(t, func() {
+		cacheSyncCmd.Run(cacheSyncCmd, nil)
+	})
+
+	if *exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0 for an account with no transactions; output=%q", *exitCode, out)
+	}
+
+	store, err := cache.NewStore(cachePath)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+	defer store.Close()
+	stats, err := store.GetStats()
+	if err != nil {
+		t.Fatalf("GetStats() error = %v", err)
+	}
+	assertStatValue(t, stats, "accounts", 1)
+	if _, ok := stats["last_synced_at"]; !ok {
+		t.Fatalf("stats = %v, want last_synced_at recorded despite zero transactions", stats)
+	}
+}
+
+func TestCacheSearchFailsOnUnreadableConfig(t *testing.T) {
+	dir := t.TempDir()
+	cachePath := filepath.Join(dir, "cache.sqlite")
+	exitCode := withCacheCommandTestDefaults(t, filepath.Join(dir, "session.json"), cachePath)
+	cfgFile = dir
+
+	out := captureStdout(t, func() {
+		cacheSearchCmd.Run(cacheSearchCmd, []string{"coffee"})
+	})
+
+	if *exitCode == 0 {
+		t.Fatalf("exitCode = 0, want failure when config cannot be loaded; output=%q", out)
+	}
+	if !strings.Contains(out, "failed to load config") {
+		t.Fatalf("output = %q, want config load failure", out)
+	}
+}
+
+func TestHledgerBackupWriteFailureLeavesNoTempFiles(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("directory permission bits are not enforced on Windows")
+	}
+	dir := t.TempDir()
+	cachePath := filepath.Join(dir, "cache.sqlite")
+	exitCode := withCacheCommandTestDefaults(t, filepath.Join(dir, "session.json"), cachePath)
+	seedBackupCache(t, cachePath)
+	readOnly := filepath.Join(dir, "readonly")
+	if err := os.Mkdir(readOnly, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(readOnly, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(readOnly, 0o700) })
+
+	out := captureStdout(t, func() {
+		hledgerBackupCmd.Run(hledgerBackupCmd, []string{filepath.Join(readOnly, "monarch.journal")})
+	})
+
+	if *exitCode == 0 {
+		t.Fatalf("exitCode = 0, want failure writing into read-only directory; output=%q", out)
+	}
+	entries, err := os.ReadDir(readOnly)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("read-only directory contains %d entries after failed write, want 0 temp cleanup", len(entries))
 	}
 }
 
