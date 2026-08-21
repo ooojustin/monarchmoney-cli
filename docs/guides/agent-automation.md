@@ -97,8 +97,9 @@ Schedule `monarch cache sync` separately (it is the networked step) and keep age
 `accounts refresh --wait --events` emits NDJSON progress envelopes so an orchestrator can show or log progress:
 
 ```json
-{"ok":true,"data":{"status":"syncing","percent":20},"meta":{"command":"accounts.refresh.progress"}}
-{"ok":true,"data":{"status":"complete"},"meta":{"command":"accounts.refresh"}}
+{"ok":true,"data":{"is_complete":false,"status":"syncing","accounts":[{"id":"221000112233445566","has_sync_in_progress":true}]},"meta":{"command":"accounts.refresh.progress"}}
+{"ok":true,"data":{"is_complete":true,"status":"complete","accounts":[]},"meta":{"command":"accounts.refresh.progress"}}
+{"ok":true,"data":{"status":"refresh complete"},"meta":{"command":"accounts.refresh"}}
 ```
 
 ## Step 6: leave an audit trail

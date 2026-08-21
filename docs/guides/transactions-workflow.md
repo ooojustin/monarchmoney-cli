@@ -17,8 +17,6 @@ $ monarch transactions search "Maple Roast" --from 2026-01-01 --limit 5 --json
 
 (Second match omitted.) Note `plaid_name` / `data_provider_description`: the raw bank-feed names. Rules can match those even when the display merchant differs.
 
-Note `plaid_name` / `data_provider_description`: the raw bank-feed names. Rules can match those even when the display merchant differs.
-
 For a systematic pass, list everything Monarch flagged for review (add `--from`/`--to` or filters like `--category-id`, `--account-id`, `--pending`, `--is-split`):
 
 ```console

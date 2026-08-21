@@ -42,8 +42,6 @@ $ monarch cashflow trends --from 2026-05-01 --to 2026-07-31 --group-by category-
 
 (Remaining category groups omitted.) `--group-by category` gives per-category rows instead of groups.
 
-`--group-by category` gives per-category rows instead of groups.
-
 ## Step 4: budget drift
 
 ```console
@@ -77,7 +75,7 @@ For the *current* month, compare pace-of-spending against pace-of-calendar befor
 
 ```console
 $ monarch analyze burn-rate --month 2026-08 --json
-{"ok":true,"data":{"budgets":[{"category":"Education","budgeted":410.00,"spent":3032.00,"remaining":-2622.00,"days_elapsed":21,"days_total":31,"burn_pct":739.51,"time_pct":67.74,"status":"overspending"},{"category":"Groceries","budgeted":400.00,"spent":322.10,"remaining":77.90,"days_elapsed":21,"days_total":31,"burn_pct":80.53,"time_pct":67.74,"status":"on_track"},{"category":"Interest","budgeted":13.31,"spent":1.07,"remaining":12.24,"days_elapsed":21,"days_total":31,"burn_pct":8.04,"time_pct":67.74,"status":"underused"}],"period":{"end_date":"2026-08-31","start_date":"2026-08-01"}},"meta":{"command":"analyze.burn-rate","profile":"default","duration_ms":322,"schema_version":"2026-05-08","request_id":"88ac71e0-..."}}
+{"ok":true,"data":{"budgets":[{"category":"Education","budgeted":410.00,"spent":3032.00,"remaining":-2622.00,"days_elapsed":21,"days_total":31,"burn_pct":739.51,"time_pct":67.74,"status":"overspending"},{"category":"Groceries","budgeted":400.00,"spent":270.00,"remaining":130.00,"days_elapsed":21,"days_total":31,"burn_pct":67.5,"time_pct":67.74,"status":"on_track"},{"category":"Interest","budgeted":13.31,"spent":1.07,"remaining":12.24,"days_elapsed":21,"days_total":31,"burn_pct":8.04,"time_pct":67.74,"status":"underused"}],"period":{"end_date":"2026-08-31","start_date":"2026-08-01"}},"meta":{"command":"analyze.burn-rate","profile":"default","duration_ms":322,"schema_version":"2026-05-08","request_id":"88ac71e0-..."}}
 ```
 
 `status` compares `burn_pct` against `time_pct`: `overspending` (at 100% of budget, or ≥10 points ahead of the calendar), `ahead` (≥5 points ahead), `underused` (≥25 points behind), otherwise `on_track`. This is the step to run *during* the month, not after.
