@@ -2,6 +2,8 @@
 
 `monarchmoney-cli` is designed to cover the full capability surface of the Monarch Money API, matching and exceeding the feature set of the [monarch-mcp-server](https://github.com/robcerda/monarch-mcp-server) project.
 
+For task-oriented walkthroughs with real command output, see the [guides](README.md#documentation): [Configuration](docs/guides/configuration.md), [Ledger backup](docs/guides/ledger-backup.md) (`cache`, `hledger`), [Transactions workflow](docs/guides/transactions-workflow.md) (search → dry-run → confirm, splits, tags, rules), [Monthly review](docs/guides/monthly-review.md) (`budgets`, `cashflow`, `analyze`), and [Agent automation](docs/guides/agent-automation.md) (safe unattended setups).
+
 ## Core Domain Coverage
 
 | Domain | Capability | CLI Command |
