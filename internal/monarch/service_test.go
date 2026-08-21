@@ -182,6 +182,23 @@ func testServiceAccountsCoreReadPaths(t *testing.T) {
 		})
 	})
 
+	t.Run("list holdings", func(t *testing.T) {
+		runGraphQLCase(t, "Web_GetHoldings", nil, `{"portfolio":{"aggregateHoldings":{"edges":[{"node":{"holdings":[{"id":"h1","quantity":10.5,"name":"Vanguard ETF","ticker":"VTI","value":3000.5,"costBasis":2500,"account":{"id":"a1"}},{"id":"h2","quantity":500,"name":"USD","ticker":"CUR:USD","value":500,"costBasis":500,"account":{"id":"a1"}}]}}]}}}`, func(s *Service) error {
+			got, err := s.ListHoldings(context.Background())
+			mustNoErr(t, err)
+			mustLen(t, got, 2)
+			eq(t, "h1", got[0].ID)
+			eq(t, "VTI", got[0].Ticker)
+			eq(t, "Vanguard ETF", got[0].Name)
+			eq(t, 10.5, got[0].Quantity)
+			eq(t, 2500.0, got[0].Basis)
+			eq(t, 3000.5, got[0].Value)
+			eq(t, "a1", got[0].AccountID)
+			eq(t, "CUR:USD", got[1].Ticker)
+			return nil
+		})
+	})
+
 	t.Run("account types", func(t *testing.T) {
 		runGraphQLCase(t, "GetAccountTypeOptions", nil, `{"accountTypes":[{"name":"bank"},{"name":"credit"}]}`, func(s *Service) error {
 			got, err := s.GetAccountTypes(context.Background())

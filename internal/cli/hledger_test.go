@@ -286,6 +286,96 @@ func TestHledgerBackupWriteFailureLeavesNoTempFiles(t *testing.T) {
 	}
 }
 
+func TestHledgerBackupHumanOutput(t *testing.T) {
+	dir := t.TempDir()
+	cachePath := filepath.Join(dir, "cache.sqlite")
+	exitCode := withCacheCommandTestDefaults(t, filepath.Join(dir, "session.json"), cachePath)
+	seedBackupCache(t, cachePath)
+	jsonMode = false
+	t.Cleanup(func() { jsonMode = true })
+	journalPath := filepath.Join(dir, "human.journal")
+
+	out := captureStdout(t, func() {
+		hledgerBackupCmd.Run(hledgerBackupCmd, []string{journalPath})
+	})
+
+	if *exitCode != 0 {
+		t.Fatalf("exitCode = %d; output=%q", *exitCode, out)
+	}
+	if !strings.Contains(out, "Wrote "+journalPath+" (2 accounts, 1 transactions, 1 holdings)") {
+		t.Fatalf("human output = %q", out)
+	}
+}
+
+func TestHledgerBackupRenameFailureCleansUp(t *testing.T) {
+	dir := t.TempDir()
+	cachePath := filepath.Join(dir, "cache.sqlite")
+	exitCode := withCacheCommandTestDefaults(t, filepath.Join(dir, "session.json"), cachePath)
+	seedBackupCache(t, cachePath)
+	target := filepath.Join(dir, "blocked.journal")
+	if err := os.Mkdir(target, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	out := captureStdout(t, func() {
+		hledgerBackupCmd.Run(hledgerBackupCmd, []string{target})
+	})
+
+	if *exitCode == 0 {
+		t.Fatalf("exitCode = 0, want failure renaming onto a directory; output=%q", out)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.Contains(e.Name(), ".tmp-") {
+			t.Fatalf("temp file %q left behind after failed rename", e.Name())
+		}
+	}
+}
+
+func TestHledgerBackupAnchorsToLastSyncWithoutTransactions(t *testing.T) {
+	dir := t.TempDir()
+	cachePath := filepath.Join(dir, "cache.sqlite")
+	exitCode := withCacheCommandTestDefaults(t, filepath.Join(dir, "session.json"), cachePath)
+
+	store, err := cache.NewStore(cachePath)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+	if err := store.SaveAccounts([]cache.Account{{ID: "acc_1", DisplayName: "Checking", TypeGroup: "asset", CurrentBalance: 25}}); err != nil {
+		t.Fatalf("SaveAccounts() error = %v", err)
+	}
+	if err := store.RecordSync(1, 0); err != nil {
+		t.Fatalf("RecordSync() error = %v", err)
+	}
+	meta, err := store.LastSync()
+	if err != nil || meta == nil {
+		t.Fatalf("LastSync() = %v, %v", meta, err)
+	}
+	anchor := meta.SyncedAt.UTC().Format("2006-01-02")
+	if err := store.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	journalPath := filepath.Join(dir, "anchor.journal")
+
+	out := captureStdout(t, func() {
+		hledgerBackupCmd.Run(hledgerBackupCmd, []string{journalPath})
+	})
+
+	if *exitCode != 0 {
+		t.Fatalf("exitCode = %d; output=%q", *exitCode, out)
+	}
+	content, err := os.ReadFile(journalPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(content), anchor+" closing balances") {
+		t.Fatalf("journal not anchored to last sync date %s:\n%s", anchor, content)
+	}
+}
+
 func TestCacheSyncRegeneratesBackupWhenConfigured(t *testing.T) {
 	dir := t.TempDir()
 	sessionPath := filepath.Join(dir, "session.json")
