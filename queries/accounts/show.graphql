@@ -30,7 +30,6 @@ query AccountDetails_getAccount($id: UUID!) {
     dataProviderAccountId
     isManual
     transactionsCount
-    holdingsCount
     manualInvestmentsTrackingMethod
     order
     icon

@@ -66,7 +66,6 @@ type Account struct {
 	DataProviderAccountID           string  `json:"data_provider_account_id"`
 	IsManual                        bool    `json:"is_manual"`
 	TransactionsCount               int     `json:"transactions_count"`
-	HoldingsCount                   int     `json:"holdings_count"`
 	ManualInvestmentsTrackingMethod string  `json:"manual_investments_tracking_method"`
 	Order                           int     `json:"order"`
 	Icon                            string  `json:"icon"`
@@ -291,12 +290,10 @@ func (s *Service) GetAccount(ctx context.Context, id string) (*Account, error) {
 			DataProviderAccountID           string  `json:"dataProviderAccountId"`
 			IsManual                        bool    `json:"isManual"`
 			TransactionsCount               int     `json:"transactionsCount"`
-			HoldingsCount                   int     `json:"holdingsCount"`
 			ManualInvestmentsTrackingMethod string  `json:"manualInvestmentsTrackingMethod"`
 			Order                           int     `json:"order"`
 			Icon                            string  `json:"icon"`
 			LogoURL                         string  `json:"logoUrl"`
-			IsClosed                        bool    `json:"isClosed"`
 		} `json:"account"`
 	}
 
@@ -335,12 +332,11 @@ func (s *Service) GetAccount(ctx context.Context, id string) (*Account, error) {
 		DataProviderAccountID:           resp.Account.DataProviderAccountID,
 		IsManual:                        resp.Account.IsManual,
 		TransactionsCount:               resp.Account.TransactionsCount,
-		HoldingsCount:                   resp.Account.HoldingsCount,
 		ManualInvestmentsTrackingMethod: resp.Account.ManualInvestmentsTrackingMethod,
 		Order:                           resp.Account.Order,
 		Icon:                            resp.Account.Icon,
 		LogoURL:                         resp.Account.LogoURL,
-		IsClosed:                        resp.Account.IsClosed,
+		IsClosed:                        resp.Account.DeactivatedAt != "",
 	}, nil
 }
 
@@ -584,9 +580,7 @@ func (s *Service) ListAccounts(ctx context.Context) ([]Account, error) {
 			DataProvider                    string  `json:"dataProvider"`
 			DataProviderAccountID           string  `json:"dataProviderAccountId"`
 			IsManual                        bool    `json:"isManual"`
-			IsClosed                        bool    `json:"isClosed"`
 			TransactionsCount               int     `json:"transactionsCount"`
-			HoldingsCount                   int     `json:"holdingsCount"`
 			ManualInvestmentsTrackingMethod string  `json:"manualInvestmentsTrackingMethod"`
 			Order                           int     `json:"order"`
 			Icon                            string  `json:"icon"`
@@ -631,9 +625,8 @@ func (s *Service) ListAccounts(ctx context.Context) ([]Account, error) {
 			DataProvider:                    a.DataProvider,
 			DataProviderAccountID:           a.DataProviderAccountID,
 			IsManual:                        a.IsManual,
-			IsClosed:                        a.IsClosed,
+			IsClosed:                        a.DeactivatedAt != "",
 			TransactionsCount:               a.TransactionsCount,
-			HoldingsCount:                   a.HoldingsCount,
 			ManualInvestmentsTrackingMethod: a.ManualInvestmentsTrackingMethod,
 			Order:                           a.Order,
 			Icon:                            a.Icon,
