@@ -261,28 +261,26 @@ func TestHledgerBackupWriteFailureLeavesNoTempFiles(t *testing.T) {
 	cachePath := filepath.Join(dir, "cache.sqlite")
 	exitCode := withCacheCommandTestDefaults(t, filepath.Join(dir, "session.json"), cachePath)
 	seedBackupCache(t, cachePath)
-	readOnly := filepath.Join(dir, "readonly")
-	if err := os.Mkdir(readOnly, 0o700); err != nil {
+	target := filepath.Join(dir, "journal-target")
+	if err := os.Mkdir(target, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Chmod(readOnly, 0o500); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(readOnly, 0o700) })
 
 	out := captureStdout(t, func() {
-		hledgerBackupCmd.Run(hledgerBackupCmd, []string{filepath.Join(readOnly, "monarch.journal")})
+		hledgerBackupCmd.Run(hledgerBackupCmd, []string{target})
 	})
 
 	if *exitCode == 0 {
-		t.Fatalf("exitCode = 0, want failure writing into read-only directory; output=%q", out)
+		t.Fatalf("exitCode = 0, want failure writing onto a directory path; output=%q", out)
 	}
-	entries, err := os.ReadDir(readOnly)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 0 {
-		t.Fatalf("read-only directory contains %d entries after failed write, want 0 temp cleanup", len(entries))
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), filepath.Base(target)+".tmp-") {
+			t.Fatalf("temporary journal file remains: %s", entry.Name())
+		}
 	}
 }
 
