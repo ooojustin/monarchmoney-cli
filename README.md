@@ -112,6 +112,16 @@ Remove local data if desired: `rm -rf ~/.monarchmoney-cli` (on Linux, the state 
 
 ## Documentation
 
+Guides — task-oriented walkthroughs with real command output:
+
+- [Configuration](docs/guides/configuration.md) — config file, env vars, and precedence
+- [Ledger backup](docs/guides/ledger-backup.md) — own your history as plain text with hledger
+- [Transactions workflow](docs/guides/transactions-workflow.md) — search, inspect, dry-run, confirm, tag, rule
+- [Monthly review](docs/guides/monthly-review.md) — budgets, cashflow, and analysis in ten minutes
+- [Agent automation](docs/guides/agent-automation.md) — run AI agents safely and unattended
+
+Reference:
+
 - [Commands](COMMANDS.md) — full list of supported commands and features
 - [Authentication](docs/auth.md) — MFA support and session management
 - [Safety Model](docs/safety.md) — how we protect your financial data
