@@ -711,9 +711,20 @@ var transactionsAttachmentsUploadCmd = &cobra.Command{
 	Short: "Upload an attachment for a transaction",
 	Args:  cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
-		start := time.Now()
-		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
-		handleError(renderer, "transactions.attachments.upload", errors.New(errors.FEATURE_UNAVAILABLE, "transaction attachment upload is unavailable in the current Monarch API", errors.CatAPI, false, nil), start)
+		txID, path := args[0], args[1]
+		runMutation(cmd, "transactions.attachments.upload", "failed to upload attachment", safety.TierMutation, func() (mutation, *errors.Error) {
+			return mutation{
+				resourceID: txID,
+				planAfter:  map[string]string{"file": path},
+				do: func(ctx context.Context, svc *monarch.Service) (any, error) {
+					if err := svc.UploadAttachment(ctx, txID, path); err != nil {
+						return nil, err
+					}
+					return map[string]string{"status": "uploaded", "file": path}, nil
+				},
+				human: func() { fmt.Printf("Successfully uploaded %s to transaction %s.\n", path, txID) },
+			}, nil
+		})
 	},
 }
 

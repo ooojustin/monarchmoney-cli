@@ -176,7 +176,6 @@ func run(t *testing.T, bin string, args ...string) (stdout string, exitCode int)
 	} else if err != nil {
 		t.Fatalf("unexpected exec error: %v", err)
 	}
-	recordCommand(args)
 	return stdout, exitCode
 }
 
@@ -253,7 +252,7 @@ var requiredCommands = []string{
 	"accounts", "analyze", "audit", "auth", "budgets",
 	"cache", "cashflow", "categories", "credit",
 	"doctor", "goals", "institutions", "investments",
-	"networth", "overview", "recurring", "rules", "subscription",
+	"networth", "overview", "receipts", "recurring", "rules", "subscription",
 	"tags", "transactions", "version",
 }
 
@@ -392,6 +391,12 @@ func TestBinary_Doctor(t *testing.T) {
 	}
 }
 
+func TestBinary_Doctor_Help(t *testing.T) {
+	bin := buildBinary(t)
+	stdout, code := run(t, bin, "doctor", "--help")
+	requireZero(t, code, stdout)
+}
+
 func TestBinary_Doctor_JSON(t *testing.T) {
 	bin := buildBinary(t)
 	stdout, code := run(t, bin, "doctor", "--json")
@@ -449,6 +454,15 @@ func TestBinary_Rules_Help(t *testing.T) {
 	requireZero(t, code, stdout)
 }
 
+func TestBinary_Receipts_Help(t *testing.T) {
+	bin := buildBinary(t)
+	stdout, code := run(t, bin, "receipts", "--help")
+	requireZero(t, code, stdout)
+	if !strings.Contains(stdout, "upload") {
+		t.Errorf("receipts help missing 'upload'")
+	}
+}
+
 func TestBinary_Subscription_Help(t *testing.T) {
 	bin := buildBinary(t)
 	stdout, code := run(t, bin, "subscription", "--help")
@@ -483,6 +497,12 @@ func TestBinary_Version(t *testing.T) {
 	if !strings.Contains(stdout, "monarch version") {
 		t.Fatalf("version output missing banner: %q", stdout)
 	}
+}
+
+func TestBinary_Version_Help(t *testing.T) {
+	bin := buildBinary(t)
+	stdout, code := run(t, bin, "version", "--help")
+	requireZero(t, code, stdout)
 }
 
 func TestBinary_Version_JSON(t *testing.T) {
@@ -528,40 +548,26 @@ func TestBinary_GlobalFlags_Pretty(t *testing.T) {
 }
 
 // ─── Coverage check ───
+//
+// Verifies every required command has a TestBinary_<Command>_Help test in this
+// file. This is a static check against the test source so it does not depend
+// on test execution order, which Go does not guarantee.
 
-var (
-	executedCmds = make(map[string]bool)
-	mu           sync.Mutex
-)
-
-func recordCommand(args []string) {
-	if len(args) == 0 {
-		return
-	}
-	mu.Lock()
-	defer mu.Unlock()
-	var path string
-	if len(args) >= 2 && !strings.HasPrefix(args[1], "-") {
-		path = args[0] + " " + args[1]
-	} else {
-		path = args[0]
-	}
-	executedCmds[path] = true
-}
+var testFilePattern = regexp.MustCompile(`func TestBinary_(\w+)_Help\b`)
 
 func TestCoverageReport(t *testing.T) {
+	source, err := os.ReadFile("binary_test.go")
+	if err != nil {
+		t.Fatalf("cannot read test source: %v", err)
+	}
+	tested := make(map[string]bool)
+	for _, m := range testFilePattern.FindAllSubmatch(source, -1) {
+		tested[strings.ToLower(string(m[1]))] = true
+	}
+
 	var uncovered []string
 	for _, cmd := range requiredCommands {
-		mu.Lock()
-		covered := executedCmds[cmd]
-		for executed := range executedCmds {
-			if strings.HasPrefix(executed, cmd+" ") {
-				covered = true
-				break
-			}
-		}
-		mu.Unlock()
-		if !covered {
+		if !tested[cmd] {
 			uncovered = append(uncovered, cmd)
 		}
 	}

@@ -1,0 +1,7 @@
+query Web_GetUploadBalanceHistorySession($sessionKey: String!) {
+  uploadBalanceHistorySession(sessionKey: $sessionKey) {
+    sessionKey
+    status
+    __typename
+  }
+}

@@ -524,13 +524,29 @@ func testAccountsUploadHistoryJSON(t *testing.T) {
 	saveTestSession(t, sessionPath)
 
 	http.DefaultTransport = testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
-		if req.Method != "POST" {
-			t.Fatalf("method = %q, want POST", req.Method)
+		if req.URL.Path == "/account-balance-history/upload/" {
+			if req.Method != "POST" {
+				t.Fatalf("method = %q, want POST", req.Method)
+			}
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				t.Fatalf("ReadAll() error = %v", err)
+			}
+			if !strings.Contains(string(body), `name="files"`) || !strings.Contains(string(body), `"upload.csv":"acc-1"`) {
+				t.Fatalf("upload body missing fields: %s", body)
+			}
+			return testutil.JSONResponse(`{"session_key":"sk-1"}`), nil
 		}
-		if !strings.Contains(req.URL.Path, "account-balance-history") {
-			t.Fatalf("path = %q, want account-balance-history", req.URL.Path)
+		var gqlReq struct {
+			OperationName string `json:"operationName"`
 		}
-		return testutil.JSONResponse(`{"ok":true}`), nil
+		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
+			t.Fatalf("Decode request error = %v", err)
+		}
+		if gqlReq.OperationName != "Web_ParseUploadBalanceHistorySession" {
+			t.Fatalf("operation = %q, want Web_ParseUploadBalanceHistorySession", gqlReq.OperationName)
+		}
+		return testutil.JSONResponse(`{"data":{"parseBalanceHistory":{"uploadBalanceHistorySession":{"sessionKey":"sk-1","status":"completed"}}}}`), nil
 	})
 
 	out := captureStdout(t, func() {

@@ -8,6 +8,10 @@ run = "go build ./..."
 [tasks.test]
 run = "go test ./..."
 
+[tasks.test-live]
+description = "Run live endpoint availability checks against the real Monarch API (requires MONARCH_LIVE_TOKEN)"
+run = "go test -v -run TestLiveEndpointAvailability ./internal/monarch/"
+
 [tasks.fmt]
 run = "golangci-lint fmt"
 

@@ -576,17 +576,50 @@ func testTransactionsAttachmentsUpload(t *testing.T) {
 	saveTestSession(t, sessionPath)
 
 	tmpFile := filepath.Join(dir, "receipt.pdf")
-	_ = os.WriteFile(tmpFile, []byte("pdf"), 0o600)
+	if err := os.WriteFile(tmpFile, []byte("pdf"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	http.DefaultTransport = testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Host == "api.cloudinary.com" {
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				t.Fatalf("ReadAll() error = %v", err)
+			}
+			if !strings.Contains(string(body), `filename="receipt.pdf"`) || !strings.Contains(string(body), `name="upload_preset"`) {
+				t.Fatalf("cloudinary body missing fields: %s", body)
+			}
+			return testutil.JSONResponse(`{"public_id":"pub-1","format":"pdf","bytes":3}`), nil
+		}
+		var gqlReq struct {
+			OperationName string `json:"operationName"`
+		}
+		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
+			t.Fatalf("Decode request error = %v", err)
+		}
+		switch gqlReq.OperationName {
+		case "Common_GetTransactionAttachmentUploadInfo":
+			return testutil.JSONResponse(`{"data":{"getTransactionAttachmentUploadInfo":{"info":{"requestParams":{"timestamp":1700000000,"folder":"monarch","signature":"sig-1","api_key":"key-1","upload_preset":"preset-1"}}}}}`), nil
+		case "Common_AddTransactionAttachment":
+			return testutil.JSONResponse(`{"data":{"addTransactionAttachment":{"errors":null}}}`), nil
+		default:
+			t.Fatalf("operation = %q, want attachment upload ops", gqlReq.OperationName)
+			return nil, nil
+		}
+	})
 
 	out := captureStdout(t, func() {
 		transactionsAttachmentsUploadCmd.Run(transactionsAttachmentsUploadCmd, []string{"tx-1", tmpFile})
 	})
 
-	if *exitCode == 0 {
-		t.Fatalf("exitCode = 0, want FEATURE_UNAVAILABLE; output=%q", out)
+	if *exitCode != 0 {
+		t.Fatalf("exitCode = %d; output=%q", *exitCode, out)
 	}
-	if !strings.Contains(out, `"FEATURE_UNAVAILABLE"`) {
-		t.Fatalf("output = %q, want FEATURE_UNAVAILABLE", out)
+	if !strings.Contains(out, `"command":"transactions.attachments.upload"`) {
+		t.Fatalf("output missing command = %q", out)
+	}
+	if !strings.Contains(out, `"status":"uploaded"`) {
+		t.Fatalf("output missing status = %q", out)
 	}
 }
 

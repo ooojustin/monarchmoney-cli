@@ -3,10 +3,13 @@ package monarch
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
+	"time"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
 	"github.com/thedavidweng/monarchmoney-cli/internal/graphql"
@@ -27,9 +30,14 @@ var GetAggregateSnapshotsQuery = queries.Get("accounts/aggregate_snapshots.graph
 var UpdateAccountMutation = queries.Get("accounts/update.graphql")
 var DeleteAccountMutation = queries.Get("accounts/delete.graphql")
 var CreateManualAccountMutation = queries.Get("accounts/create_manual.graphql")
+var ParseBalanceHistoryMutation = queries.Get("accounts/parse_balance_history.graphql")
+var GetBalanceHistorySessionQuery = queries.Get("accounts/balance_history_session.graphql")
 var newBalanceHistoryRequest = http.NewRequestWithContext
 var createBalanceHistoryFormFile = func(w *multipart.Writer, field, filename string) (io.Writer, error) {
-	return w.CreateFormFile(field, filename)
+	header := make(textproto.MIMEHeader)
+	header.Set("Content-Disposition", fmt.Sprintf(`form-data; name=%q; filename=%q`, field, escapeFormQuotes(filename)))
+	header.Set("Content-Type", "text/csv")
+	return w.CreatePart(header)
 }
 
 type Account struct {
@@ -674,28 +682,96 @@ func (s *Service) DeleteAccount(ctx context.Context, id string) error {
 	}, &resp)
 }
 
+var (
+	balanceHistoryUploadURL   = "https://api.monarch.com/account-balance-history/upload/"
+	balanceHistoryPollDelay   = 10 * time.Second
+	balanceHistoryPollTimeout = 300 * time.Second
+)
+
 func (s *Service) UploadAccountBalanceHistory(ctx context.Context, id string, r io.Reader) error {
-	// Monarch exposes balance history upload as a multipart REST endpoint, not GraphQL.
-	// Keep the same web headers and token shape as the GraphQL client.
-	url := "https://api.monarch.com/account-balance-history/upload/"
+	csv, err := io.ReadAll(r)
+	if err != nil {
+		return errors.New(errors.InternalError, "failed to read balance history CSV", errors.CatInternal, false, err)
+	}
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-	part, err := createBalanceHistoryFormFile(writer, "file", "history.csv")
+	part, err := createBalanceHistoryFormFile(writer, "files", "upload.csv")
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(part, r); err != nil {
-		return err
+	if _, err := part.Write(csv); err != nil {
+		return errors.New(errors.InternalError, "failed to write balance history CSV", errors.CatInternal, false, err)
 	}
-	writer.WriteField("account_id", id) //nolint:errcheck // best-effort write
-	writer.Close()
+	mapping, err := json.Marshal(map[string]string{"upload.csv": id})
+	if err != nil {
+		return errors.New(errors.InternalError, "failed to encode account mapping", errors.CatInternal, false, err)
+	}
+	if err := writer.WriteField("account_files_mapping", string(mapping)); err != nil {
+		return errors.New(errors.InternalError, "failed to write account mapping", errors.CatInternal, false, err)
+	}
+	if err := writer.Close(); err != nil {
+		return errors.New(errors.InternalError, "failed to finalize upload body", errors.CatInternal, false, err)
+	}
 
-	req, err := newBalanceHistoryRequest(ctx, "POST", url, body)
+	sessionKey, err := s.postBalanceHistoryCSV(ctx, body, writer.FormDataContentType())
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	var parseResp struct {
+		ParseBalanceHistory struct {
+			UploadBalanceHistorySession struct {
+				Status string `json:"status"`
+			} `json:"uploadBalanceHistorySession"`
+		} `json:"parseBalanceHistory"`
+	}
+	err = s.Client.DoMutation(ctx, &graphql.Request{
+		OperationName: "Web_ParseUploadBalanceHistorySession",
+		Query:         ParseBalanceHistoryMutation,
+		Variables:     map[string]any{"input": map[string]any{"sessionKey": sessionKey}},
+	}, &parseResp)
+	if err != nil {
+		return err
+	}
+	if parseResp.ParseBalanceHistory.UploadBalanceHistorySession.Status == "completed" {
+		return nil
+	}
+
+	for deadline := time.Now().Add(balanceHistoryPollTimeout); time.Now().Before(deadline); {
+		select {
+		case <-ctx.Done():
+			return errors.New(errors.NetworkTimeout, "request canceled while waiting for balance history parse", errors.CatNetwork, false, ctx.Err())
+		case <-time.After(balanceHistoryPollDelay):
+		}
+
+		var statusResp struct {
+			UploadBalanceHistorySession struct {
+				Status string `json:"status"`
+			} `json:"uploadBalanceHistorySession"`
+		}
+		err := s.Client.Do(ctx, &graphql.Request{
+			OperationName: "Web_GetUploadBalanceHistorySession",
+			Query:         GetBalanceHistorySessionQuery,
+			Variables:     map[string]any{"sessionKey": sessionKey},
+		}, &statusResp)
+		if err != nil {
+			return err
+		}
+		if statusResp.UploadBalanceHistorySession.Status == "completed" {
+			return nil
+		}
+	}
+
+	return errors.New(errors.APIError, "balance history upload session did not complete in time", errors.CatAPI, true, nil)
+}
+
+func (s *Service) postBalanceHistoryCSV(ctx context.Context, body *bytes.Buffer, contentType string) (string, error) {
+	req, err := newBalanceHistoryRequest(ctx, "POST", balanceHistoryUploadURL, body)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Client-Platform", "web")
 	req.Header.Set("User-Agent", graphql.UserAgent())
 	if token := s.Client.TokenValue(); token != "" {
@@ -704,13 +780,19 @@ func (s *Service) UploadAccountBalanceHistory(ctx context.Context, id string, r 
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return err
+		return "", errors.New(errors.NetworkUnreachable, "failed to reach balance history upload endpoint", errors.CatNetwork, true, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return errors.New(errors.APIError, fmt.Sprintf("upload failed with status %d", resp.StatusCode), errors.CatAPI, false, nil)
+		return "", errors.New(errors.APIError, fmt.Sprintf("upload failed with status %d", resp.StatusCode), errors.CatAPI, false, nil)
 	}
 
-	return nil
+	var payload struct {
+		SessionKey string `json:"session_key"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil || payload.SessionKey == "" {
+		return "", errors.New(errors.APISchemaChanged, "balance history upload response missing session_key", errors.CatAPI, false, err)
+	}
+	return payload.SessionKey, nil
 }

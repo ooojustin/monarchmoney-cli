@@ -21,7 +21,8 @@
 | **Recurring** | List and update recurring transactions | `monarch recurring` |
 | **Credit** | Get credit score history | `monarch credit` |
 | **Subscription** | Show Monarch subscription details | `monarch subscription show` |
-| **Attachments** | List, download (upload unavailable — API limitation) | `monarch transactions attachments` |
+| **Attachments** | List, upload, download | `monarch transactions attachments` |
+| **Receipts** | Upload receipts to the inbox for AI categorization and matching | `monarch receipts` |
 | **Cache** | Local data cache (sync, search, stats, cleanup) | `monarch cache` |
 | **Audit** | Audit log cleanup and management | `monarch audit` |
 | **Doctor** | Verify environment and authentication | `monarch doctor` |
@@ -49,6 +50,7 @@
 - `monarch transactions duplicates`: Find potential duplicate transactions.
 - `monarch transactions attachments list <id>`: List attachments for a transaction.
 - `monarch transactions attachments download <id>`: Download attachments for a transaction.
+- `monarch receipts upload <file>`: Upload a receipt to the Monarch receipt inbox (see Mutation Commands).
 - `monarch rules list`: List all auto-categorization rules.
 - `monarch budgets list`: View planned vs actual for a month.
 - `monarch budgets show <category-id>`: Show budget details for a category.
@@ -82,7 +84,7 @@
 
 ## Mutation and Remote-Action Commands
 
-All mutations are protected by the [Safety Model](./safety.md).
+All mutations are protected by the [Safety Model](./docs/safety.md).
 
 - `monarch auth login`: Authenticate and persist session.
 - `monarch auth logout`: Remove the local session token.
@@ -91,6 +93,8 @@ All mutations are protected by the [Safety Model](./safety.md).
 - `monarch accounts update <id>`: Update account name or balance.
 - `monarch accounts delete <id>`: Delete an account.
 - `monarch accounts upload-history <id>`: Upload balance history for an account.
+- `monarch transactions attachments upload <id> <file>`: Upload a file as a transaction attachment.
+- `monarch receipts upload <file>`: Upload a receipt to the Monarch receipt inbox; Monarch's AI categorizes and matches it automatically.
 - `monarch transactions create`: Manually add a transaction.
 - `monarch transactions update <id>`: Modify transaction fields (notes, category, amount, date, merchant, hide-from-reports, mark-reviewed).
 - `monarch transactions delete <id>`: Remove a transaction.
