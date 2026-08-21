@@ -49,6 +49,17 @@ monarch analyze burn-rate --month 2026-05 --json
 The analysis commands are deterministic and read-only. They do not use AI, make
 subjective recommendations, or mutate Monarch data.
 
+### Plain-Text Export
+
+`monarch hledger backup` regenerates a complete hledger journal from the local
+cache with no network access — useful when an agent should snapshot or analyze
+financial history offline:
+
+```bash
+monarch hledger backup /tmp/snapshot.journal --json
+hledger bal -f /tmp/snapshot.journal -O json
+```
+
 ### Mutation with User Gate
 **Goal**: Categorize a transaction.
 **Flow**:
@@ -110,4 +121,4 @@ Commands are organized into groups shown in `--help`:
 
 - **Core Commands**: `accounts`, `transactions`, `budgets`, `cashflow`, `rules`, `categories`, `tags`, `goals`, `investments`, `institutions`, `recurring`, `credit`, `subscription`
 - **Analysis & Insights**: `analyze`
-- **Utilities**: `auth`, `doctor`, `cache`, `audit`, `completion`, `version`
+- **Utilities**: `auth`, `doctor`, `cache`, `hledger`, `audit`, `completion`, `version`

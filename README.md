@@ -23,8 +23,9 @@
 - Agent-first: stable JSON output, distinct stdout/stderr, and predictable exit codes
 - Safety-first: `--read-only`, `--dry-run`, and `--confirm` gates for financial data mutations
 - Auditable: local JSONL audit logs for remote mutations
-- Fast single binary with optional SQLite caching
-- Broad Monarch surface: accounts, transactions, budgets, cashflow, rules, splits, recurring items, investments, and more
+- Plain-text ownership: one-way regenerating hledger backups of your complete financial history (`monarch hledger backup`)
+- Full-fidelity local archive: SQLite cache for offline queries, so your data outlives any subscription
+- Fast single binary with broad Monarch surface: accounts, transactions, budgets, cashflow, rules, splits, recurring items, investments, and more
 
 ## Why
 
@@ -89,6 +90,9 @@ Then try it:
 monarch accounts list --json
 monarch transactions search "Amazon" --from 2024-01-01 --json
 monarch cashflow spending --from 2024-01-01 --to 2024-01-31 --json
+
+# own your history as plain text (after `monarch cache sync`)
+monarch hledger backup ~/finances/monarch.journal
 ```
 
 ### Uninstall
@@ -104,9 +108,19 @@ curl -fsSL https://raw.githubusercontent.com/thedavidweng/monarchmoney-cli/main/
 rm "$(go env GOPATH)/bin/monarch"
 ```
 
-Remove config if desired: `rm -rf ~/.config/monarchmoney-cli`
+Remove local data if desired: `rm -rf ~/.monarchmoney-cli` (on Linux, the state directory may live under `$XDG_STATE_HOME/monarchmoney-cli`).
 
 ## Documentation
+
+Guides — task-oriented walkthroughs with real command output:
+
+- [Configuration](docs/guides/configuration.md) — config file, env vars, and precedence
+- [Ledger backup](docs/guides/ledger-backup.md) — own your history as plain text with hledger
+- [Transactions workflow](docs/guides/transactions-workflow.md) — search, inspect, dry-run, confirm, tag, rule
+- [Monthly review](docs/guides/monthly-review.md) — budgets, cashflow, and analysis in ten minutes
+- [Agent automation](docs/guides/agent-automation.md) — run AI agents safely and unattended
+
+Reference:
 
 - [Commands](COMMANDS.md) — full list of supported commands and features
 - [Authentication](docs/auth.md) — MFA support and session management

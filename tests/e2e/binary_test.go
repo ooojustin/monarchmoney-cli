@@ -251,7 +251,7 @@ func discoverCommands(t *testing.T, bin string) []string {
 var requiredCommands = []string{
 	"accounts", "analyze", "audit", "auth", "budgets",
 	"cache", "cashflow", "categories", "credit",
-	"doctor", "goals", "institutions", "investments",
+	"doctor", "goals", "hledger", "institutions", "investments",
 	"networth", "overview", "receipts", "recurring", "rules", "subscription",
 	"tags", "transactions", "version",
 }
@@ -324,6 +324,17 @@ func TestBinary_Audit_Help(t *testing.T) {
 	for _, sub := range []string{"cleanup"} {
 		if !strings.Contains(stdout, sub) {
 			t.Fatalf("audit help missing subcommand %q", sub)
+		}
+	}
+}
+
+func TestBinary_Hledger_Help(t *testing.T) {
+	bin := buildBinary(t)
+	stdout, code := run(t, bin, "hledger", "--help")
+	requireZero(t, code, stdout)
+	for _, sub := range []string{"backup"} {
+		if !strings.Contains(stdout, sub) {
+			t.Fatalf("hledger help missing subcommand %q", sub)
 		}
 	}
 }

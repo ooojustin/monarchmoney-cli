@@ -44,6 +44,7 @@ type Account struct {
 	ID                              string  `json:"id"`
 	DisplayName                     string  `json:"display_name"`
 	AccountType                     string  `json:"account_type"`
+	TypeGroup                       string  `json:"account_type_group"`
 	AccountSubtype                  string  `json:"account_subtype"`
 	DisplayBalance                  float64 `json:"display_balance"`
 	CurrentBalance                  float64 `json:"current_balance"`
@@ -65,7 +66,6 @@ type Account struct {
 	DataProviderAccountID           string  `json:"data_provider_account_id"`
 	IsManual                        bool    `json:"is_manual"`
 	TransactionsCount               int     `json:"transactions_count"`
-	HoldingsCount                   int     `json:"holdings_count"`
 	ManualInvestmentsTrackingMethod string  `json:"manual_investments_tracking_method"`
 	Order                           int     `json:"order"`
 	Icon                            string  `json:"icon"`
@@ -161,6 +161,64 @@ func (s *Service) GetAccountHoldings(ctx context.Context, accountID string) ([]H
 	return holdings, nil
 }
 
+type SecurityHolding struct {
+	ID        string  `json:"id"`
+	Ticker    string  `json:"ticker"`
+	Name      string  `json:"name"`
+	Quantity  float64 `json:"quantity"`
+	Basis     float64 `json:"basis"`
+	Value     float64 `json:"value"`
+	AccountID string  `json:"account_id"`
+}
+
+func (s *Service) ListHoldings(ctx context.Context) ([]SecurityHolding, error) {
+	var resp struct {
+		Portfolio struct {
+			AggregateHoldings struct {
+				Edges []struct {
+					Node struct {
+						Holdings []struct {
+							ID        string  `json:"id"`
+							Quantity  float64 `json:"quantity"`
+							Name      string  `json:"name"`
+							Ticker    string  `json:"ticker"`
+							Value     float64 `json:"value"`
+							CostBasis float64 `json:"costBasis"`
+							Account   struct {
+								ID string `json:"id"`
+							} `json:"account"`
+						} `json:"holdings"`
+					} `json:"node"`
+				} `json:"edges"`
+			} `json:"aggregateHoldings"`
+		} `json:"portfolio"`
+	}
+
+	err := s.Client.Do(ctx, &graphql.Request{
+		OperationName: "Web_GetHoldings",
+		Query:         GetAccountHoldingsQuery,
+	}, &resp)
+	if err != nil {
+		return nil, err
+	}
+
+	var holdings []SecurityHolding
+	for _, edge := range resp.Portfolio.AggregateHoldings.Edges {
+		for _, h := range edge.Node.Holdings {
+			holdings = append(holdings, SecurityHolding{
+				ID:        h.ID,
+				Ticker:    h.Ticker,
+				Name:      h.Name,
+				Quantity:  h.Quantity,
+				Basis:     h.CostBasis,
+				Value:     h.Value,
+				AccountID: h.Account.ID,
+			})
+		}
+	}
+	return holdings, nil
+}
+
 func (s *Service) GetAccountHistory(ctx context.Context, accountID, startDate, endDate string) ([]HistoryRecord, error) {
 	var resp struct {
 		AggregateSnapshots []struct {
@@ -232,12 +290,10 @@ func (s *Service) GetAccount(ctx context.Context, id string) (*Account, error) {
 			DataProviderAccountID           string  `json:"dataProviderAccountId"`
 			IsManual                        bool    `json:"isManual"`
 			TransactionsCount               int     `json:"transactionsCount"`
-			HoldingsCount                   int     `json:"holdingsCount"`
 			ManualInvestmentsTrackingMethod string  `json:"manualInvestmentsTrackingMethod"`
 			Order                           int     `json:"order"`
 			Icon                            string  `json:"icon"`
 			LogoURL                         string  `json:"logoUrl"`
-			IsClosed                        bool    `json:"isClosed"`
 		} `json:"account"`
 	}
 
@@ -276,12 +332,11 @@ func (s *Service) GetAccount(ctx context.Context, id string) (*Account, error) {
 		DataProviderAccountID:           resp.Account.DataProviderAccountID,
 		IsManual:                        resp.Account.IsManual,
 		TransactionsCount:               resp.Account.TransactionsCount,
-		HoldingsCount:                   resp.Account.HoldingsCount,
 		ManualInvestmentsTrackingMethod: resp.Account.ManualInvestmentsTrackingMethod,
 		Order:                           resp.Account.Order,
 		Icon:                            resp.Account.Icon,
 		LogoURL:                         resp.Account.LogoURL,
-		IsClosed:                        resp.Account.IsClosed,
+		IsClosed:                        resp.Account.DeactivatedAt != "",
 	}, nil
 }
 
@@ -500,6 +555,7 @@ func (s *Service) ListAccounts(ctx context.Context) ([]Account, error) {
 			AccountType struct {
 				Name    string `json:"name"`
 				Display string `json:"display"`
+				Group   string `json:"group"`
 			} `json:"type"`
 			Subtype struct {
 				Name    string `json:"name"`
@@ -525,7 +581,6 @@ func (s *Service) ListAccounts(ctx context.Context) ([]Account, error) {
 			DataProviderAccountID           string  `json:"dataProviderAccountId"`
 			IsManual                        bool    `json:"isManual"`
 			TransactionsCount               int     `json:"transactionsCount"`
-			HoldingsCount                   int     `json:"holdingsCount"`
 			ManualInvestmentsTrackingMethod string  `json:"manualInvestmentsTrackingMethod"`
 			Order                           int     `json:"order"`
 			Icon                            string  `json:"icon"`
@@ -549,6 +604,7 @@ func (s *Service) ListAccounts(ctx context.Context) ([]Account, error) {
 			ID:                              a.ID,
 			DisplayName:                     a.DisplayName,
 			AccountType:                     a.AccountType.Name,
+			TypeGroup:                       a.AccountType.Group,
 			AccountSubtype:                  a.Subtype.Name,
 			DisplayBalance:                  a.DisplayBalance,
 			CurrentBalance:                  a.CurrentBalance,
@@ -569,8 +625,8 @@ func (s *Service) ListAccounts(ctx context.Context) ([]Account, error) {
 			DataProvider:                    a.DataProvider,
 			DataProviderAccountID:           a.DataProviderAccountID,
 			IsManual:                        a.IsManual,
+			IsClosed:                        a.DeactivatedAt != "",
 			TransactionsCount:               a.TransactionsCount,
-			HoldingsCount:                   a.HoldingsCount,
 			ManualInvestmentsTrackingMethod: a.ManualInvestmentsTrackingMethod,
 			Order:                           a.Order,
 			Icon:                            a.Icon,

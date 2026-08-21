@@ -37,6 +37,7 @@ type Transaction struct {
 	ReviewStatus            string                   `json:"review_status"`
 	NeedsReview             bool                     `json:"needs_review"`
 	IsSplitTransaction      bool                     `json:"is_split_transaction"`
+	Splits                  []TransactionSplit       `json:"splits,omitempty"`
 	CreatedAt               string                   `json:"created_at"`
 	UpdatedAt               string                   `json:"updated_at"`
 	AccountID               string                   `json:"account_id"`
@@ -572,9 +573,20 @@ func (s *Service) ListTransactions(ctx context.Context, opts *ListTransactionsOp
 				ReviewStatus            string  `json:"reviewStatus"`
 				NeedsReview             bool    `json:"needsReview"`
 				IsSplitTransaction      bool    `json:"isSplitTransaction"`
-				CreatedAt               string  `json:"createdAt"`
-				UpdatedAt               string  `json:"updatedAt"`
-				Category                struct {
+				SplitTransactions       []struct {
+					ID       string  `json:"id"`
+					Amount   float64 `json:"amount"`
+					Notes    string  `json:"notes"`
+					Category struct {
+						Name string `json:"name"`
+					} `json:"category"`
+					Merchant struct {
+						Name string `json:"name"`
+					} `json:"merchant"`
+				} `json:"splitTransactions"`
+				CreatedAt string `json:"createdAt"`
+				UpdatedAt string `json:"updatedAt"`
+				Category  struct {
 					ID    string `json:"id"`
 					Name  string `json:"name"`
 					Group struct {
@@ -640,6 +652,16 @@ func (s *Service) ListTransactions(ctx context.Context, opts *ListTransactionsOp
 		for j, t := range r.Tags {
 			tags[j] = Tag{ID: t.ID, Name: t.Name, Color: t.Color}
 		}
+		splits := make([]TransactionSplit, len(r.SplitTransactions))
+		for j, sp := range r.SplitTransactions {
+			splits[j] = TransactionSplit{
+				ID:       sp.ID,
+				Amount:   sp.Amount,
+				Category: sp.Category.Name,
+				Merchant: sp.Merchant.Name,
+				Notes:    sp.Notes,
+			}
+		}
 		txs[i] = Transaction{
 			ID:       r.ID,
 			Date:     r.Date,
@@ -665,6 +687,7 @@ func (s *Service) ListTransactions(ctx context.Context, opts *ListTransactionsOp
 			ReviewStatus:            r.ReviewStatus,
 			NeedsReview:             r.NeedsReview,
 			IsSplitTransaction:      r.IsSplitTransaction,
+			Splits:                  splits,
 			CreatedAt:               r.CreatedAt,
 			UpdatedAt:               r.UpdatedAt,
 			AccountID:               r.Account.ID,

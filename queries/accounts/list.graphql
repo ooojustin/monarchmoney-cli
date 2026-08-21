@@ -5,6 +5,7 @@ query GetAccounts {
     type {
       name
       display
+      group
     }
     subtype {
       name
@@ -30,7 +31,6 @@ query GetAccounts {
     dataProviderAccountId
     isManual
     transactionsCount
-    holdingsCount
     manualInvestmentsTrackingMethod
     order
     icon

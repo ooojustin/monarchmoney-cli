@@ -1,6 +1,7 @@
 package cli
 
 import (
+	stderrors "errors"
 	"fmt"
 	"time"
 
@@ -20,6 +21,24 @@ func parseCacheDate(value string) (time.Time, error) {
 	return time.Parse("2006-01-02", value)
 }
 
+func openCache(renderer *output.Renderer, command string, start time.Time) (*cache.Store, bool) {
+	cfg, err := config.Load(cfgFile)
+	if err != nil {
+		handleError(renderer, command, errors.New(errors.InternalError, "failed to load config", errors.CatInternal, false, err), start)
+		return nil, false
+	}
+	store, err := cache.NewStore(cfg.CachePath)
+	if err != nil {
+		msg := "failed to open cache"
+		if stderrors.Is(err, cache.ErrSchemaOutdated) {
+			msg = "cache schema is outdated; run 'monarch cache sync' to rebuild it"
+		}
+		handleError(renderer, command, errors.New(errors.InternalError, msg, errors.CatInternal, false, err), start)
+		return nil, false
+	}
+	return store, true
+}
+
 var cacheCmd = &cobra.Command{
 	Use:     "cache",
 	Short:   "Manage local data cache",
@@ -30,6 +49,10 @@ var cacheCmd = &cobra.Command{
 var cacheSyncCmd = &cobra.Command{
 	Use:   "sync",
 	Short: "Sync data from Monarch to local cache",
+	Long: `Pull a full-fidelity archive copy of your Monarch data into the local cache:
+accounts with type groups and lifecycle flags, transactions with tags, splits,
+review state, category groups and raw merchant names, plus investment holdings
+and closing balances. A cache created by an older version is rebuilt automatically.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		start := time.Now()
 		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
@@ -49,6 +72,10 @@ var cacheSyncCmd = &cobra.Command{
 
 		cfg, _ := config.Load(cfgFile)
 		cacheStore, err := cache.NewStore(cfg.CachePath)
+		if stderrors.Is(err, cache.ErrSchemaOutdated) {
+			renderer.PrintDiagnostic("Cache schema outdated; rebuilding...")
+			cacheStore, err = cache.RebuildStore(cfg.CachePath)
+		}
 		if err != nil {
 			handleError(renderer, "cache.sync", errors.New(errors.InternalError, "failed to open cache", errors.CatInternal, false, err), start)
 			return
@@ -72,7 +99,12 @@ var cacheSyncCmd = &cobra.Command{
 				ID:             a.ID,
 				DisplayName:    a.DisplayName,
 				AccountType:    a.AccountType,
+				TypeGroup:      a.TypeGroup,
 				DisplayBalance: a.DisplayBalance,
+				CurrentBalance: a.CurrentBalance,
+				IsManual:       a.IsManual,
+				IsHidden:       a.IsHidden,
+				IsClosed:       a.IsClosed,
 				UpdatedAt:      updatedAt,
 			})
 		}
@@ -103,28 +135,85 @@ var cacheSyncCmd = &cobra.Command{
 				handleError(renderer, "cache.sync", errors.New(errors.APISchemaChanged, "failed to parse transaction date", errors.CatAPI, false, err), start)
 				return
 			}
-			cacheTxs = append(cacheTxs, cache.Transaction{
-				ID:        t.ID,
-				Date:      date,
-				Amount:    t.Amount,
-				Merchant:  t.Merchant,
-				Category:  t.Category,
-				Notes:     t.Notes,
-				AccountID: t.AccountID,
-			})
+			ct := cache.Transaction{
+				ID:                  t.ID,
+				Date:                date,
+				Amount:              t.Amount,
+				Merchant:            t.Merchant,
+				PlaidName:           t.PlaidName,
+				ProviderDescription: t.DataProviderDescription,
+				Category:            t.Category,
+				CategoryGroup:       t.CategoryGroup.Name,
+				CategoryGroupType:   t.CategoryGroup.Type,
+				Notes:               t.Notes,
+				Pending:             t.Pending,
+				ReviewStatus:        t.ReviewStatus,
+				NeedsReview:         t.NeedsReview,
+				GoalID:              t.Goal.ID,
+				GoalName:            t.Goal.Name,
+				AccountID:           t.AccountID,
+			}
+			for _, tag := range t.Tags {
+				ct.Tags = append(ct.Tags, cache.Tag{ID: tag.ID, Name: tag.Name})
+			}
+			for _, split := range t.Splits {
+				ct.Splits = append(ct.Splits, cache.Split{ID: split.ID, Amount: split.Amount, Category: split.Category, Merchant: split.Merchant, Notes: split.Notes})
+			}
+			cacheTxs = append(cacheTxs, ct)
 		}
-		if err := cacheStore.SaveTransactions(cacheTxs); err != nil {
-			handleError(renderer, "cache.sync", errors.New(errors.InternalError, "failed to save transactions to cache", errors.CatInternal, false, err), start)
+		if len(cacheTxs) > 0 {
+			if err := cacheStore.SaveTransactions(cacheTxs); err != nil {
+				handleError(renderer, "cache.sync", errors.New(errors.InternalError, "failed to save transactions to cache", errors.CatInternal, false, err), start)
+				return
+			}
+		}
+
+		renderer.PrintDiagnostic("Syncing holdings...")
+		holdings, err := svc.ListHoldings(cmd.Context())
+		if err != nil {
+			handleError(renderer, "cache.sync", errors.New(errors.APIError, fmt.Sprintf("failed to sync holdings: %v", err), errors.CatAPI, false, err), start)
+			return
+		}
+		cacheHoldings := make([]cache.Holding, len(holdings))
+		for i := range holdings {
+			h := &holdings[i]
+			cacheHoldings[i] = cache.Holding{ID: h.ID, Ticker: h.Ticker, Name: h.Name, Quantity: h.Quantity, Basis: h.Basis, Value: h.Value, AccountID: h.AccountID}
+		}
+		if err := cacheStore.SaveHoldings(cacheHoldings); err != nil {
+			handleError(renderer, "cache.sync", errors.New(errors.InternalError, "failed to save holdings to cache", errors.CatInternal, false, err), start)
 			return
 		}
 
-		cacheStore.RecordSync(len(cacheAccs), len(cacheTxs)) //nolint:errcheck // best-effort sync record
+		if err := cacheStore.RecordSync(len(cacheAccs), len(cacheTxs)); err != nil {
+			handleError(renderer, "cache.sync", errors.New(errors.InternalError, "failed to record sync metadata", errors.CatInternal, false, err), start)
+			return
+		}
+
+		var backupPath string
+		var backupWarnings []string
+		if cfg.BackupPath != "" {
+			renderer.PrintDiagnostic("Regenerating ledger backup...")
+			if _, err := writeJournal(cacheStore, cfg.BackupPath); err != nil {
+				backupWarnings = append(backupWarnings, fmt.Sprintf("ledger backup regeneration failed: %v", err))
+				renderer.PrintDiagnostic(fmt.Sprintf("Ledger backup regeneration failed: %v", err))
+			} else {
+				backupPath = cfg.BackupPath
+			}
+		}
 
 		if jsonMode {
-			env := output.NewEnvelope("cache.sync", profile, output.SchemaVersion, requestID, map[string]any{"status": "sync complete", "accounts": len(cacheAccs), "transactions": len(cacheTxs)}, time.Since(start))
+			data := map[string]any{"status": "sync complete", "accounts": len(cacheAccs), "transactions": len(cacheTxs), "holdings": len(cacheHoldings)}
+			if backupPath != "" {
+				data["backup"] = backupPath
+			}
+			env := output.NewEnvelope("cache.sync", profile, output.SchemaVersion, requestID, data, time.Since(start))
+			env.Meta.Warnings = backupWarnings
 			renderer.RenderSuccess(env)
 		} else {
-			fmt.Printf("Sync complete. %d accounts, %d transactions.\n", len(cacheAccs), len(cacheTxs))
+			fmt.Printf("Sync complete. %d accounts, %d transactions, %d holdings.\n", len(cacheAccs), len(cacheTxs), len(cacheHoldings))
+			if backupPath != "" {
+				fmt.Printf("Ledger backup written to %s.\n", backupPath)
+			}
 		}
 	},
 }
@@ -137,10 +226,8 @@ var cacheSearchCmd = &cobra.Command{
 		start := time.Now()
 		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 
-		cfg, _ := config.Load(cfgFile)
-		cacheStore, err := cache.NewStore(cfg.CachePath)
-		if err != nil {
-			handleError(renderer, "cache.search", errors.New(errors.InternalError, "failed to open cache", errors.CatInternal, false, err), start)
+		cacheStore, ok := openCache(renderer, "cache.search", start)
+		if !ok {
 			return
 		}
 		defer cacheStore.Close()
@@ -171,10 +258,8 @@ var cacheStatsCmd = &cobra.Command{
 		start := time.Now()
 		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
 
-		cfg, _ := config.Load(cfgFile)
-		cacheStore, err := cache.NewStore(cfg.CachePath)
-		if err != nil {
-			handleError(renderer, "cache.stats", errors.New(errors.InternalError, "failed to open cache", errors.CatInternal, false, err), start)
+		cacheStore, ok := openCache(renderer, "cache.stats", start)
+		if !ok {
 			return
 		}
 		defer cacheStore.Close()
@@ -221,10 +306,8 @@ var cacheCleanupCmd = &cobra.Command{
 			return
 		}
 
-		cfg, _ := config.Load(cfgFile)
-		store, err := cache.NewStore(cfg.CachePath)
-		if err != nil {
-			handleError(renderer, "cache.cleanup", errors.New(errors.InternalError, "failed to open cache", errors.CatInternal, false, err), start)
+		store, ok := openCache(renderer, "cache.cleanup", start)
+		if !ok {
 			return
 		}
 		defer store.Close()
