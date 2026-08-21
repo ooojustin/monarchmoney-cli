@@ -98,6 +98,8 @@ func TestCacheSyncPassesFromDateAndPersistsAccountID(t *testing.T) {
 				sawStartDate = true
 			}
 			return testutil.JSONResponse(`{"data":{"allTransactions":{"results":[{"id":"tx_1","date":"2026-05-09","amount":-12.34,"merchant":{"name":"Cafe"},"category":{"name":"Dining"},"account":{"id":"acc_1"},"notes":"latte"}],"totalCount":1}}}`), nil
+		case "Web_GetHoldings":
+			return testutil.JSONResponse(`{"data":{"portfolio":{"aggregateHoldings":{"edges":[]}}}}`), nil
 		default:
 			t.Fatalf("unexpected operation %q", gqlReq.OperationName)
 		}

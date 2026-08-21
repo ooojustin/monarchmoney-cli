@@ -5,6 +5,7 @@ query GetAccounts {
     type {
       name
       display
+      group
     }
     subtype {
       name
@@ -29,6 +30,8 @@ query GetAccounts {
     dataProvider
     dataProviderAccountId
     isManual
+    isHidden
+    isClosed
     transactionsCount
     holdingsCount
     manualInvestmentsTrackingMethod

@@ -116,9 +116,9 @@ All mutations are protected by the [Safety Model](./docs/safety.md).
 - `monarch categories delete-many <id...>`: Delete multiple categories.
 - `monarch recurring update <id>`: Update a recurring transaction.
 - `monarch tags create`: Create a new tag.
-- `monarch cache sync`: Sync data from Monarch to local cache. Use `--limit N` to set page size (default 1000), `--all` to paginate through all matching transactions.
-- `monarch cache search <query>`: Search transactions in local cache.
-- `monarch cache stats`: Show cache statistics including last sync time.
+- `monarch cache sync`: Sync a full-fidelity archive copy of your data into the local cache: accounts (type group, lifecycle flags, current balance), transactions (tags, splits, pending/review state, category groups, raw merchant names, goal linkage), and investment holdings. A cache created by an older version is rebuilt automatically. Use `--limit N` to set page size (default 1000), `--all` to paginate through all matching transactions.
+- `monarch cache search <query>`: Search transactions in local cache. Matches merchant, notes, category, raw merchant names (Plaid name and data-provider description), and tag names.
+- `monarch cache stats`: Show cache statistics including last sync time and holding count.
 - `monarch cache cleanup --before YYYY-MM-DD`: Delete old transactions from cache.
 - `monarch audit cleanup`: Remove audit log files older than N days (default 30). Use `--older-than N` to customize.
 - `monarch completion [bash|zsh|fish|powershell]`: Generate shell completion scripts.

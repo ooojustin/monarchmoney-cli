@@ -23,6 +23,14 @@ var openDB = func(path string) (*sql.DB, error) {
 var migrateStore = Migrate
 
 func NewStore(path string) (*Store, error) {
+	return openStore(path, migrateStore)
+}
+
+func RebuildStore(path string) (*Store, error) {
+	return openStore(path, Rebuild)
+}
+
+func openStore(path string, migrate func(*sql.DB) error) (*Store, error) {
 	dir := filepath.Dir(path)
 	if err := mkdirAll(dir, 0o700); err != nil {
 		return nil, err
@@ -46,7 +54,7 @@ func NewStore(path string) (*Store, error) {
 		return nil, err
 	}
 
-	if err := migrateStore(db); err != nil {
+	if err := migrate(db); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
@@ -66,11 +74,14 @@ func (s *Store) SaveAccounts(accounts []Account) error {
 	if err != nil {
 		return err
 	}
-	const stmt = `INSERT OR REPLACE INTO accounts (id, display_name, account_type, display_balance, updated_at) VALUES (?, ?, ?, ?, ?)`
+	defer func() { _ = tx.Rollback() }()
+	const stmt = `INSERT OR REPLACE INTO accounts
+		(id, display_name, account_type, type_group, display_balance, current_balance, is_manual, is_hidden, is_closed, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	for i := range accounts {
 		a := &accounts[i]
-		if _, err := tx.Exec(stmt, a.ID, a.DisplayName, a.AccountType, a.DisplayBalance, a.UpdatedAt.UTC().Format(time.RFC3339)); err != nil {
-			_ = tx.Rollback()
+		if _, err := tx.Exec(stmt, a.ID, a.DisplayName, a.AccountType, a.TypeGroup, a.DisplayBalance, a.CurrentBalance,
+			boolToInt(a.IsManual), boolToInt(a.IsHidden), boolToInt(a.IsClosed), a.UpdatedAt.UTC().Format(time.RFC3339)); err != nil {
 			return err
 		}
 	}
@@ -85,15 +96,66 @@ func (s *Store) SaveTransactions(txs []Transaction) error {
 	if err != nil {
 		return err
 	}
-	const stmt = `INSERT OR REPLACE INTO transactions (id, date, amount, merchant, category, notes, account_id) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	defer func() { _ = tx.Rollback() }()
+	const stmt = `INSERT OR REPLACE INTO transactions
+		(id, date, amount, merchant, plaid_name, provider_description, category, category_group, category_group_type,
+		 notes, pending, review_status, needs_review, goal_id, goal_name, account_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	const deleteTags = `DELETE FROM transaction_tags WHERE transaction_id = ?`
+	const insertTag = `INSERT OR REPLACE INTO transaction_tags (transaction_id, tag_id, name) VALUES (?, ?, ?)`
+	const deleteSplits = `DELETE FROM transaction_splits WHERE transaction_id = ?`
+	const insertSplit = `INSERT OR REPLACE INTO transaction_splits (id, transaction_id, amount, category, merchant, notes) VALUES (?, ?, ?, ?, ?, ?)`
 	for i := range txs {
 		t := &txs[i]
-		if _, err := tx.Exec(stmt, t.ID, t.Date.UTC().Format(time.RFC3339), t.Amount, t.Merchant, t.Category, t.Notes, t.AccountID); err != nil {
-			_ = tx.Rollback()
+		if _, err := tx.Exec(stmt, t.ID, t.Date.UTC().Format(time.RFC3339), t.Amount, t.Merchant, t.PlaidName,
+			t.ProviderDescription, t.Category, t.CategoryGroup, t.CategoryGroupType, t.Notes,
+			boolToInt(t.Pending), t.ReviewStatus, boolToInt(t.NeedsReview), t.GoalID, t.GoalName, t.AccountID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(deleteTags, t.ID); err != nil {
+			return err
+		}
+		for _, tag := range t.Tags {
+			if _, err := tx.Exec(insertTag, t.ID, tag.ID, tag.Name); err != nil {
+				return err
+			}
+		}
+		if _, err := tx.Exec(deleteSplits, t.ID); err != nil {
+			return err
+		}
+		for _, split := range t.Splits {
+			if _, err := tx.Exec(insertSplit, split.ID, t.ID, split.Amount, split.Category, split.Merchant, split.Notes); err != nil {
+				return err
+			}
+		}
+	}
+	return tx.Commit()
+}
+
+func (s *Store) SaveHoldings(holdings []Holding) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.Exec(`DELETE FROM holdings`); err != nil {
+		return err
+	}
+	const stmt = `INSERT OR REPLACE INTO holdings (id, ticker, name, quantity, basis, value, account_id) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	for i := range holdings {
+		h := &holdings[i]
+		if _, err := tx.Exec(stmt, h.ID, h.Ticker, h.Name, h.Quantity, h.Basis, h.Value, h.AccountID); err != nil {
 			return err
 		}
 	}
 	return tx.Commit()
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 func (s *Store) RecordSync(accountCount, txCount int) error {
@@ -130,9 +192,10 @@ func (s *Store) SearchTransactions(query string) ([]Transaction, error) {
 	rows, err := s.db.Query(
 		`SELECT id, date, amount, merchant, category, notes, account_id
 		 FROM transactions
-		 WHERE merchant LIKE ? OR notes LIKE ? OR category LIKE ?
+		 WHERE merchant LIKE ? OR notes LIKE ? OR category LIKE ? OR plaid_name LIKE ? OR provider_description LIKE ?
+		    OR EXISTS (SELECT 1 FROM transaction_tags tt WHERE tt.transaction_id = transactions.id AND tt.name LIKE ?)
 		 ORDER BY date DESC, id ASC`,
-		like, like, like,
+		like, like, like, like, like, like,
 	)
 	if err != nil {
 		return nil, err
@@ -159,25 +222,46 @@ func (s *Store) SearchTransactions(query string) ([]Transaction, error) {
 }
 
 func (s *Store) Cleanup(before string) (int64, error) {
-	result, err := s.db.Exec(`DELETE FROM transactions WHERE date < ?`, before)
+	tx, err := s.db.Begin()
 	if err != nil {
 		return 0, err
 	}
-	return result.RowsAffected()
+	defer func() { _ = tx.Rollback() }()
+	const deleteTags = `DELETE FROM transaction_tags WHERE transaction_id IN (SELECT id FROM transactions WHERE date < ?)`
+	const deleteSplits = `DELETE FROM transaction_splits WHERE transaction_id IN (SELECT id FROM transactions WHERE date < ?)`
+	if _, err := tx.Exec(deleteTags, before); err != nil {
+		return 0, err
+	}
+	if _, err := tx.Exec(deleteSplits, before); err != nil {
+		return 0, err
+	}
+	result, err := tx.Exec(`DELETE FROM transactions WHERE date < ?`, before)
+	if err != nil {
+		return 0, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return affected, tx.Commit()
 }
 
 func (s *Store) GetStats() (map[string]any, error) {
-	var accCount, txCount int64
+	var accCount, txCount, holdingCount int64
 	if err := s.db.QueryRow(`SELECT COUNT(*) FROM accounts`).Scan(&accCount); err != nil {
 		return nil, err
 	}
 	if err := s.db.QueryRow(`SELECT COUNT(*) FROM transactions`).Scan(&txCount); err != nil {
 		return nil, err
 	}
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM holdings`).Scan(&holdingCount); err != nil {
+		return nil, err
+	}
 
 	stats := map[string]any{
 		"accounts":     accCount,
 		"transactions": txCount,
+		"holdings":     holdingCount,
 	}
 
 	lastSync, err := s.LastSync()
