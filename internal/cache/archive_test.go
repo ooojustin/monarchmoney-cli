@@ -371,6 +371,41 @@ func TestRebuildStoreReplacesLegacySchema(t *testing.T) {
 	}
 }
 
+func TestRebuildStoreHandlesPartialLegacySchema(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "monarch.sqlite")
+	db, err := openDB(path)
+	if err != nil {
+		t.Fatalf("open partial legacy db: %v", err)
+	}
+	const partial = `
+CREATE TABLE accounts (id TEXT PRIMARY KEY, display_name TEXT, account_type TEXT, display_balance REAL, updated_at TEXT);
+CREATE TABLE transactions (id TEXT PRIMARY KEY, date TEXT, amount REAL, merchant TEXT, category TEXT, notes TEXT, account_id TEXT);
+CREATE TABLE sync_states (id TEXT PRIMARY KEY, state TEXT);
+INSERT INTO accounts (id, display_name) VALUES ('acc_old', 'Legacy');
+`
+	if _, err := db.Exec(partial); err != nil {
+		t.Fatalf("create partial legacy schema: %v", err)
+	}
+	mustNoError(t, db.Close(), "Close()")
+
+	store, err := RebuildStore(path)
+	if err != nil {
+		t.Fatalf("RebuildStore() error = %v", err)
+	}
+	defer store.Close()
+
+	if _, err := store.db.Exec(`SELECT holdings.account_id FROM holdings`); err != nil {
+		t.Fatalf("rebuilt cache missing holdings table: %v", err)
+	}
+	stats, err := store.GetStats()
+	if err != nil {
+		t.Fatalf("GetStats() error = %v", err)
+	}
+	if stats["accounts"] != int64(0) {
+		t.Fatalf("stats[accounts] = %v, want 0", stats["accounts"])
+	}
+}
+
 func TestNewStoreAcceptsCurrentSchemaOnReopen(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "monarch.sqlite")
 	store, err := NewStore(path)
