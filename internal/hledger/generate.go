@@ -35,6 +35,7 @@ type generator struct {
 	names     map[string]string
 	order     []string
 	pairs     map[string]string
+	computed  map[string]int64
 	anchor    time.Time
 }
 
@@ -102,6 +103,7 @@ func Generate(data *Data) string {
 	sort.SliceStable(g.order, func(i, j int) bool { return g.names[g.order[i]] < g.names[g.order[j]] })
 
 	g.pairTransfers()
+	g.computeBalances()
 
 	var b strings.Builder
 	b.WriteString(header)
@@ -115,8 +117,40 @@ func Generate(data *Data) string {
 	g.writePrices(&b)
 	g.writeTransactions(&b)
 	g.writeOpenings(&b)
+	g.writeTrueUps(&b)
 	g.writeClosings(&b)
 	return b.String()
+}
+
+func (g *generator) computeBalances() {
+	g.computed = make(map[string]int64)
+	add := func(accountID string, c int64) {
+		g.computed[accountID] += c
+	}
+	for i := range g.txs {
+		t := &g.txs[i]
+		partnerID, paired := g.pairs[t.ID]
+		if paired && t.ID > partnerID {
+			continue
+		}
+		switch {
+		case paired:
+			add(t.AccountID, cents(t.Amount))
+			partner := &g.txs[g.txIndex[partnerID]]
+			add(partner.AccountID, cents(partner.Amount))
+		case strings.EqualFold(t.CategoryGroupType, "transfer"):
+			add(t.AccountID, cents(t.Amount))
+		default:
+			sum := int64(0)
+			for _, sp := range t.Splits {
+				sum += cents(sp.Amount)
+			}
+			if len(t.Splits) == 0 {
+				sum = cents(t.Amount)
+			}
+			add(t.AccountID, sum)
+		}
+	}
 }
 
 func (g *generator) deriveNames() {
@@ -309,6 +343,43 @@ func (g *generator) writeOpenings(b *strings.Builder) {
 		g.posting(b, openingAccount, dollars(-total))
 		b.WriteByte('\n')
 	}
+}
+
+func (g *generator) writeTrueUps(b *strings.Builder) {
+	if g.anchor.IsZero() {
+		return
+	}
+	type diff struct {
+		account string
+		amount  int64
+	}
+	var diffs []diff
+	total := int64(0)
+	for _, id := range g.order {
+		if strings.EqualFold(g.byID[id].TypeGroup, "investment") {
+			continue
+		}
+		d := cents(g.byID[id].CurrentBalance) - g.computed[id]
+		if d != 0 {
+			diffs = append(diffs, diff{account: g.names[id], amount: d})
+			total += d
+		}
+	}
+	if len(diffs) == 0 {
+		return
+	}
+	date := g.anchor.Format("2006-01-02")
+	if len(g.txs) > 0 {
+		date = g.txs[0].Date.AddDate(0, 0, -1).Format("2006-01-02")
+	}
+	fmt.Fprintf(b, "%s opening balances\n", date)
+	for _, d := range diffs {
+		g.posting(b, d.account, dollars(d.amount))
+	}
+	if total != 0 {
+		g.posting(b, openingAccount, dollars(-total))
+	}
+	b.WriteByte('\n')
 }
 
 func (g *generator) writeClosings(b *strings.Builder) {

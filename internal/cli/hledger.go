@@ -32,6 +32,10 @@ handwritten annotations in your own journal that includes this file.
 The journal covers all accounts (including hidden and closed ones), the full
 transaction history, closing balance assertions for every account, and
 investment holdings as opening positions. Pending transactions are excluded.
+Accounts whose cached history does not reconcile to their Monarch balance
+(typical when an institution's feed predates your history) get a deterministic
+opening-balance entry through equity:monarch:opening; audit those with
+'hledger reg equity:monarch:opening'.
 
 Reads only from the local cache, never the network. Run 'monarch cache sync
 --all' first for archive-complete history. Configure 'backup_path' in your

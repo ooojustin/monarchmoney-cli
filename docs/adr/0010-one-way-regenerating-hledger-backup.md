@@ -29,3 +29,4 @@ Provide `monarch hledger backup [FILE]` (default `./monarch.journal`), which reg
 - No dedup, cursor, or merge logic exists anywhere in the feature.
 - If Monarch renames an account, the derived hledger account name changes; the `monarch-id:` tag preserves traceability across renames.
 - Brokerage P&L inside hledger starts from the snapshot date; realized-gain history from before the first backup is not reconstructible from Monarch's API.
+- Institution feeds rarely reach back to an account's full lifetime, so cached history often does not reconcile to Monarch's current balance. The generator emits the difference as a deterministic `opening balances` transaction through `equity:monarch:opening` instead of letting closing assertions hard-fail every report; gaps stay visible and auditable (`hledger reg equity:monarch:opening`) while assertions keep validating regeneration-to-regeneration consistency.

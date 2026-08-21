@@ -81,7 +81,7 @@
 - `monarch auth status`: Check current authentication status.
 - `monarch auth session path`: Print the session file path.
 - `monarch doctor`: Verify environment, authentication, and API connectivity.
-- `monarch hledger backup [FILE]`: Regenerate a complete hledger journal from the local cache (default `./monarch.journal`). Covers all accounts (including hidden and closed), full transaction history, closing balance assertions, and investment holdings as opening positions. Pending transactions are excluded; transfers become single two-posting transactions; every entry carries a `monarch-id:` tag. Reads only from the local cache — run `monarch cache sync --all` first for archive-complete history.
+- `monarch hledger backup [FILE]`: Regenerate a complete hledger journal from the local cache (default `./monarch.journal`). Covers all accounts (including hidden and closed), full transaction history, closing balance assertions, and investment holdings as opening positions. Pending transactions are excluded; transfers become single two-posting transactions; every entry carries a `monarch-id:` tag. History gaps (balances not explained by cached transactions) surface as deterministic `opening balances` entries through `equity:monarch:opening`, so assertions always pass while gaps stay auditable. Reads only from the local cache — run `monarch cache sync --all` first for archive-complete history.
 - `monarch version`: Print version information.
 
 ## Mutation and Remote-Action Commands

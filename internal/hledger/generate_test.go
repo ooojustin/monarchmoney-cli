@@ -49,6 +49,10 @@ account assets:monarch:checking
     expenses:dining  $12.34
     assets:monarch:checking  $-12.34
 
+2026-05-08 opening balances
+    assets:monarch:checking  $1246.90
+    equity:monarch:opening  $-1246.90
+
 2026-05-10 closing balances
     assets:monarch:checking  $0.00 = $1234.56
 
@@ -112,6 +116,10 @@ account assets:monarch:savings
     assets:monarch:checking  $-100.00
     assets:monarch:savings  $100.00
 
+2026-04-30 opening balances
+    assets:monarch:checking  $100.00
+    assets:monarch:savings  $-100.00
+
 2026-05-02 closing balances
     assets:monarch:checking  $0.00 = $0.00
     assets:monarch:savings  $0.00 = $0.00
@@ -141,6 +149,10 @@ account assets:monarch:checking
     ; monarch-id: tx_c
     assets:monarch:checking  $-500.00
     equity:monarch:transfer-clearing  $500.00
+
+2026-05-01 opening balances
+    assets:monarch:checking  $500.00
+    equity:monarch:opening  $-500.00
 
 2026-05-03 closing balances
     assets:monarch:checking  $0.00 = $0.00
@@ -175,6 +187,10 @@ account assets:monarch:checking
     expenses:dining  $10.00
     expenses:groceries  $2.34
     assets:monarch:checking  $-12.34
+
+2026-05-08 opening balances
+    assets:monarch:checking  $12.34
+    equity:monarch:opening  $-12.34
 
 2026-05-10 closing balances
     assets:monarch:checking  $0.00 = $0.00
@@ -246,6 +262,10 @@ P 2026-05-10 VTI $285.7619
     investments:monarch:brokerage  $500.00
     equity:monarch:opening  $-3000.00
 
+2026-05-08 opening balances
+    assets:monarch:checking  $1246.90
+    equity:monarch:opening  $-1246.90
+
 2026-05-10 closing balances
     assets:monarch:checking  $0.00 = $1234.56
     investments:monarch:brokerage  0 VTI = 10.5 VTI
@@ -267,6 +287,10 @@ commodity $
 
 account liabilities:monarch:old-card
     ; monarch-id: acc_1
+
+2026-05-10 opening balances
+    liabilities:monarch:old-card  $-45.67
+    equity:monarch:opening  $45.67
 
 2026-05-10 closing balances
     liabilities:monarch:old-card  $0.00 = $-45.67
@@ -328,6 +352,10 @@ account assets:monarch:checking
     income:uncategorized  $-15.00
     assets:monarch:checking  $15.00
 
+2026-04-30 opening balances
+    assets:monarch:checking  $5.00
+    equity:monarch:opening  $-5.00
+
 2026-05-03 closing balances
     assets:monarch:checking  $0.00 = $0.00
 
@@ -356,6 +384,10 @@ account assets:monarch:checking
     ; monarch-id: tx_1
     expenses:uncategorized  $5.00
     assets:monarch:checking  $-5.00
+
+2026-04-30 opening balances
+    assets:monarch:checking  $5.00
+    equity:monarch:opening  $-5.00
 
 2026-05-02 closing balances
     assets:monarch:checking  $0.00 = $0.00
