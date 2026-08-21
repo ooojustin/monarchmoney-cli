@@ -20,6 +20,7 @@ type Config struct {
 	SessionPath string        `yaml:"session_path"`
 	AuditLog    bool          `yaml:"audit_log"`
 	CachePath   string        `yaml:"cache_path"`
+	BackupPath  string        `yaml:"backup_path"`
 }
 
 func defaults() *Config {
@@ -88,6 +89,9 @@ func applyFile(cfg *Config, raw map[string]any) {
 	if v, ok := raw["cache_path"].(string); ok {
 		cfg.CachePath = v
 	}
+	if v, ok := raw["backup_path"].(string); ok {
+		cfg.BackupPath = v
+	}
 }
 
 func applyEnv(cfg *Config) {
@@ -116,6 +120,9 @@ func applyEnv(cfg *Config) {
 	}
 	if v := os.Getenv("MONARCH_CACHE_PATH"); v != "" {
 		cfg.CachePath = v
+	}
+	if v := os.Getenv("MONARCH_BACKUP_PATH"); v != "" {
+		cfg.BackupPath = v
 	}
 }
 

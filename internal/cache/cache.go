@@ -187,6 +187,144 @@ func (s *Store) LastSync() (*SyncMeta, error) {
 	return &SyncMeta{ID: id, SyncedAt: parsed, Accounts: accounts, TxCount: txCount}, nil
 }
 
+func (s *Store) Accounts() ([]Account, error) {
+	rows, err := s.db.Query(
+		`SELECT id, display_name, account_type, type_group, display_balance, current_balance, is_manual, is_hidden, is_closed, updated_at
+		 FROM accounts ORDER BY id`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var accounts []Account
+	for rows.Next() {
+		var (
+			a         Account
+			updatedAt string
+		)
+		if err := rows.Scan(&a.ID, &a.DisplayName, &a.AccountType, &a.TypeGroup, &a.DisplayBalance, &a.CurrentBalance,
+			&a.IsManual, &a.IsHidden, &a.IsClosed, &updatedAt); err != nil {
+			return nil, err
+		}
+		parsed, err := time.Parse(time.RFC3339, updatedAt)
+		if err != nil {
+			return nil, err
+		}
+		a.UpdatedAt = parsed
+		accounts = append(accounts, a)
+	}
+	return accounts, rows.Err()
+}
+
+func (s *Store) Transactions() ([]Transaction, error) {
+	rows, err := s.db.Query(
+		`SELECT id, date, amount, merchant, plaid_name, provider_description, category, category_group, category_group_type,
+		        notes, pending, review_status, needs_review, goal_id, goal_name, account_id
+		 FROM transactions ORDER BY date ASC, id ASC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var txs []Transaction
+	for rows.Next() {
+		var (
+			t           Transaction
+			date        string
+			pending     int
+			needsReview int
+		)
+		if err := rows.Scan(&t.ID, &date, &t.Amount, &t.Merchant, &t.PlaidName, &t.ProviderDescription, &t.Category,
+			&t.CategoryGroup, &t.CategoryGroupType, &t.Notes, &pending, &t.ReviewStatus, &needsReview,
+			&t.GoalID, &t.GoalName, &t.AccountID); err != nil {
+			return nil, err
+		}
+		parsed, err := time.Parse(time.RFC3339, date)
+		if err != nil {
+			return nil, err
+		}
+		t.Date = parsed
+		t.Pending = pending == 1
+		t.NeedsReview = needsReview == 1
+		txs = append(txs, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if err := s.attachTags(txs); err != nil {
+		return nil, err
+	}
+	return txs, s.attachSplits(txs)
+}
+
+func (s *Store) attachTags(txs []Transaction) error {
+	rows, err := s.db.Query(`SELECT transaction_id, tag_id, name FROM transaction_tags ORDER BY transaction_id, name`)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	byID := make(map[string]int, len(txs))
+	for i := range txs {
+		byID[txs[i].ID] = i
+	}
+	for rows.Next() {
+		var txID, tagID, name string
+		if err := rows.Scan(&txID, &tagID, &name); err != nil {
+			return err
+		}
+		if i, ok := byID[txID]; ok {
+			txs[i].Tags = append(txs[i].Tags, Tag{ID: tagID, Name: name})
+		}
+	}
+	return rows.Err()
+}
+
+func (s *Store) attachSplits(txs []Transaction) error {
+	rows, err := s.db.Query(`SELECT id, transaction_id, amount, category, merchant, notes FROM transaction_splits ORDER BY transaction_id, id`)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	byID := make(map[string]int, len(txs))
+	for i := range txs {
+		byID[txs[i].ID] = i
+	}
+	for rows.Next() {
+		var (
+			sp   Split
+			txID string
+		)
+		if err := rows.Scan(&sp.ID, &txID, &sp.Amount, &sp.Category, &sp.Merchant, &sp.Notes); err != nil {
+			return err
+		}
+		if i, ok := byID[txID]; ok {
+			txs[i].Splits = append(txs[i].Splits, sp)
+		}
+	}
+	return rows.Err()
+}
+
+func (s *Store) Holdings() ([]Holding, error) {
+	rows, err := s.db.Query(`SELECT id, ticker, name, quantity, basis, value, account_id FROM holdings ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var holdings []Holding
+	for rows.Next() {
+		var h Holding
+		if err := rows.Scan(&h.ID, &h.Ticker, &h.Name, &h.Quantity, &h.Basis, &h.Value, &h.AccountID); err != nil {
+			return nil, err
+		}
+		holdings = append(holdings, h)
+	}
+	return holdings, rows.Err()
+}
+
 func (s *Store) SearchTransactions(query string) ([]Transaction, error) {
 	like := "%" + query + "%"
 	rows, err := s.db.Query(

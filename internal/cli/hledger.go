@@ -1,0 +1,132 @@
+package cli
+
+import (
+	"fmt"
+	"os"
+	"time"
+
+	"github.com/spf13/cobra"
+
+	"github.com/thedavidweng/monarchmoney-cli/internal/cache"
+	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
+	"github.com/thedavidweng/monarchmoney-cli/internal/hledger"
+	"github.com/thedavidweng/monarchmoney-cli/internal/output"
+)
+
+var hledgerCmd = &cobra.Command{
+	Use:     "hledger",
+	Short:   "Plain-text ledger backups for hledger",
+	GroupID: "utility",
+	Example: "  monarch hledger backup",
+}
+
+var hledgerBackupCmd = &cobra.Command{
+	Use:   "backup [FILE]",
+	Short: "Regenerate a complete hledger journal from the local cache",
+	Long: `Regenerate a complete hledger journal from the local cache.
+
+The journal is rewritten from scratch on every run as a disposable derived
+artifact with zero sync state; Monarch stays the source of truth. Keep
+handwritten annotations in your own journal that includes this file.
+
+The journal covers all accounts (including hidden and closed ones), the full
+transaction history, closing balance assertions for every account, and
+investment holdings as opening positions. Pending transactions are excluded.
+
+Reads only from the local cache, never the network. Run 'monarch cache sync
+--all' first for archive-complete history. Configure 'backup_path' in your
+config file to make every 'cache sync' regenerate this journal automatically.`,
+	Args: cobra.MaximumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		start := time.Now()
+		renderer := output.NewRenderer(nil, nil, jsonMode, pretty)
+
+		path := "./monarch.journal"
+		if len(args) == 1 {
+			path = args[0]
+		}
+
+		store, ok := openCache(renderer, "hledger.backup", start)
+		if !ok {
+			return
+		}
+		defer store.Close()
+
+		result, err := writeJournal(store, path)
+		if err != nil {
+			handleError(renderer, "hledger.backup", errors.New(errors.InternalError, "failed to write journal", errors.CatInternal, false, err), start)
+			return
+		}
+
+		if jsonMode {
+			env := output.NewEnvelope("hledger.backup", profile, output.SchemaVersion, requestID, map[string]any{
+				"status":       "backup complete",
+				"file":         path,
+				"accounts":     result.accounts,
+				"transactions": result.transactions,
+				"holdings":     result.holdings,
+			}, time.Since(start))
+			renderer.RenderSuccess(env)
+		} else {
+			fmt.Printf("Wrote %s (%d accounts, %d transactions, %d holdings).\n", path, result.accounts, result.transactions, result.holdings)
+		}
+	},
+}
+
+type backupResult struct {
+	accounts     int
+	transactions int
+	holdings     int
+}
+
+func writeJournal(store *cache.Store, path string) (backupResult, error) {
+	accounts, err := store.Accounts()
+	if err != nil {
+		return backupResult{}, err
+	}
+	txs, err := store.Transactions()
+	if err != nil {
+		return backupResult{}, err
+	}
+	holdings, err := store.Holdings()
+	if err != nil {
+		return backupResult{}, err
+	}
+
+	journal := hledger.Generate(&hledger.Data{
+		Accounts:     accounts,
+		Transactions: txs,
+		Holdings:     holdings,
+		Anchor:       backupAnchor(store, txs),
+	})
+	if err := os.WriteFile(path, []byte(journal), 0o600); err != nil {
+		return backupResult{}, err
+	}
+	if err := os.Chmod(path, 0o600); err != nil {
+		return backupResult{}, err
+	}
+	return backupResult{accounts: len(accounts), transactions: len(txs), holdings: len(holdings)}, nil
+}
+
+func backupAnchor(store *cache.Store, txs []cache.Transaction) time.Time {
+	var latest time.Time
+	for i := range txs {
+		if txs[i].Date.After(latest) {
+			latest = txs[i].Date
+		}
+	}
+	if !latest.IsZero() {
+		return latest.AddDate(0, 0, 1)
+	}
+	meta, err := store.LastSync()
+	if err != nil || meta == nil {
+		return time.Time{}
+	}
+	y, m, d := meta.SyncedAt.UTC().Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+}
+
+func init() {
+	hledgerCmd.AddCommand(hledgerBackupCmd)
+	RootCmd.AddCommand(hledgerCmd)
+}

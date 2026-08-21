@@ -110,4 +110,4 @@ Commands are organized into groups shown in `--help`:
 
 - **Core Commands**: `accounts`, `transactions`, `budgets`, `cashflow`, `rules`, `categories`, `tags`, `goals`, `investments`, `institutions`, `recurring`, `credit`, `subscription`
 - **Analysis & Insights**: `analyze`
-- **Utilities**: `auth`, `doctor`, `cache`, `audit`, `completion`, `version`
+- **Utilities**: `auth`, `doctor`, `cache`, `hledger`, `audit`, `completion`, `version`
