@@ -211,7 +211,29 @@ func TestAccountsUploadHistorySendsDeviceIdentity(t *testing.T) {
 			if got := req.Header.Get("device-uuid"); got != deviceUUID {
 				t.Fatalf("device-uuid = %q, want %q", got, deviceUUID)
 			}
-			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))}, nil
+			if req.URL.Path == "/account-balance-history/upload/" {
+				if req.Method != http.MethodPost {
+					t.Fatalf("method = %q, want POST", req.Method)
+				}
+				body, err := io.ReadAll(req.Body)
+				if err != nil {
+					t.Fatalf("ReadAll() error = %v", err)
+				}
+				if !strings.Contains(string(body), `name="files"`) || !strings.Contains(string(body), `"upload.csv":"acc-1"`) {
+					t.Fatalf("upload body missing fields: %s", body)
+				}
+				return testutil.JSONResponse(`{"session_key":"sk-1"}`), nil
+			}
+			var gqlReq struct {
+				OperationName string `json:"operationName"`
+			}
+			if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
+				t.Fatalf("Decode request error = %v", err)
+			}
+			if gqlReq.OperationName != "Web_ParseUploadBalanceHistorySession" {
+				t.Fatalf("operation = %q, want Web_ParseUploadBalanceHistorySession", gqlReq.OperationName)
+			}
+			return testutil.JSONResponse(`{"data":{"parseBalanceHistory":{"uploadBalanceHistorySession":{"sessionKey":"sk-1","status":"completed"}}}}`), nil
 		})
 	})
 	if err := h.execute("--json", "--confirm", "accounts", "upload-history", "acc-1", historyPath); err != nil {

@@ -44,7 +44,6 @@ func TestExitCode(t *testing.T) {
 		{"rate limited", RateLimited, 5},
 		{"api error", APIError, 6},
 		{"schema changed", APISchemaChanged, 6},
-		{"feature unavailable", FEATURE_UNAVAILABLE, 6},
 		{"validation failed", ValidationFailed, 7},
 		{"resource not found", ResourceNotFound, 8},
 		{"confirm required", ConfirmationRequired, 10},

@@ -22,7 +22,6 @@ func TestCodeConstants(t *testing.T) {
 		{"RateLimited", RateLimited, "RATE_LIMITED"},
 		{"APIError", APIError, "API_ERROR"},
 		{"APISchemaChanged", APISchemaChanged, "API_SCHEMA_CHANGED"},
-		{"FEATURE_UNAVAILABLE", FEATURE_UNAVAILABLE, "FEATURE_UNAVAILABLE"},
 		{"ValidationFailed", ValidationFailed, "VALIDATION_FAILED"},
 		{"ReadOnlyViolation", ReadOnlyViolation, "READ_ONLY_VIOLATION"},
 		{"ConfirmationRequired", ConfirmationRequired, "CONFIRMATION_REQUIRED"},

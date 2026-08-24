@@ -13,7 +13,6 @@
   <a href="https://github.com/thedavidweng/monarchmoney-cli/releases"><img src="https://img.shields.io/github/v/release/thedavidweng/monarchmoney-cli?style=flat-square" alt="Release"></a>
   <a href="https://github.com/thedavidweng/monarchmoney-cli/blob/main/LICENSE"><img src="https://img.shields.io/github/license/thedavidweng/monarchmoney-cli?style=flat-square" alt="License"></a>
   <img src="https://img.shields.io/badge/go-%3E%3D1.26-blue?style=flat-square" alt="Go">
-  <a href="https://goreportcard.com/report/github.com/thedavidweng/monarchmoney-cli"><img src="https://goreportcard.com/badge/github.com/thedavidweng/monarchmoney-cli?style=flat-square" alt="Go Report"></a>
 </p>
 
 `monarchmoney-cli` lets you query, manage, and automate Monarch Money data from the terminal or via AI agents, with stable JSON output and explicit safety gates around financial mutations.
@@ -23,8 +22,9 @@
 - Agent-first: stable JSON output, distinct stdout/stderr, and predictable exit codes
 - Safety-first: `--read-only`, `--dry-run`, and `--confirm` gates for financial data mutations
 - Auditable: local JSONL audit logs for remote mutations
-- Fast single binary with optional SQLite caching
-- Broad Monarch surface: accounts, transactions, budgets, cashflow, rules, splits, recurring items, investments, and more
+- Plain-text ownership: one-way regenerating hledger backups of your complete financial history (`monarch hledger backup`)
+- Full-fidelity local archive: SQLite cache for offline queries, so your data outlives any subscription
+- Fast single binary with broad Monarch surface: accounts, transactions, budgets, cashflow, rules, splits, recurring items, investments, and more
 
 ## Why
 
@@ -89,6 +89,9 @@ Then try it:
 monarch accounts list --json
 monarch transactions search "Amazon" --from 2024-01-01 --json
 monarch cashflow spending --from 2024-01-01 --to 2024-01-31 --json
+
+# own your history as plain text (after `monarch cache sync`)
+monarch hledger backup ~/finances/monarch.journal
 ```
 
 ### Uninstall
@@ -104,16 +107,26 @@ curl -fsSL https://raw.githubusercontent.com/thedavidweng/monarchmoney-cli/main/
 rm "$(go env GOPATH)/bin/monarch"
 ```
 
-Remove config if desired: `rm -rf ~/.config/monarchmoney-cli`
+Remove local data if desired: `rm -rf ~/.monarchmoney-cli` (on Linux, the state directory may live under `$XDG_STATE_HOME/monarchmoney-cli`).
 
 ## Documentation
 
-- [Commands](COMMANDS.md) — full list of supported commands and features
-- [Authentication](docs/auth.md) — MFA support and session management
-- [Safety Model](docs/safety.md) — how we protect your financial data
-- [JSON Schema](JSON_SCHEMA.md) — stable output contract details
-- [Agent Guide](docs/agent-guide.md) — guide for connecting with AI agents
-- [Contributing](CONTRIBUTING.md) — development setup and contribution guidelines
+Guides - task-oriented walkthroughs with real command output:
+
+- [Configuration](docs/guides/configuration.md) - config file, env vars, and precedence
+- [Ledger backup](docs/guides/ledger-backup.md) - own your history as plain text with hledger
+- [Transactions workflow](docs/guides/transactions-workflow.md) - search, inspect, dry-run, confirm, tag, rule
+- [Monthly review](docs/guides/monthly-review.md) - budgets, cashflow, and analysis in ten minutes
+- [Agent automation](docs/guides/agent-automation.md) - run AI agents safely and unattended
+
+Reference:
+
+- [Commands](COMMANDS.md) - full list of supported commands and features
+- [Authentication](docs/auth.md) - MFA support and session management
+- [Safety Model](docs/safety.md) - how we protect your financial data
+- [JSON Schema](JSON_SCHEMA.md) - stable output contract details
+- [Agent Guide](docs/agent-guide.md) - guide for connecting with AI agents
+- [Contributing](CONTRIBUTING.md) - development setup and contribution guidelines
 
 ## Related
 
@@ -133,13 +146,13 @@ Remove config if desired: `rm -rf ~/.config/monarchmoney-cli`
 
 This project builds on work and ideas from:
 
-- [`hammem/monarchmoney`](https://github.com/hammem/monarchmoney) — the original Python API project for accessing Monarch Money data
-- [`bradleyseanf/monarchmoneycommunity`](https://github.com/bradleyseanf/monarchmoneycommunity) — the maintained community fork documenting the current unofficial Monarch Money API surface
+- [`hammem/monarchmoney`](https://github.com/hammem/monarchmoney) - the original Python API project for accessing Monarch Money data
+- [`bradleyseanf/monarchmoneycommunity`](https://github.com/bradleyseanf/monarchmoneycommunity) - the maintained community fork documenting the current unofficial Monarch Money API surface
 
 ## Infrastructure
 
-- **CI/CD:** [cli-workflow-template](https://github.com/thedavidweng/cli-workflow-template) — reusable GitHub Actions workflows
-- **Docs:** [site](https://github.com/thedavidweng/site) — landing page and documentation
+- **CI/CD:** [cli-workflow-template](https://github.com/thedavidweng/cli-workflow-template) - reusable GitHub Actions workflows
+- **Docs:** [site](https://github.com/thedavidweng/site) - landing page and documentation
 
 ## License
 

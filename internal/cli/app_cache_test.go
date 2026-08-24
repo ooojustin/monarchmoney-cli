@@ -135,6 +135,8 @@ func TestAppCacheSyncUsesInjectedDepsAndConfiguredCache(t *testing.T) {
 			}
 			gotStartDate, _ = filters["startDate"].(string)
 			return testutil.JSONResponse(`{"data":{"allTransactions":{"results":[{"id":"tx_1","date":"2026-05-09","amount":-12.34,"merchant":{"name":"Cafe"},"category":{"name":"Dining"},"account":{"id":"acc_1"},"notes":"latte"}],"totalCount":1}}}`), nil
+		case "Web_GetHoldings":
+			return testutil.JSONResponse(`{"data":{"portfolio":{"aggregateHoldings":{"edges":[]}}}}`), nil
 		default:
 			t.Fatalf("unexpected operation %q", gqlReq.OperationName)
 		}
@@ -203,6 +205,8 @@ func TestAppCacheSyncAllPaginates(t *testing.T) {
 				return testutil.JSONResponse(`{"data":{"allTransactions":{"results":[{"id":"tx_1","date":"2026-05-09","amount":-12.34,"merchant":{"name":"Cafe"},"category":{"name":"Dining"},"account":{"id":"acc_1"}}],"totalCount":2}}}`), nil
 			}
 			return testutil.JSONResponse(`{"data":{"allTransactions":{"results":[{"id":"tx_2","date":"2026-05-10","amount":-9.99,"merchant":{"name":"Deli"},"category":{"name":"Dining"},"account":{"id":"acc_1"}}],"totalCount":2}}}`), nil
+		case "Web_GetHoldings":
+			return testutil.JSONResponse(`{"data":{"portfolio":{"aggregateHoldings":{"edges":[]}}}}`), nil
 		default:
 			t.Fatalf("unexpected operation %q", gqlReq.OperationName)
 		}

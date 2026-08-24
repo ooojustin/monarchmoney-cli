@@ -1199,12 +1199,44 @@ func (a *App) buildTransactionsBulkCategorizeCommand() *cobra.Command {
 func (a *App) buildTransactionsAttachmentsUploadCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "upload <transaction-id> <file>",
-		Short: "Report that attachment upload is unavailable",
+		Short: "Upload an attachment for a transaction",
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			start := time.Now()
 			renderer := output.NewRenderer(cmd.OutOrStdout(), cmd.ErrOrStderr(), a.Flags.JSONMode, a.Flags.Pretty)
-			a.handleError(renderer, "transactions.attachments.upload", errors.New(errors.FEATURE_UNAVAILABLE, "transaction attachment upload is unavailable in the current Monarch API", errors.CatAPI, false, nil), start)
+			txID, path := args[0], args[1]
+
+			if !a.checkSafety(renderer, "transactions.attachments.upload", safety.TierMutation, start) {
+				return
+			}
+			if a.Flags.DryRun {
+				plan := safety.NewPlan()
+				plan.Add("transactions.attachments.upload", txID, nil, map[string]string{"file": path})
+				a.renderPlan(renderer, "transactions.attachments.upload", plan, start)
+				return
+			}
+
+			svc, err := a.loadService()
+			if err != nil {
+				a.handleError(renderer, "transactions.attachments.upload", wrapError(err, "failed to load service"), start)
+				return
+			}
+			result, err := a.mutate(renderer, "transactions.attachments.upload", txID, start, func() (any, error) {
+				if err := svc.UploadAttachment(cmd.Context(), txID, path); err != nil {
+					return nil, err
+				}
+				return map[string]string{"status": "uploaded", "file": path}, nil
+			}, "failed to upload attachment")
+			if err != nil {
+				return
+			}
+
+			if a.Flags.JSONMode {
+				env := output.NewEnvelope("transactions.attachments.upload", a.Flags.Profile, output.SchemaVersion, a.Flags.RequestID, result, time.Since(start))
+				renderer.RenderSuccess(env)
+				return
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Successfully uploaded %s to transaction %s.\n", path, txID)
 		},
 	}
 }

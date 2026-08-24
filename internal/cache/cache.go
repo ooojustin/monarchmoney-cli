@@ -23,13 +23,21 @@ type storeDeps struct {
 }
 
 func NewStore(path string) (*Store, error) {
-	return newStore(path, storeDeps{
+	return newStore(path, defaultStoreDeps(Migrate))
+}
+
+func RebuildStore(path string) (*Store, error) {
+	return newStore(path, defaultStoreDeps(Rebuild))
+}
+
+func defaultStoreDeps(migrate func(*sql.DB) error) storeDeps {
+	return storeDeps{
 		mkdirAll: os.MkdirAll,
 		openDB: func(path string) (*sql.DB, error) {
 			return sql.Open("sqlite3", path)
 		},
-		migrate: Migrate,
-	})
+		migrate: migrate,
+	}
 }
 
 func newStore(path string, deps storeDeps) (*Store, error) {
@@ -76,11 +84,14 @@ func (s *Store) SaveAccounts(accounts []Account) error {
 	if err != nil {
 		return err
 	}
-	const stmt = `INSERT OR REPLACE INTO accounts (id, display_name, account_type, display_balance, updated_at) VALUES (?, ?, ?, ?, ?)`
+	defer func() { _ = tx.Rollback() }()
+	const stmt = `INSERT OR REPLACE INTO accounts
+		(id, display_name, account_type, type_group, display_balance, current_balance, is_manual, is_hidden, is_closed, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	for i := range accounts {
 		a := &accounts[i]
-		if _, err := tx.Exec(stmt, a.ID, a.DisplayName, a.AccountType, a.DisplayBalance, a.UpdatedAt.UTC().Format(time.RFC3339)); err != nil {
-			_ = tx.Rollback()
+		if _, err := tx.Exec(stmt, a.ID, a.DisplayName, a.AccountType, a.TypeGroup, a.DisplayBalance, a.CurrentBalance,
+			boolToInt(a.IsManual), boolToInt(a.IsHidden), boolToInt(a.IsClosed), a.UpdatedAt.UTC().Format(time.RFC3339)); err != nil {
 			return err
 		}
 	}
@@ -95,15 +106,66 @@ func (s *Store) SaveTransactions(txs []Transaction) error {
 	if err != nil {
 		return err
 	}
-	const stmt = `INSERT OR REPLACE INTO transactions (id, date, amount, merchant, category, notes, account_id) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	defer func() { _ = tx.Rollback() }()
+	const stmt = `INSERT OR REPLACE INTO transactions
+		(id, date, amount, merchant, plaid_name, provider_description, category, category_group, category_group_type,
+		 notes, pending, review_status, needs_review, goal_id, goal_name, account_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	const deleteTags = `DELETE FROM transaction_tags WHERE transaction_id = ?`
+	const insertTag = `INSERT OR REPLACE INTO transaction_tags (transaction_id, tag_id, name) VALUES (?, ?, ?)`
+	const deleteSplits = `DELETE FROM transaction_splits WHERE transaction_id = ?`
+	const insertSplit = `INSERT OR REPLACE INTO transaction_splits (id, transaction_id, amount, category, merchant, notes) VALUES (?, ?, ?, ?, ?, ?)`
 	for i := range txs {
 		t := &txs[i]
-		if _, err := tx.Exec(stmt, t.ID, t.Date.UTC().Format(time.RFC3339), t.Amount, t.Merchant, t.Category, t.Notes, t.AccountID); err != nil {
-			_ = tx.Rollback()
+		if _, err := tx.Exec(stmt, t.ID, t.Date.UTC().Format(time.RFC3339), t.Amount, t.Merchant, t.PlaidName,
+			t.ProviderDescription, t.Category, t.CategoryGroup, t.CategoryGroupType, t.Notes,
+			boolToInt(t.Pending), t.ReviewStatus, boolToInt(t.NeedsReview), t.GoalID, t.GoalName, t.AccountID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(deleteTags, t.ID); err != nil {
+			return err
+		}
+		for _, tag := range t.Tags {
+			if _, err := tx.Exec(insertTag, t.ID, tag.ID, tag.Name); err != nil {
+				return err
+			}
+		}
+		if _, err := tx.Exec(deleteSplits, t.ID); err != nil {
+			return err
+		}
+		for _, split := range t.Splits {
+			if _, err := tx.Exec(insertSplit, split.ID, t.ID, split.Amount, split.Category, split.Merchant, split.Notes); err != nil {
+				return err
+			}
+		}
+	}
+	return tx.Commit()
+}
+
+func (s *Store) SaveHoldings(holdings []Holding) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.Exec(`DELETE FROM holdings`); err != nil {
+		return err
+	}
+	const stmt = `INSERT OR REPLACE INTO holdings (id, ticker, name, quantity, basis, value, account_id) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	for i := range holdings {
+		h := &holdings[i]
+		if _, err := tx.Exec(stmt, h.ID, h.Ticker, h.Name, h.Quantity, h.Basis, h.Value, h.AccountID); err != nil {
 			return err
 		}
 	}
 	return tx.Commit()
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 func (s *Store) RecordSync(accountCount, txCount int) error {
@@ -135,14 +197,41 @@ func (s *Store) LastSync() (*SyncMeta, error) {
 	return &SyncMeta{ID: id, SyncedAt: parsed, Accounts: accounts, TxCount: txCount}, nil
 }
 
-func (s *Store) SearchTransactions(query string) ([]Transaction, error) {
-	like := "%" + query + "%"
+func (s *Store) Accounts() ([]Account, error) {
 	rows, err := s.db.Query(
-		`SELECT id, date, amount, merchant, category, notes, account_id
-		 FROM transactions
-		 WHERE merchant LIKE ? OR notes LIKE ? OR category LIKE ?
-		 ORDER BY date DESC, id ASC`,
-		like, like, like,
+		`SELECT id, display_name, account_type, type_group, display_balance, current_balance, is_manual, is_hidden, is_closed, updated_at
+		 FROM accounts ORDER BY id`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var accounts []Account
+	for rows.Next() {
+		var (
+			a         Account
+			updatedAt string
+		)
+		if err := rows.Scan(&a.ID, &a.DisplayName, &a.AccountType, &a.TypeGroup, &a.DisplayBalance, &a.CurrentBalance,
+			&a.IsManual, &a.IsHidden, &a.IsClosed, &updatedAt); err != nil {
+			return nil, err
+		}
+		parsed, err := time.Parse(time.RFC3339, updatedAt)
+		if err != nil {
+			return nil, err
+		}
+		a.UpdatedAt = parsed
+		accounts = append(accounts, a)
+	}
+	return accounts, rows.Err()
+}
+
+func (s *Store) Transactions() ([]Transaction, error) {
+	rows, err := s.db.Query(
+		`SELECT id, date, amount, merchant, plaid_name, provider_description, category, category_group, category_group_type,
+		        notes, pending, review_status, needs_review, goal_id, goal_name, account_id
+		 FROM transactions ORDER BY date ASC, id ASC`,
 	)
 	if err != nil {
 		return nil, err
@@ -152,10 +241,14 @@ func (s *Store) SearchTransactions(query string) ([]Transaction, error) {
 	var txs []Transaction
 	for rows.Next() {
 		var (
-			t    Transaction
-			date string
+			t           Transaction
+			date        string
+			pending     int
+			needsReview int
 		)
-		if err := rows.Scan(&t.ID, &date, &t.Amount, &t.Merchant, &t.Category, &t.Notes, &t.AccountID); err != nil {
+		if err := rows.Scan(&t.ID, &date, &t.Amount, &t.Merchant, &t.PlaidName, &t.ProviderDescription, &t.Category,
+			&t.CategoryGroup, &t.CategoryGroupType, &t.Notes, &pending, &t.ReviewStatus, &needsReview,
+			&t.GoalID, &t.GoalName, &t.AccountID); err != nil {
 			return nil, err
 		}
 		parsed, err := time.Parse(time.RFC3339, date)
@@ -163,31 +256,174 @@ func (s *Store) SearchTransactions(query string) ([]Transaction, error) {
 			return nil, err
 		}
 		t.Date = parsed
+		t.Pending = pending == 1
+		t.NeedsReview = needsReview == 1
 		txs = append(txs, t)
 	}
-	return txs, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if err := s.attachTags(txs); err != nil {
+		return nil, err
+	}
+	return txs, s.attachSplits(txs)
+}
+
+func (s *Store) attachTags(txs []Transaction) error {
+	rows, err := s.db.Query(`SELECT transaction_id, tag_id, name FROM transaction_tags ORDER BY transaction_id, name`)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	byID := make(map[string]int, len(txs))
+	for i := range txs {
+		byID[txs[i].ID] = i
+	}
+	for rows.Next() {
+		var txID, tagID, name string
+		if err := rows.Scan(&txID, &tagID, &name); err != nil {
+			return err
+		}
+		if i, ok := byID[txID]; ok {
+			txs[i].Tags = append(txs[i].Tags, Tag{ID: tagID, Name: name})
+		}
+	}
+	return rows.Err()
+}
+
+func (s *Store) attachSplits(txs []Transaction) error {
+	rows, err := s.db.Query(`SELECT id, transaction_id, amount, category, merchant, notes FROM transaction_splits ORDER BY transaction_id, id`)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	byID := make(map[string]int, len(txs))
+	for i := range txs {
+		byID[txs[i].ID] = i
+	}
+	for rows.Next() {
+		var (
+			sp   Split
+			txID string
+		)
+		if err := rows.Scan(&sp.ID, &txID, &sp.Amount, &sp.Category, &sp.Merchant, &sp.Notes); err != nil {
+			return err
+		}
+		if i, ok := byID[txID]; ok {
+			txs[i].Splits = append(txs[i].Splits, sp)
+		}
+	}
+	return rows.Err()
+}
+
+func (s *Store) Holdings() ([]Holding, error) {
+	rows, err := s.db.Query(`SELECT id, ticker, name, quantity, basis, value, account_id FROM holdings ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var holdings []Holding
+	for rows.Next() {
+		var h Holding
+		if err := rows.Scan(&h.ID, &h.Ticker, &h.Name, &h.Quantity, &h.Basis, &h.Value, &h.AccountID); err != nil {
+			return nil, err
+		}
+		holdings = append(holdings, h)
+	}
+	return holdings, rows.Err()
+}
+
+func (s *Store) SearchTransactions(query string) ([]Transaction, error) {
+	like := "%" + query + "%"
+	rows, err := s.db.Query(
+		`SELECT id, date, amount, merchant, plaid_name, provider_description, category, category_group, category_group_type,
+		        notes, pending, review_status, needs_review, goal_id, goal_name, account_id
+		 FROM transactions
+		 WHERE merchant LIKE ? OR notes LIKE ? OR category LIKE ? OR plaid_name LIKE ? OR provider_description LIKE ?
+		    OR EXISTS (SELECT 1 FROM transaction_tags tt WHERE tt.transaction_id = transactions.id AND tt.name LIKE ?)
+		 ORDER BY date DESC, id ASC`,
+		like, like, like, like, like, like,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var txs []Transaction
+	for rows.Next() {
+		var (
+			t           Transaction
+			date        string
+			pending     int
+			needsReview int
+		)
+		if err := rows.Scan(&t.ID, &date, &t.Amount, &t.Merchant, &t.PlaidName, &t.ProviderDescription, &t.Category,
+			&t.CategoryGroup, &t.CategoryGroupType, &t.Notes, &pending, &t.ReviewStatus, &needsReview,
+			&t.GoalID, &t.GoalName, &t.AccountID); err != nil {
+			return nil, err
+		}
+		parsed, err := time.Parse(time.RFC3339, date)
+		if err != nil {
+			return nil, err
+		}
+		t.Date = parsed
+		t.Pending = pending == 1
+		t.NeedsReview = needsReview == 1
+		txs = append(txs, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if err := s.attachTags(txs); err != nil {
+		return nil, err
+	}
+	return txs, s.attachSplits(txs)
 }
 
 func (s *Store) Cleanup(before string) (int64, error) {
-	result, err := s.db.Exec(`DELETE FROM transactions WHERE date < ?`, before)
+	tx, err := s.db.Begin()
 	if err != nil {
 		return 0, err
 	}
-	return result.RowsAffected()
+	defer func() { _ = tx.Rollback() }()
+	const deleteTags = `DELETE FROM transaction_tags WHERE transaction_id IN (SELECT id FROM transactions WHERE date < ?)`
+	const deleteSplits = `DELETE FROM transaction_splits WHERE transaction_id IN (SELECT id FROM transactions WHERE date < ?)`
+	if _, err := tx.Exec(deleteTags, before); err != nil {
+		return 0, err
+	}
+	if _, err := tx.Exec(deleteSplits, before); err != nil {
+		return 0, err
+	}
+	result, err := tx.Exec(`DELETE FROM transactions WHERE date < ?`, before)
+	if err != nil {
+		return 0, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return affected, tx.Commit()
 }
 
 func (s *Store) GetStats() (map[string]any, error) {
-	var accCount, txCount int64
+	var accCount, txCount, holdingCount int64
 	if err := s.db.QueryRow(`SELECT COUNT(*) FROM accounts`).Scan(&accCount); err != nil {
 		return nil, err
 	}
 	if err := s.db.QueryRow(`SELECT COUNT(*) FROM transactions`).Scan(&txCount); err != nil {
 		return nil, err
 	}
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM holdings`).Scan(&holdingCount); err != nil {
+		return nil, err
+	}
 
 	stats := map[string]any{
 		"accounts":     accCount,
 		"transactions": txCount,
+		"holdings":     holdingCount,
 	}
 
 	lastSync, err := s.LastSync()

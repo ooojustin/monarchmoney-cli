@@ -1,4 +1,4 @@
-# 0015 - Expired session retry classification
+# 0018 - Expired session retry classification
 
 ## Status
 
@@ -28,4 +28,4 @@ Should a refresh path ever exist, retry belongs at that path rather than in the 
 - The envelope stops advising callers to retry a request that cannot succeed, so `error.retryable` and the exit-code-3 guidance agree.
 - The published value of `error.retryable` for `AUTH_SESSION_EXPIRED` changes from `true` to `false`. A caller branching on it stops instead of looping.
 - A regression test asserts one attempt and zero scheduled backoffs, so the latency claim is pinned rather than the request count alone.
-- ADR 0012's schema-version policy is extended to name the retryable classification of an existing error code, a case it did not cover.
+- ADR 0015's schema-version policy is extended to name the retryable classification of an existing error code, a case it did not cover.

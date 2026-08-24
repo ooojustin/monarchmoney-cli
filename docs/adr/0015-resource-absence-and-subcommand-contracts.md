@@ -1,4 +1,4 @@
-# 0012 - Resource absence and subcommand contracts
+# 0015 - Resource absence and subcommand contracts
 
 ## Status
 
@@ -36,4 +36,4 @@ A command that owns subcommands and no action of its own requires a subcommand. 
 - Parent commands become runnable, so their help gains the usage line that the root command already renders.
 - Unknown subcommands of a parent do not offer spelling suggestions; the root command still does.
 - The schema stamp is a change marker, not a compatibility promise. `TestSchemaVersion` pins the literal so the bump is a deliberate edit.
-- The retryable classification of an existing code is part of the contract, because callers branch on it exactly as they branch on an exit code. ADR 0015 is the first change to exercise that rule.
+- The retryable classification of an existing code is part of the contract, because callers branch on it exactly as they branch on an exit code. ADR 0018 is the first change to exercise that rule.

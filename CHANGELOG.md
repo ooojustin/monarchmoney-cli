@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.9.0](https://github.com/thedavidweng/monarchmoney-cli/compare/v0.8.0...v0.9.0) (2026-08-21)
+
+
+### Features
+
+* add monarch hledger backup for regenerating plain-text ledger ([51d418d](https://github.com/thedavidweng/monarchmoney-cli/commit/51d418d6d4172e0998b042262e355e4d106557ef))
+* add upload endpoints and live endpoint verification ([8562288](https://github.com/thedavidweng/monarchmoney-cli/commit/8562288e14c5e91f648ef4157be8d2cc3d689ba5))
+* extend cache into full-fidelity archive replica ([14c2288](https://github.com/thedavidweng/monarchmoney-cli/commit/14c228849d9935814fa911494d4d23acb6427694))
+* one-way regenerating hledger backup (plain-text ledger ownership) ([66654a9](https://github.com/thedavidweng/monarchmoney-cli/commit/66654a9a0703d3c551004f16e6985ec1aa78ba87))
+* true-up unreconciled balances via opening entries ([0e14a2b](https://github.com/thedavidweng/monarchmoney-cli/commit/0e14a2b5f88746171066e33160a78220ca039bb0))
+
+
+### Bug Fixes
+
+* address review findings and Windows CI failure ([036ac17](https://github.com/thedavidweng/monarchmoney-cli/commit/036ac1777e70f637287886fc37204442707d65b5))
+* address review findings and Windows CI failure ([f24b16b](https://github.com/thedavidweng/monarchmoney-cli/commit/f24b16b3ae54e4ac36d55d3bf6c83c97d6e8ebdb))
+* drop fields removed from the Monarch accounts API ([0f386a0](https://github.com/thedavidweng/monarchmoney-cli/commit/0f386a04a9d2230d1ef983bde936ffc8a67dbdbf))
+* rebuild caches with partial legacy schemas ([bc3a7a8](https://github.com/thedavidweng/monarchmoney-cli/commit/bc3a7a839a973112ac6522afeec01bf0f5c9f79b))
+* surface ledger backup regeneration failure as sync warning ([6e162bf](https://github.com/thedavidweng/monarchmoney-cli/commit/6e162bf20c62ba0ad39d6100c6b92a510055eb2c))
+
+
+### Documentation
+
+* add user-facing guides per Diataxis (configuration, ledger backup, transactions, monthly review, agent automation) ([4a4b4ad](https://github.com/thedavidweng/monarchmoney-cli/commit/4a4b4ad8c3d6008f32e5441af79d7f618627c386))
+* align reference docs with current functionality ([b0bdf52](https://github.com/thedavidweng/monarchmoney-cli/commit/b0bdf527fef0e1c5817c3b1a333840db1972be55))
+* fix review findings in guides ([8e67a3f](https://github.com/thedavidweng/monarchmoney-cli/commit/8e67a3fd7f3f5bbd2425f77457d80ea1e176a5f7))
+* record hledger backup architecture decisions ([1b2ac49](https://github.com/thedavidweng/monarchmoney-cli/commit/1b2ac49f5dd17968acd5f63e196a6384c66bcf20))
+* user-facing guides per Diátaxis (fixes [#28](https://github.com/thedavidweng/monarchmoney-cli/issues/28)) ([3306556](https://github.com/thedavidweng/monarchmoney-cli/commit/3306556b15d30f87f06c646c81440a00e19e4aff))
+
+## [0.8.0](https://github.com/thedavidweng/monarchmoney-cli/compare/v0.7.0...v0.8.0) (2026-08-15)
+
+
+### Features
+
+* align GraphQL operation names with official Monarch API and add missing endpoints ([31fa52b](https://github.com/thedavidweng/monarchmoney-cli/commit/31fa52b23a767d88e1a5c2c78ffd091258e24e7b))
+
 ## [0.7.0](https://github.com/thedavidweng/monarchmoney-cli/compare/v0.6.0...v0.7.0) (2026-07-28)
 
 

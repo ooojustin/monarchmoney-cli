@@ -22,6 +22,17 @@ query GetTransactionsList($offset: Int, $limit: Int, $filters: TransactionFilter
         sizeBytes
       }
       isSplitTransaction
+      splitTransactions {
+        id
+        amount
+        notes
+        category {
+          name
+        }
+        merchant {
+          name
+        }
+      }
       createdAt
       updatedAt
       category {

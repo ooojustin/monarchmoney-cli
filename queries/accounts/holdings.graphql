@@ -12,6 +12,8 @@ query Web_GetHoldings {
             quantity
             name
             ticker
+            value
+            costBasis
             account {
               id
             }

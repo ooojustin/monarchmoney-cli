@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -33,6 +34,52 @@ type fakeCSVWriter struct {
 	failOnCall int
 	calls      int
 	err        error
+}
+
+func TestMultipartFilenamesRoundTrip(t *testing.T) {
+	const filename = `a"b\c.pdf`
+	tests := []struct {
+		name  string
+		write func(*multipart.Writer) error
+	}{
+		{"balance history", func(w *multipart.Writer) error {
+			part, err := createBalanceHistoryFormFile(w, "files", filename)
+			if err == nil {
+				_, err = part.Write([]byte("content"))
+			}
+			return err
+		}},
+		{"attachment", func(w *multipart.Writer) error {
+			return writeCloudinaryForm(w, filename, []byte("content"), &attachmentUploadParams{})
+		}},
+		{"receipt", func(w *multipart.Writer) error {
+			part, err := createRetailSyncFormFile(w, "payload_0", filename, "application/pdf")
+			if err == nil {
+				_, err = part.Write([]byte("content"))
+			}
+			return err
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var body bytes.Buffer
+			writer := multipart.NewWriter(&body)
+			if err := tt.write(writer); err != nil {
+				t.Fatal(err)
+			}
+			if err := writer.Close(); err != nil {
+				t.Fatal(err)
+			}
+			part, err := multipart.NewReader(&body, writer.Boundary()).NextPart()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := part.FileName(); got != filename {
+				t.Fatalf("filename = %q, want %q", got, filename)
+			}
+		})
+	}
 }
 
 func (w *fakeCSVWriter) Write(record []string) error {
@@ -183,6 +230,23 @@ func testServiceAccountsCoreReadPaths(t *testing.T) {
 			eq(t, "acc-1", got.ID)
 			eq(t, "Cash", got.DisplayName)
 			eq(t, "cash", got.AccountType)
+			return nil
+		})
+	})
+
+	t.Run("list holdings", func(t *testing.T) {
+		runGraphQLCase(t, "Web_GetHoldings", nil, `{"portfolio":{"aggregateHoldings":{"edges":[{"node":{"holdings":[{"id":"h1","quantity":10.5,"name":"Vanguard ETF","ticker":"VTI","value":3000.5,"costBasis":2500,"account":{"id":"a1"}},{"id":"h2","quantity":500,"name":"USD","ticker":"CUR:USD","value":500,"costBasis":500,"account":{"id":"a1"}}]}}]}}}`, func(s *Service) error {
+			got, err := s.ListHoldings(context.Background())
+			mustNoErr(t, err)
+			mustLen(t, got, 2)
+			eq(t, "h1", got[0].ID)
+			eq(t, "VTI", got[0].Ticker)
+			eq(t, "Vanguard ETF", got[0].Name)
+			eq(t, 10.5, got[0].Quantity)
+			eq(t, 2500.0, got[0].Basis)
+			eq(t, 3000.5, got[0].Value)
+			eq(t, "a1", got[0].AccountID)
+			eq(t, "CUR:USD", got[1].Ticker)
 			return nil
 		})
 	})
@@ -496,6 +560,54 @@ func testServiceReferenceRulePaths(t *testing.T) {
 			eq(t, "shop", got[0].MerchantNameCriteria[1].Value)
 			return nil
 		})
+	})
+
+	t.Run("create rule", func(t *testing.T) {
+		amount := 5.0
+		runGraphQLCase(t, "Common_CreateTransactionRuleMutationV2", map[string]any{"input": map[string]any{"applyToExistingTransactions": false, "merchantNameCriteria": []map[string]any{{"operator": "contains", "value": "coffee"}}, "amountCriteria": map[string]any{"operator": "gt", "isExpense": true, "value": amount, "valueRange": nil}, "setCategoryAction": "cat-1", "accountIds": []string{"acc-1"}}}, `{"createTransactionRuleV2":{"errors":null}}`, func(s *Service) error {
+			return s.CreateRule(context.Background(), &CreateRuleInput{
+				MerchantOperator: "contains",
+				MerchantValue:    "coffee",
+				AmountOperator:   "gt",
+				AmountValue:      &amount,
+				AmountIsExpense:  true,
+				SetCategoryID:    "cat-1",
+				AccountIDs:       []string{"acc-1"},
+			})
+		})
+	})
+
+	t.Run("update rule", func(t *testing.T) {
+		runGraphQLCase(t, "Common_UpdateTransactionRuleMutationV2", map[string]any{"input": map[string]any{"id": "r1", "applyToExistingTransactions": true, "merchantNameCriteria": []map[string]any{{"operator": "eq", "value": "shop"}}, "setCategoryAction": "cat-2"}}, `{"updateTransactionRuleV2":{"errors":null}}`, func(s *Service) error {
+			return s.UpdateRule(context.Background(), &UpdateRuleInput{
+				ID:               "r1",
+				MerchantOperator: "eq",
+				MerchantValue:    "shop",
+				SetCategoryID:    "cat-2",
+				ApplyToExisting:  true,
+			})
+		})
+	})
+
+	t.Run("delete rule", func(t *testing.T) {
+		runGraphQLCase(t, "Common_DeleteTransactionRule", map[string]any{"id": "r1"}, `{"deleteTransactionRule":{"deleted":true,"errors":null}}`, func(s *Service) error {
+			return s.DeleteRule(context.Background(), "r1")
+		})
+	})
+
+	t.Run("delete rule not deleted", func(t *testing.T) {
+		var client *mockClient
+		client = &mockClient{
+			token: "token-123",
+			handler: func(req *graphql.Request, result any) error {
+				assertReq(t, req, "Common_DeleteTransactionRule")
+				return client.respond(result, `{"deleteTransactionRule":{"deleted":false,"errors":{"message":"not found"}}}`)
+			},
+		}
+		err := NewService(client).DeleteRule(context.Background(), "r1")
+		if err == nil || !strings.Contains(err.Error(), "not found") {
+			t.Fatalf("DeleteRule() error = %v, want 'not found'", err)
+		}
 	})
 }
 
@@ -1055,12 +1167,6 @@ func TestServiceErrorBranches(t *testing.T) {
 		})
 	})
 
-	t.Run("unavailable transaction paths", func(t *testing.T) {
-		if err := NewService(&mockClient{}).UploadAttachment(context.Background(), "tx-1", "file.pdf"); err == nil || !strings.Contains(err.Error(), "FEATURE_UNAVAILABLE") {
-			t.Fatalf("UploadAttachment() error = %v, want feature unavailable", err)
-		}
-	})
-
 	t.Run("investments", func(t *testing.T) {
 		runGraphQLErrorCase(t, "Web_GetPortfolio", map[string]any{"portfolioInput": map[string]any{}}, func(s *Service) error {
 			_, err := s.GetInvestmentPortfolio(context.Background(), InvestmentPortfolioOptions{})
@@ -1074,9 +1180,19 @@ func TestServiceErrorBranches(t *testing.T) {
 }
 
 func TestServiceHTTPHelpers(t *testing.T) {
+	t.Run("purpose-specific clients", func(t *testing.T) {
+		svc := NewService(&mockClient{})
+		mustEq(t, 30*time.Second, svc.attachmentHTTPClient().Timeout)
+		mustEq(t, 60*time.Second, svc.attachmentUploadClient().Timeout)
+		mustEq(t, 120*time.Second, svc.receiptUploadClient().Timeout)
+		mustEq(t, 10*time.Second, svc.balanceHistoryPollDelay)
+		mustEq(t, 300*time.Second, svc.balanceHistoryPollTimeout)
+	})
+
 	testServiceHTTPDownloadAttachmentPaths(t)
 	testServiceHTTPUploadBalanceHistoryPaths(t)
 	testServiceHTTPAttachmentAvailabilityPaths(t)
+	testServiceReceiptUploadPaths(t)
 }
 
 func testServiceHTTPDownloadAttachmentPaths(t *testing.T) {
@@ -1124,26 +1240,100 @@ func testServiceHTTPDownloadAttachmentPaths(t *testing.T) {
 func testServiceHTTPUploadBalanceHistoryPaths(t *testing.T) {
 	t.Helper()
 
-	t.Run("upload account balance history", func(t *testing.T) {
+	newCSV := func(t *testing.T) io.Reader {
+		t.Helper()
+		return strings.NewReader("Date,Amount,Account Name\n2026-01-01,100,Checking\n")
+	}
+
+	t.Run("upload account balance history completed on parse", func(t *testing.T) {
 		transport := testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
 			mustEq(t, "POST", req.Method)
+			mustEq(t, "https://api.monarch.com/account-balance-history/upload/", req.URL.String())
 			mustEq(t, "web", req.Header.Get("Client-Platform"))
 			mustEq(t, "Token tok", req.Header.Get("Authorization"))
 			mustEq(t, "device-123", req.Header.Get("device-uuid"))
-			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(""))}, nil
+			body, err := io.ReadAll(req.Body)
+			mustNoErr(t, err)
+			hasSubstr(t, string(body), `name="files"`)
+			hasSubstr(t, string(body), "account_files_mapping")
+			hasSubstr(t, string(body), `"upload.csv":"acc-1"`)
+			hasSubstr(t, string(body), "2026-01-01,100,Checking")
+			return testutil.JSONResponse(`{"session_key":"sk-1"}`), nil
 		})
 
-		tmp := filepath.Join(t.TempDir(), "sample.csv")
-		if err := os.WriteFile(tmp, []byte("a,b\n1,2\n"), 0o600); err != nil {
-			t.Fatalf("WriteFile() error = %v", err)
+		var client *mockClient
+		client = &mockClient{
+			token:      "tok",
+			deviceUUID: "device-123",
+			handler: func(req *graphql.Request, result any) error {
+				assertReq(t, req, "Web_ParseUploadBalanceHistorySession")
+				expectVars(t, req.Variables, map[string]any{"input": map[string]any{"sessionKey": "sk-1"}})
+				return client.respond(result, `{"parseBalanceHistory":{"uploadBalanceHistorySession":{"sessionKey":"sk-1","status":"completed"}}}`)
+			},
 		}
 
-		file, err := os.Open(tmp)
-		mustNoErr(t, err)
-		defer file.Close()
+		mustNoErr(t, NewService(client, WithHTTPTransport(transport)).UploadAccountBalanceHistory(context.Background(), "acc-1", newCSV(t)))
+	})
 
-		svc := NewService(&mockClient{token: "tok", deviceUUID: "device-123"}, WithHTTPTransport(transport))
-		mustNoErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", file))
+	t.Run("upload account balance history polls until completed", func(t *testing.T) {
+		transport := testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+			return testutil.JSONResponse(`{"session_key":"sk-2"}`), nil
+		})
+
+		var polls int
+		var client *mockClient
+		client = &mockClient{
+			token: "tok",
+			handler: func(req *graphql.Request, result any) error {
+				switch req.OperationName {
+				case "Web_ParseUploadBalanceHistorySession":
+					return client.respond(result, `{"parseBalanceHistory":{"uploadBalanceHistorySession":{"status":"processing"}}}`)
+				case "Web_GetUploadBalanceHistorySession":
+					polls++
+					status := "processing"
+					if polls >= 2 {
+						status = "completed"
+					}
+					return client.respond(result, fmt.Sprintf(`{"uploadBalanceHistorySession":{"sessionKey":"sk-2","status":%q}}`, status))
+				default:
+					t.Fatalf("unexpected operation %s", req.OperationName)
+					return nil
+				}
+			},
+		}
+
+		svc := NewService(client, WithHTTPTransport(transport))
+		svc.balanceHistoryPollDelay = time.Millisecond
+		svc.balanceHistoryPollTimeout = time.Second
+		mustNoErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", newCSV(t)))
+		eq(t, 2, polls)
+	})
+
+	t.Run("upload account balance history poll timeout", func(t *testing.T) {
+		transport := testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+			return testutil.JSONResponse(`{"session_key":"sk-3"}`), nil
+		})
+
+		var client *mockClient
+		client = &mockClient{
+			token: "tok",
+			handler: func(req *graphql.Request, result any) error {
+				switch req.OperationName {
+				case "Web_ParseUploadBalanceHistorySession":
+					return client.respond(result, `{"parseBalanceHistory":{"uploadBalanceHistorySession":{"status":"processing"}}}`)
+				case "Web_GetUploadBalanceHistorySession":
+					return client.respond(result, `{"uploadBalanceHistorySession":{"status":"processing"}}`)
+				default:
+					t.Fatalf("unexpected operation %s", req.OperationName)
+					return nil
+				}
+			},
+		}
+
+		svc := NewService(client, WithHTTPTransport(transport))
+		svc.balanceHistoryPollDelay = time.Millisecond
+		svc.balanceHistoryPollTimeout = 5 * time.Millisecond
+		hasErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", newCSV(t)))
 	})
 
 	t.Run("upload account balance history non-200", func(t *testing.T) {
@@ -1151,14 +1341,8 @@ func testServiceHTTPUploadBalanceHistoryPaths(t *testing.T) {
 			return &http.Response{StatusCode: 500, Body: io.NopCloser(strings.NewReader(""))}, nil
 		})
 
-		tmp := filepath.Join(t.TempDir(), "sample.csv")
-		mustNoErr(t, os.WriteFile(tmp, []byte("date,amount\n"), 0o600))
-		file, err := os.Open(tmp)
-		mustNoErr(t, err)
-		defer file.Close()
-
 		svc := NewService(&mockClient{token: "tok"}, WithHTTPTransport(transport))
-		hasErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", file))
+		hasErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", newCSV(t)))
 	})
 
 	t.Run("upload account balance history network error", func(t *testing.T) {
@@ -1166,19 +1350,23 @@ func testServiceHTTPUploadBalanceHistoryPaths(t *testing.T) {
 			return nil, errors.New("network down")
 		})
 
-		tmp := filepath.Join(t.TempDir(), "sample.csv")
-		mustNoErr(t, os.WriteFile(tmp, []byte("date,amount\n"), 0o600))
-		file, err := os.Open(tmp)
-		mustNoErr(t, err)
-		defer file.Close()
+		svc := NewService(&mockClient{token: "tok"}, WithHTTPTransport(transport))
+		hasErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", newCSV(t)))
+	})
+
+	t.Run("upload account balance history missing session key", func(t *testing.T) {
+		transport := testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+			return testutil.JSONResponse(`{"ok":true}`), nil
+		})
 
 		svc := NewService(&mockClient{token: "tok"}, WithHTTPTransport(transport))
-		hasErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", file))
+		err := svc.UploadAccountBalanceHistory(context.Background(), "acc-1", newCSV(t))
+		errContains(t, err, "session_key")
 	})
 
 	t.Run("upload account balance history request error", func(t *testing.T) {
 		svc := NewService(&mockClient{token: "tok"}, WithBalanceHistoryUploadEndpoint("://"))
-		hasErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", strings.NewReader("date,amount\n")))
+		hasErr(t, svc.UploadAccountBalanceHistory(context.Background(), "acc-1", newCSV(t)))
 	})
 
 	t.Run("upload account balance history read error", func(t *testing.T) {
@@ -1196,11 +1384,234 @@ func testServiceHTTPAttachmentAvailabilityPaths(t *testing.T) {
 		isEmpty(t, got)
 	})
 
-	t.Run("upload attachment unavailable", func(t *testing.T) {
+	t.Run("upload attachment", func(t *testing.T) {
+		transport := testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			mustEq(t, "POST", req.Method)
+			mustEq(t, "https://api.cloudinary.com/v1_1/monarch-money/image/upload/", req.URL.String())
+			body, err := io.ReadAll(req.Body)
+			mustNoErr(t, err)
+			hasSubstr(t, string(body), `filename="receipt.pdf"`)
+			hasSubstr(t, string(body), `name="api_key"`)
+			hasSubstr(t, string(body), "key-1")
+			hasSubstr(t, string(body), `name="upload_preset"`)
+			return testutil.JSONResponse(`{"public_id":"pub-1","format":"pdf","bytes":3}`), nil
+		})
+
+		var client *mockClient
+		client = &mockClient{
+			token: "tok",
+			handler: func(req *graphql.Request, result any) error {
+				switch req.OperationName {
+				case "Common_GetTransactionAttachmentUploadInfo":
+					assertReq(t, req, "Common_GetTransactionAttachmentUploadInfo")
+					expectVars(t, req.Variables, map[string]any{"transactionId": "tx-1"})
+					return client.respond(result, `{"getTransactionAttachmentUploadInfo":{"info":{"requestParams":{"timestamp":1700000000,"folder":"monarch","signature":"sig-1","api_key":"key-1","upload_preset":"preset-1"}}}}`)
+				case "Common_AddTransactionAttachment":
+					expectVars(t, req.Variables, map[string]any{"input": map[string]any{
+						"extension":     "pdf",
+						"transactionId": "tx-1",
+						"filename":      "receipt.pdf",
+						"publicId":      "pub-1",
+						"sizeBytes":     3,
+					}})
+					return client.respond(result, `{"addTransactionAttachment":{"errors":null}}`)
+				default:
+					t.Fatalf("unexpected operation %s", req.OperationName)
+					return nil
+				}
+			},
+		}
+
 		tmp := filepath.Join(t.TempDir(), "receipt.pdf")
 		mustNoErr(t, os.WriteFile(tmp, []byte("pdf"), 0o600))
-		err := NewService(&mockClient{token: "tok"}).UploadAttachment(context.Background(), "tx-1", tmp)
-		errContains(t, err, "FEATURE_UNAVAILABLE")
+		mustNoErr(t, NewService(client, WithHTTPTransport(transport)).UploadAttachment(context.Background(), "tx-1", tmp))
+	})
+
+	t.Run("upload attachment upload info error", func(t *testing.T) {
+		client := &mockClient{token: "tok", handler: func(*graphql.Request, any) error { return errors.New("boom") }}
+		tmp := filepath.Join(t.TempDir(), "receipt.pdf")
+		mustNoErr(t, os.WriteFile(tmp, []byte("pdf"), 0o600))
+		hasErr(t, NewService(client).UploadAttachment(context.Background(), "tx-1", tmp))
+	})
+
+	t.Run("upload attachment cloudinary non-200", func(t *testing.T) {
+		transport := testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: 500, Body: io.NopCloser(strings.NewReader(""))}, nil
+		})
+
+		var client *mockClient
+		client = &mockClient{
+			token: "tok",
+			handler: func(req *graphql.Request, result any) error {
+				return client.respond(result, `{"getTransactionAttachmentUploadInfo":{"info":{"requestParams":{"timestamp":1700000000,"folder":"monarch","signature":"sig-1","api_key":"key-1","upload_preset":"preset-1"}}}}`)
+			},
+		}
+		tmp := filepath.Join(t.TempDir(), "receipt.pdf")
+		mustNoErr(t, os.WriteFile(tmp, []byte("pdf"), 0o600))
+		hasErr(t, NewService(client, WithHTTPTransport(transport)).UploadAttachment(context.Background(), "tx-1", tmp))
+	})
+
+	t.Run("upload attachment missing public id", func(t *testing.T) {
+		transport := testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+			return testutil.JSONResponse(`{"bytes":3}`), nil
+		})
+
+		var client *mockClient
+		client = &mockClient{
+			token: "tok",
+			handler: func(req *graphql.Request, result any) error {
+				return client.respond(result, `{"getTransactionAttachmentUploadInfo":{"info":{"requestParams":{"timestamp":1700000000,"folder":"monarch","signature":"sig-1","api_key":"key-1","upload_preset":"preset-1"}}}}`)
+			},
+		}
+		tmp := filepath.Join(t.TempDir(), "receipt.pdf")
+		mustNoErr(t, os.WriteFile(tmp, []byte("pdf"), 0o600))
+		err := NewService(client, WithHTTPTransport(transport)).UploadAttachment(context.Background(), "tx-1", tmp)
+		errContains(t, err, "public_id")
+	})
+
+	t.Run("upload attachment add errors", func(t *testing.T) {
+		transport := testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+			return testutil.JSONResponse(`{"public_id":"pub-1","format":"pdf","bytes":3}`), nil
+		})
+
+		var client *mockClient
+		client = &mockClient{
+			token: "tok",
+			handler: func(req *graphql.Request, result any) error {
+				switch req.OperationName {
+				case "Common_GetTransactionAttachmentUploadInfo":
+					return client.respond(result, `{"getTransactionAttachmentUploadInfo":{"info":{"requestParams":{"timestamp":1700000000,"folder":"monarch","signature":"sig-1","api_key":"key-1","upload_preset":"preset-1"}}}}`)
+				default:
+					return client.respond(result, `{"addTransactionAttachment":{"errors":{"message":"denied"}}}`)
+				}
+			},
+		}
+		tmp := filepath.Join(t.TempDir(), "receipt.pdf")
+		mustNoErr(t, os.WriteFile(tmp, []byte("pdf"), 0o600))
+		err := NewService(client, WithHTTPTransport(transport)).UploadAttachment(context.Background(), "tx-1", tmp)
+		errContains(t, err, "denied")
+	})
+
+	t.Run("upload attachment file read error", func(t *testing.T) {
+		hasErr(t, NewService(&mockClient{token: "tok"}).UploadAttachment(context.Background(), "tx-1", filepath.Join(t.TempDir(), "missing.pdf")))
+	})
+}
+
+func testServiceReceiptUploadPaths(t *testing.T) {
+	t.Helper()
+
+	newReceipt := func(t *testing.T) string {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), "receipt.jpg")
+		mustNoErr(t, os.WriteFile(path, []byte("jpg"), 0o600))
+		return path
+	}
+
+	t.Run("upload receipt to inbox", func(t *testing.T) {
+		transport := testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			mustEq(t, "POST", req.Method)
+			mustEq(t, "https://api.monarch.com/retail-sync/sync-1/files", req.URL.String())
+			mustEq(t, "Token tok", req.Header.Get("Authorization"))
+			mustEq(t, "device-123", req.Header.Get("device-uuid"))
+			body, err := io.ReadAll(req.Body)
+			mustNoErr(t, err)
+			hasSubstr(t, string(body), `name="payloads_count"`)
+			hasSubstr(t, string(body), `"vendor":"user_import"`)
+			hasSubstr(t, string(body), `filename="receipt.jpg"`)
+			return testutil.JSONResponse(`{}`), nil
+		})
+
+		var client *mockClient
+		client = &mockClient{
+			token:      "tok",
+			deviceUUID: "device-123",
+			handler: func(req *graphql.Request, result any) error {
+				switch req.OperationName {
+				case "Common_CreateBulkRetailSync":
+					expectVars(t, req.Variables, map[string]any{"input": map[string]any{"count": 1}})
+					return client.respond(result, `{"createBulkRetailSync":{"retailSyncs":[{"id":"sync-1","vendor":"user_import","status":"created"}],"errors":null}}`)
+				case "Common_StartRetailSync":
+					assertReq(t, req, "Common_StartRetailSync")
+					expectVars(t, req.Variables, map[string]any{"syncId": "sync-1"})
+					return client.respond(result, `{"startRetailSync":{"retailSync":{"id":"sync-1","vendor":"user_import","status":"started","startedAt":"2026-05-01T00:00:00Z"},"errors":null}}`)
+				default:
+					t.Fatalf("unexpected operation %s", req.OperationName)
+					return nil
+				}
+			},
+		}
+
+		syncResult, err := NewService(client, WithHTTPTransport(transport)).UploadReceiptToInbox(context.Background(), newReceipt(t))
+		mustNoErr(t, err)
+		eq(t, "sync-1", syncResult.ID)
+		eq(t, "started", syncResult.Status)
+		eq(t, "2026-05-01T00:00:00Z", syncResult.StartedAt)
+	})
+
+	t.Run("upload receipt create session errors", func(t *testing.T) {
+		var client *mockClient
+		client = &mockClient{
+			token: "tok",
+			handler: func(req *graphql.Request, result any) error {
+				return client.respond(result, `{"createBulkRetailSync":{"retailSyncs":[],"errors":{"message":"no quota"}}}`)
+			},
+		}
+		_, err := NewService(client).UploadReceiptToInbox(context.Background(), newReceipt(t))
+		errContains(t, err, "no quota")
+	})
+
+	t.Run("upload receipt create session empty syncs", func(t *testing.T) {
+		var client *mockClient
+		client = &mockClient{
+			token: "tok",
+			handler: func(req *graphql.Request, result any) error {
+				return client.respond(result, `{"createBulkRetailSync":{"retailSyncs":[],"errors":null}}`)
+			},
+		}
+		_, err := NewService(client).UploadReceiptToInbox(context.Background(), newReceipt(t))
+		errContains(t, err, "failed to create retail sync session")
+	})
+
+	t.Run("upload receipt file non-200", func(t *testing.T) {
+		transport := testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: 413, Body: io.NopCloser(strings.NewReader(""))}, nil
+		})
+
+		var client *mockClient
+		client = &mockClient{
+			token: "tok",
+			handler: func(req *graphql.Request, result any) error {
+				return client.respond(result, `{"createBulkRetailSync":{"retailSyncs":[{"id":"sync-1"}],"errors":null}}`)
+			},
+		}
+		_, err := NewService(client, WithHTTPTransport(transport)).UploadReceiptToInbox(context.Background(), newReceipt(t))
+		errContains(t, err, "status 413")
+	})
+
+	t.Run("upload receipt start errors", func(t *testing.T) {
+		transport := testutil.RoundTripFunc(func(*http.Request) (*http.Response, error) {
+			return testutil.JSONResponse(`{}`), nil
+		})
+
+		var client *mockClient
+		client = &mockClient{
+			token: "tok",
+			handler: func(req *graphql.Request, result any) error {
+				switch req.OperationName {
+				case "Common_CreateBulkRetailSync":
+					return client.respond(result, `{"createBulkRetailSync":{"retailSyncs":[{"id":"sync-1"}],"errors":null}}`)
+				default:
+					return client.respond(result, `{"startRetailSync":{"retailSync":null,"errors":{"message":"expired"}}}`)
+				}
+			},
+		}
+		_, err := NewService(client, WithHTTPTransport(transport)).UploadReceiptToInbox(context.Background(), newReceipt(t))
+		errContains(t, err, "expired")
+	})
+
+	t.Run("upload receipt read error", func(t *testing.T) {
+		_, err := NewService(&mockClient{token: "tok"}).UploadReceiptToInbox(context.Background(), filepath.Join(t.TempDir(), "missing.jpg"))
+		hasErr(t, err)
 	})
 }
 
@@ -1257,6 +1668,13 @@ func isTrue(t *testing.T, cond bool) {
 	t.Helper()
 	if !cond {
 		t.Error("got false, want true")
+	}
+}
+
+func hasSubstr(t *testing.T, s, sub string) {
+	t.Helper()
+	if !strings.Contains(s, sub) {
+		t.Errorf("%q does not contain %q", s, sub)
 	}
 }
 

@@ -2,6 +2,8 @@
 
 `monarchmoney-cli` is designed to cover the full capability surface of the Monarch Money API, matching and exceeding the feature set of the [monarch-mcp-server](https://github.com/robcerda/monarch-mcp-server) project.
 
+For task-oriented walkthroughs with real command output, see the [guides](README.md#documentation): [Configuration](docs/guides/configuration.md), [Ledger backup](docs/guides/ledger-backup.md) (`cache`, `hledger`), [Transactions workflow](docs/guides/transactions-workflow.md) (search, dry-run, confirm, splits, tags, and rules), [Monthly review](docs/guides/monthly-review.md) (`budgets`, `cashflow`, `analyze`), and [Agent automation](docs/guides/agent-automation.md) (safe unattended setups).
+
 ## Core Domain Coverage
 
 | Domain | Capability | CLI Command |
@@ -21,8 +23,11 @@
 | **Recurring** | List and update recurring transactions | `monarch recurring` |
 | **Credit** | Get credit score history | `monarch credit` |
 | **Subscription** | Show Monarch subscription details | `monarch subscription show` |
-| **Attachments** | List, download (upload unavailable — API limitation) | `monarch transactions attachments` |
+| **Attachments** | List, upload, download | `monarch transactions attachments` |
+| **Receipts** | Upload receipts to the inbox for AI categorization and matching | `monarch receipts` |
+| **Auth** | Login, logout, MFA, session status and management | `monarch auth` |
 | **Cache** | Local data cache (sync, search, stats, cleanup) | `monarch cache` |
+| **Ledger Backup** | One-way regenerating plain-text ledger for hledger | `monarch hledger` |
 | **Audit** | Audit log cleanup and management | `monarch audit` |
 | **Doctor** | Verify environment and authentication | `monarch doctor` |
 | **Version** | Print version information | `monarch version` |
@@ -78,12 +83,13 @@
 - `monarch auth status`: Check current authentication status.
 - `monarch auth session path`: Print the session file path; `--json` emits an `auth.session.path` envelope.
 - `monarch doctor`: Verify the selected config, session, and device identity state. Add `--connect` to check the configured API endpoint.
+- `monarch hledger backup [FILE]`: Regenerate a complete hledger journal from the local cache (default `./monarch.journal`). The journal path must differ from `cache_path`. Covers all accounts, full transaction history, closing balance assertions, and investment holdings as opening positions. Pending transactions are excluded; transfers become single two-posting transactions; every entry carries a `monarch-id:` tag. History gaps become deterministic `opening balances` entries through `equity:monarch:opening`, so assertions pass while gaps stay auditable. Run `monarch cache sync --all` first for archive-complete history.
 - `monarch version`: Print version information.
 - `monarch --version` / `monarch -v`: Print the same version output; combine with `--json` for an envelope.
 
 ## Mutation and Remote-Action Commands
 
-All mutations are protected by the [Safety Model](./safety.md).
+All mutations are protected by the [Safety Model](./docs/safety.md).
 
 - `monarch auth login`: Authenticate and persist a trusted-device session, prompting for email verification or authenticator MFA when required.
 - `monarch auth logout`: Remove the local session token.
@@ -92,6 +98,8 @@ All mutations are protected by the [Safety Model](./safety.md).
 - `monarch accounts update <id>`: Update account name or balance.
 - `monarch accounts delete <id>`: Delete an account.
 - `monarch accounts upload-history <id> <file>`: Upload balance history for an account.
+- `monarch transactions attachments upload <id> <file>`: Upload a file as a transaction attachment.
+- `monarch receipts upload <file>`: Upload a receipt to the Monarch receipt inbox; Monarch's AI categorizes and matches it automatically.
 - `monarch transactions create`: Manually add a transaction.
 - `monarch transactions update <id>`: Modify transaction fields (notes, category, amount, date, merchant, hide-from-reports, mark-reviewed).
 - `monarch transactions delete <id>`: Remove a transaction.
@@ -113,9 +121,9 @@ All mutations are protected by the [Safety Model](./safety.md).
 - `monarch categories delete-many --file <path>`: Delete categories listed in a file.
 - `monarch recurring update <id>`: Update a recurring transaction.
 - `monarch tags create`: Create a new tag.
-- `monarch cache sync`: Sync data from Monarch to local cache. Use `--limit N` to set page size (default 1000), `--all` to paginate through all matching transactions.
-- `monarch cache search <query>`: Search transactions in local cache.
-- `monarch cache stats`: Show cache statistics including last sync time.
+- `monarch cache sync`: Sync a full-fidelity archive copy of your data into the local cache: accounts (type group, lifecycle flags, current balance), transactions (tags, splits, pending/review state, category groups, raw merchant names, goal linkage), and investment holdings. A cache created by an older version is rebuilt automatically. Use `--limit N` to set page size (default 1000), `--all` to paginate through all matching transactions. When `backup_path` is set in the config file (or `MONARCH_BACKUP_PATH`), every successful sync also regenerates the hledger journal at that path; the JSON envelope then includes a `data.backup` field, and a regeneration failure surfaces as an envelope warning without failing the sync. A `backup_path` that aliases `cache_path` is rejected before any request.
+- `monarch cache search <query>`: Search transactions in local cache. Matches merchant, notes, category, raw merchant names (Plaid name and data-provider description), and tag names.
+- `monarch cache stats`: Show cache statistics including last sync time and holding count.
 - `monarch cache cleanup --before YYYY-MM-DD`: Delete old transactions from cache.
 - `monarch audit cleanup`: Remove audit log files older than N days (default 30). Use `--older-than N` to customize.
 - `monarch completion [bash|zsh|fish|powershell]`: Generate shell completion scripts.

@@ -12,7 +12,7 @@
     "command": "accounts.list",
     "profile": "default",
     "duration_ms": 125,
-    "schema_version": "2026-08-08",
+    "schema_version": "2026-08-23",
     "request_id": "2d3f07a0-8b1e-4cc0-a995-623985ed0c52",
     "warnings": ["optional deprecation or migration notice"]
   }
@@ -23,7 +23,7 @@
 - `data`: The command-specific results (object or array).
 - `meta`: Diagnostic information about the request.
 - `meta.request_id`: A UUID generated per invocation, identical across every envelope emitted by a single command run.
-- `meta.warnings` (optional): Non-fatal notices about deprecated fields or migration advice. Emitted by commands that interact with legacy API fields (e.g., `transactions list`, `transactions search`).
+- `meta.warnings` (optional): Non-fatal notices about deprecated fields or migration advice. Emitted by commands that interact with legacy API fields and by `cache sync` when automatic ledger-backup regeneration fails; the sync itself still succeeds.
 - `transactions export --format json` emits this envelope even without global `--json`; `--output <path>` writes the envelope to that file instead of stdout.
 - `auth session path --json` returns `{"path":"..."}` in `data` with command metadata `auth.session.path`.
 - `monarch --version --json` and `monarch version --json` emit the same `version` envelope.
@@ -51,6 +51,33 @@
 
 A missing optional config file has `exists: false` and `valid: true`; a config read or parse failure has `valid: false`. `session.device_id_valid` reports whether the persisted trusted-device identifier is absent or valid; a malformed identifier prevents `doctor --connect` from making a misleading probe without it.
 
+## Command-Specific Data
+
+### `hledger backup`
+
+The output path must differ from the configured cache path, including aliases to the same file. A collision returns `INVALID_ARGUMENTS` before the cache is opened.
+
+```json
+{
+  "status": "backup complete",
+  "file": "./monarch.journal",
+  "accounts": 69,
+  "transactions": 3394,
+  "holdings": 3
+}
+```
+
+- `file`: The journal path written (the positional `[FILE]` argument, or the `./monarch.journal` default).
+- `accounts` / `transactions` / `holdings`: Row counts read from the cache and rendered into the journal.
+
+### `cache sync`
+
+With no `backup_path` configured, `data` contains only `status`, `accounts`, `transactions`, and `holdings`. When `backup_path` is set and a successful sync regenerates the ledger backup, `data.backup` holds the journal path. If regeneration fails, `data.backup` is absent and `meta.warnings` explains the failure while the command still exits `0`. A `backup_path` that aliases `cache_path` returns `INVALID_ARGUMENTS` before authentication or network access.
+
+### `cache search`
+
+`data` is an array of cached transaction objects. Field names use the same snake_case convention as API-backed transaction commands, including `plaid_name`, `data_provider_description`, `review_status`, `needs_review`, `goal_id`, `goal_name`, `account_id`, `tags`, and `splits`.
+
 ## Error Envelope
 
 ```json
@@ -66,7 +93,7 @@ A missing optional config file has `exists: false` and `valid: true`; a config r
     "command": "accounts.list",
     "profile": "default",
     "duration_ms": 10,
-    "schema_version": "2026-08-08",
+    "schema_version": "2026-08-23",
     "request_id": "2d3f07a0-8b1e-4cc0-a995-623985ed0c52"
   }
 }
@@ -86,7 +113,7 @@ The process exit code is derived from `error.code` (see `internal/errors`). A su
 
 | Exit code | Error code | Category |
 |---|---|---|
-| 0 | (success) | — |
+| 0 | (success) | - |
 | 1 | `INTERNAL_ERROR` | internal |
 | 2 | `INVALID_ARGUMENTS` | validation |
 | 3 | `AUTH_REQUIRED` | auth |
@@ -102,7 +129,6 @@ The process exit code is derived from `error.code` (see `internal/errors`). A su
 | 5 | `RATE_LIMITED` | api |
 | 6 | `API_ERROR` | api |
 | 6 | `API_SCHEMA_CHANGED` | api |
-| 6 | `FEATURE_UNAVAILABLE` | api |
 | 7 | `VALIDATION_FAILED` | validation |
 | 8 | `RESOURCE_NOT_FOUND` | api |
 | 10 | `CONFIRMATION_REQUIRED` | safety |
@@ -112,7 +138,7 @@ The process exit code is derived from `error.code` (see `internal/errors`). A su
 For `accounts refresh --wait`, the CLI emits a stream of progress events when the `--events` flag is set. `--events` implies compact structured output for progress, final, and error envelopes, so each stdout line is valid JSON even when `--pretty` is also present.
 
 ```json
-{"ok":true,"data":{"is_complete":false,"status":"syncing","accounts":[{"id":"acc_123","has_sync_in_progress":true}]},"meta":{"command":"accounts.refresh.progress","profile":"default","duration_ms":2010,"schema_version":"2026-08-08","request_id":"2d3f07a0-8b1e-4cc0-a995-623985ed0c52"}}
-{"ok":true,"data":{"is_complete":true,"status":"complete","accounts":[{"id":"acc_123","has_sync_in_progress":false}]},"meta":{"command":"accounts.refresh.progress","profile":"default","duration_ms":4012,"schema_version":"2026-08-08","request_id":"2d3f07a0-8b1e-4cc0-a995-623985ed0c52"}}
-{"ok":true,"data":{"status":"refresh complete"},"meta":{"command":"accounts.refresh","profile":"default","duration_ms":6020,"schema_version":"2026-08-08","request_id":"2d3f07a0-8b1e-4cc0-a995-623985ed0c52"}}
+{"ok":true,"data":{"is_complete":false,"status":"syncing","accounts":[{"id":"acc_123","has_sync_in_progress":true}]},"meta":{"command":"accounts.refresh.progress","profile":"default","duration_ms":2010,"schema_version":"2026-08-23","request_id":"2d3f07a0-8b1e-4cc0-a995-623985ed0c52"}}
+{"ok":true,"data":{"is_complete":true,"status":"complete","accounts":[{"id":"acc_123","has_sync_in_progress":false}]},"meta":{"command":"accounts.refresh.progress","profile":"default","duration_ms":4012,"schema_version":"2026-08-23","request_id":"2d3f07a0-8b1e-4cc0-a995-623985ed0c52"}}
+{"ok":true,"data":{"status":"refresh complete"},"meta":{"command":"accounts.refresh","profile":"default","duration_ms":6020,"schema_version":"2026-08-23","request_id":"2d3f07a0-8b1e-4cc0-a995-623985ed0c52"}}
 ```

@@ -20,6 +20,10 @@ type Service struct {
 	HTTPClient                   *http.Client
 	AttachmentHTTPClient         *http.Client
 	BalanceHistoryUploadEndpoint string
+	attachmentUploadHTTPClient   *http.Client
+	receiptUploadHTTPClient      *http.Client
+	balanceHistoryPollDelay      time.Duration
+	balanceHistoryPollTimeout    time.Duration
 }
 
 type ServiceOption func(*Service)
@@ -29,6 +33,8 @@ func WithHTTPClient(client *http.Client) ServiceOption {
 		if client != nil {
 			s.HTTPClient = client
 			s.AttachmentHTTPClient = client
+			s.attachmentUploadHTTPClient = client
+			s.receiptUploadHTTPClient = client
 		}
 	}
 }
@@ -38,6 +44,8 @@ func WithHTTPTransport(transport http.RoundTripper) ServiceOption {
 		if transport != nil {
 			s.HTTPClient = &http.Client{Transport: transport}
 			s.AttachmentHTTPClient = &http.Client{Timeout: 30 * time.Second, Transport: transport}
+			s.attachmentUploadHTTPClient = &http.Client{Timeout: 60 * time.Second, Transport: transport}
+			s.receiptUploadHTTPClient = &http.Client{Timeout: 120 * time.Second, Transport: transport}
 		}
 	}
 }
@@ -56,6 +64,10 @@ func NewService(client graphQLClient, opts ...ServiceOption) *Service {
 		HTTPClient:                   http.DefaultClient,
 		AttachmentHTTPClient:         &http.Client{Timeout: 30 * time.Second},
 		BalanceHistoryUploadEndpoint: "https://api.monarch.com/account-balance-history/upload/",
+		attachmentUploadHTTPClient:   &http.Client{Timeout: 60 * time.Second},
+		receiptUploadHTTPClient:      &http.Client{Timeout: 120 * time.Second},
+		balanceHistoryPollDelay:      10 * time.Second,
+		balanceHistoryPollTimeout:    300 * time.Second,
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -75,6 +87,20 @@ func (s *Service) attachmentHTTPClient() *http.Client {
 		return s.AttachmentHTTPClient
 	}
 	return &http.Client{Timeout: 30 * time.Second}
+}
+
+func (s *Service) attachmentUploadClient() *http.Client {
+	if s.attachmentUploadHTTPClient != nil {
+		return s.attachmentUploadHTTPClient
+	}
+	return &http.Client{Timeout: 60 * time.Second}
+}
+
+func (s *Service) receiptUploadClient() *http.Client {
+	if s.receiptUploadHTTPClient != nil {
+		return s.receiptUploadHTTPClient
+	}
+	return &http.Client{Timeout: 120 * time.Second}
 }
 
 func (s *Service) balanceHistoryUploadEndpoint() string {

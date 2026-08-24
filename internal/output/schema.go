@@ -1,3 +1,3 @@
 package output
 
-const SchemaVersion = "2026-08-08"
+const SchemaVersion = "2026-08-23"

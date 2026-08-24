@@ -112,8 +112,8 @@ func TestAppCommandTreeTopology(t *testing.T) {
 	slices.Sort(topLevel)
 	wantTopLevel := []string{
 		"accounts", "analyze", "audit", "auth", "budgets", "cache", "cashflow",
-		"categories", "completion", "credit", "doctor", "goals", "institutions",
-		"investments", "networth", "overview", "recurring", "rules", "subscription",
+		"categories", "completion", "credit", "doctor", "goals", "hledger", "institutions",
+		"investments", "networth", "overview", "receipts", "recurring", "rules", "subscription",
 		"tags", "transactions", "version",
 	}
 	if !slices.Equal(topLevel, wantTopLevel) {

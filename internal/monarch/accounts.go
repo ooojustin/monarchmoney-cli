@@ -3,10 +3,12 @@ package monarch
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"time"
 
 	"github.com/thedavidweng/monarchmoney-cli/internal/errors"
@@ -30,13 +32,27 @@ var GetAggregateSnapshotsQuery = queries.Get("accounts/aggregate_snapshots.graph
 var UpdateAccountMutation = queries.Get("accounts/update.graphql")
 var DeleteAccountMutation = queries.Get("accounts/delete.graphql")
 var CreateManualAccountMutation = queries.Get("accounts/create_manual.graphql")
+var ParseBalanceHistoryMutation = queries.Get("accounts/parse_balance_history.graphql")
+var GetBalanceHistorySessionQuery = queries.Get("accounts/balance_history_session.graphql")
 
-const dateLayout = "2006-01-02"
+const (
+	dateLayout                       = "2006-01-02"
+	defaultBalanceHistoryPollDelay   = 10 * time.Second
+	defaultBalanceHistoryPollTimeout = 300 * time.Second
+)
+
+func createBalanceHistoryFormFile(w *multipart.Writer, field, filename string) (io.Writer, error) {
+	header := make(textproto.MIMEHeader)
+	header.Set("Content-Disposition", `form-data; name="`+escapeFormQuotes(field)+`"; filename="`+escapeFormQuotes(filename)+`"`)
+	header.Set("Content-Type", "text/csv")
+	return w.CreatePart(header)
+}
 
 type Account struct {
 	ID                              string  `json:"id"`
 	DisplayName                     string  `json:"display_name"`
 	AccountType                     string  `json:"account_type"`
+	TypeGroup                       string  `json:"account_type_group"`
 	AccountSubtype                  string  `json:"account_subtype"`
 	DisplayBalance                  float64 `json:"display_balance"`
 	CurrentBalance                  float64 `json:"current_balance"`
@@ -58,7 +74,6 @@ type Account struct {
 	DataProviderAccountID           string  `json:"data_provider_account_id"`
 	IsManual                        bool    `json:"is_manual"`
 	TransactionsCount               int     `json:"transactions_count"`
-	HoldingsCount                   int     `json:"holdings_count"`
 	ManualInvestmentsTrackingMethod string  `json:"manual_investments_tracking_method"`
 	Order                           int     `json:"order"`
 	Icon                            string  `json:"icon"`
@@ -154,6 +169,64 @@ func (s *Service) GetAccountHoldings(ctx context.Context, accountID string) ([]H
 	return holdings, nil
 }
 
+type SecurityHolding struct {
+	ID        string  `json:"id"`
+	Ticker    string  `json:"ticker"`
+	Name      string  `json:"name"`
+	Quantity  float64 `json:"quantity"`
+	Basis     float64 `json:"basis"`
+	Value     float64 `json:"value"`
+	AccountID string  `json:"account_id"`
+}
+
+func (s *Service) ListHoldings(ctx context.Context) ([]SecurityHolding, error) {
+	var resp struct {
+		Portfolio struct {
+			AggregateHoldings struct {
+				Edges []struct {
+					Node struct {
+						Holdings []struct {
+							ID        string  `json:"id"`
+							Quantity  float64 `json:"quantity"`
+							Name      string  `json:"name"`
+							Ticker    string  `json:"ticker"`
+							Value     float64 `json:"value"`
+							CostBasis float64 `json:"costBasis"`
+							Account   struct {
+								ID string `json:"id"`
+							} `json:"account"`
+						} `json:"holdings"`
+					} `json:"node"`
+				} `json:"edges"`
+			} `json:"aggregateHoldings"`
+		} `json:"portfolio"`
+	}
+
+	err := s.Client.Do(ctx, &graphql.Request{
+		OperationName: "Web_GetHoldings",
+		Query:         GetAccountHoldingsQuery,
+	}, &resp)
+	if err != nil {
+		return nil, err
+	}
+
+	var holdings []SecurityHolding
+	for _, edge := range resp.Portfolio.AggregateHoldings.Edges {
+		for _, h := range edge.Node.Holdings {
+			holdings = append(holdings, SecurityHolding{
+				ID:        h.ID,
+				Ticker:    h.Ticker,
+				Name:      h.Name,
+				Quantity:  h.Quantity,
+				Basis:     money.Round2(h.CostBasis),
+				Value:     money.Round2(h.Value),
+				AccountID: h.Account.ID,
+			})
+		}
+	}
+	return holdings, nil
+}
+
 func (s *Service) GetAccountHistory(ctx context.Context, accountID, startDate, endDate string) ([]HistoryRecord, error) {
 	var resp struct {
 		Account struct {
@@ -239,12 +312,10 @@ func (s *Service) GetAccount(ctx context.Context, id string) (*Account, error) {
 			DataProviderAccountID           string  `json:"dataProviderAccountId"`
 			IsManual                        bool    `json:"isManual"`
 			TransactionsCount               int     `json:"transactionsCount"`
-			HoldingsCount                   int     `json:"holdingsCount"`
 			ManualInvestmentsTrackingMethod string  `json:"manualInvestmentsTrackingMethod"`
 			Order                           int     `json:"order"`
 			Icon                            string  `json:"icon"`
 			LogoURL                         string  `json:"logoUrl"`
-			IsClosed                        bool    `json:"isClosed"`
 		} `json:"account"`
 	}
 
@@ -287,12 +358,11 @@ func (s *Service) GetAccount(ctx context.Context, id string) (*Account, error) {
 		DataProviderAccountID:           resp.Account.DataProviderAccountID,
 		IsManual:                        resp.Account.IsManual,
 		TransactionsCount:               resp.Account.TransactionsCount,
-		HoldingsCount:                   resp.Account.HoldingsCount,
 		ManualInvestmentsTrackingMethod: resp.Account.ManualInvestmentsTrackingMethod,
 		Order:                           resp.Account.Order,
 		Icon:                            resp.Account.Icon,
 		LogoURL:                         resp.Account.LogoURL,
-		IsClosed:                        resp.Account.IsClosed,
+		IsClosed:                        resp.Account.DeactivatedAt != "",
 	}, nil
 }
 
@@ -521,6 +591,7 @@ func (s *Service) ListAccounts(ctx context.Context) ([]Account, error) {
 			AccountType struct {
 				Name    string `json:"name"`
 				Display string `json:"display"`
+				Group   string `json:"group"`
 			} `json:"type"`
 			Subtype struct {
 				Name    string `json:"name"`
@@ -546,7 +617,6 @@ func (s *Service) ListAccounts(ctx context.Context) ([]Account, error) {
 			DataProviderAccountID           string  `json:"dataProviderAccountId"`
 			IsManual                        bool    `json:"isManual"`
 			TransactionsCount               int     `json:"transactionsCount"`
-			HoldingsCount                   int     `json:"holdingsCount"`
 			ManualInvestmentsTrackingMethod string  `json:"manualInvestmentsTrackingMethod"`
 			Order                           int     `json:"order"`
 			Icon                            string  `json:"icon"`
@@ -570,6 +640,7 @@ func (s *Service) ListAccounts(ctx context.Context) ([]Account, error) {
 			ID:                              a.ID,
 			DisplayName:                     a.DisplayName,
 			AccountType:                     a.AccountType.Name,
+			TypeGroup:                       a.AccountType.Group,
 			AccountSubtype:                  a.Subtype.Name,
 			DisplayBalance:                  money.Round2(a.DisplayBalance),
 			CurrentBalance:                  money.Round2(a.CurrentBalance),
@@ -590,8 +661,8 @@ func (s *Service) ListAccounts(ctx context.Context) ([]Account, error) {
 			DataProvider:                    a.DataProvider,
 			DataProviderAccountID:           a.DataProviderAccountID,
 			IsManual:                        a.IsManual,
+			IsClosed:                        a.DeactivatedAt != "",
 			TransactionsCount:               a.TransactionsCount,
-			HoldingsCount:                   a.HoldingsCount,
 			ManualInvestmentsTrackingMethod: a.ManualInvestmentsTrackingMethod,
 			Order:                           a.Order,
 			Icon:                            a.Icon,
@@ -704,27 +775,101 @@ func (s *Service) DeleteAccount(ctx context.Context, id string) error {
 }
 
 func (s *Service) UploadAccountBalanceHistory(ctx context.Context, id string, r io.Reader) error {
-	// Monarch exposes balance history upload as a multipart REST endpoint, not GraphQL.
-	// Keep the same web headers and token shape as the GraphQL client.
-	url := s.balanceHistoryUploadEndpoint()
+	csv, err := io.ReadAll(r)
+	if err != nil {
+		return errors.New(errors.InternalError, "failed to read balance history CSV", errors.CatInternal, false, err)
+	}
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile("file", "history.csv")
+	part, err := createBalanceHistoryFormFile(writer, "files", "upload.csv")
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(part, r); err != nil {
+	if _, err := part.Write(csv); err != nil {
+		return errors.New(errors.InternalError, "failed to write balance history CSV", errors.CatInternal, false, err)
+	}
+	mapping, err := json.Marshal(map[string]string{"upload.csv": id})
+	if err != nil {
+		return errors.New(errors.InternalError, "failed to encode account mapping", errors.CatInternal, false, err)
+	}
+	if err := writer.WriteField("account_files_mapping", string(mapping)); err != nil {
+		return errors.New(errors.InternalError, "failed to write account mapping", errors.CatInternal, false, err)
+	}
+	if err := writer.Close(); err != nil {
+		return errors.New(errors.InternalError, "failed to finalize upload body", errors.CatInternal, false, err)
+	}
+	sessionKey, err := s.postBalanceHistoryCSV(ctx, body, writer.FormDataContentType())
+	if err != nil {
 		return err
 	}
-	writer.WriteField("account_id", id) //nolint:errcheck // best-effort write
-	writer.Close()
 
-	req, err := http.NewRequestWithContext(ctx, "POST", url, body)
+	var parseResp struct {
+		ParseBalanceHistory struct {
+			UploadBalanceHistorySession struct {
+				Status string `json:"status"`
+			} `json:"uploadBalanceHistorySession"`
+		} `json:"parseBalanceHistory"`
+	}
+	err = s.Client.DoMutation(ctx, &graphql.Request{
+		OperationName: "Web_ParseUploadBalanceHistorySession",
+		Query:         ParseBalanceHistoryMutation,
+		Variables:     map[string]any{"input": map[string]any{"sessionKey": sessionKey}},
+	}, &parseResp)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	if parseResp.ParseBalanceHistory.UploadBalanceHistorySession.Status == "completed" {
+		return nil
+	}
+
+	delay := s.balanceHistoryPollDelay
+	if delay <= 0 {
+		delay = defaultBalanceHistoryPollDelay
+	}
+	timeout := s.balanceHistoryPollTimeout
+	if timeout <= 0 {
+		timeout = defaultBalanceHistoryPollTimeout
+	}
+	ticker := time.NewTicker(delay)
+	defer ticker.Stop()
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return errors.New(errors.NetworkTimeout, "request canceled while waiting for balance history parse", errors.CatNetwork, false, ctx.Err())
+		case <-deadline.C:
+			return errors.New(errors.APIError, "balance history upload session did not complete in time", errors.CatAPI, true, nil)
+		case <-ticker.C:
+		}
+
+		var statusResp struct {
+			UploadBalanceHistorySession struct {
+				Status string `json:"status"`
+			} `json:"uploadBalanceHistorySession"`
+		}
+		err := s.Client.Do(ctx, &graphql.Request{
+			OperationName: "Web_GetUploadBalanceHistorySession",
+			Query:         GetBalanceHistorySessionQuery,
+			Variables:     map[string]any{"sessionKey": sessionKey},
+		}, &statusResp)
+		if err != nil {
+			return err
+		}
+		if statusResp.UploadBalanceHistorySession.Status == "completed" {
+			return nil
+		}
+	}
+}
+
+func (s *Service) postBalanceHistoryCSV(ctx context.Context, body *bytes.Buffer, contentType string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, "POST", s.balanceHistoryUploadEndpoint(), body)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Client-Platform", "web")
 	req.Header.Set("User-Agent", graphql.UserAgent())
 	if token := s.Client.TokenValue(); token != "" {
@@ -736,13 +881,19 @@ func (s *Service) UploadAccountBalanceHistory(ctx context.Context, id string, r 
 
 	resp, err := s.httpClient().Do(req)
 	if err != nil {
-		return err
+		return "", errors.New(errors.NetworkUnreachable, "failed to reach balance history upload endpoint", errors.CatNetwork, true, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return errors.New(errors.APIError, fmt.Sprintf("upload failed with status %d", resp.StatusCode), errors.CatAPI, false, nil)
+		return "", errors.New(errors.APIError, fmt.Sprintf("upload failed with status %d", resp.StatusCode), errors.CatAPI, false, nil)
 	}
 
-	return nil
+	var payload struct {
+		SessionKey string `json:"session_key"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil || payload.SessionKey == "" {
+		return "", errors.New(errors.APISchemaChanged, "balance history upload response missing session_key", errors.CatAPI, false, err)
+	}
+	return payload.SessionKey, nil
 }

@@ -1,0 +1,10 @@
+mutation Web_ParseUploadBalanceHistorySession($input: ParseBalanceHistoryInput!) {
+  parseBalanceHistory(input: $input) {
+    uploadBalanceHistorySession {
+      sessionKey
+      status
+      __typename
+    }
+    __typename
+  }
+}

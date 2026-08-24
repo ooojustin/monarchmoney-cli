@@ -338,6 +338,51 @@ func TestTransactionsAttachmentsListJSON(t *testing.T) {
 	}
 }
 
+func TestTransactionsAttachmentsUploadJSON(t *testing.T) {
+	tmpFile := filepath.Join(t.TempDir(), "receipt.pdf")
+	if err := os.WriteFile(tmpFile, []byte("pdf"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	h := newJSONCommandHarness(t, testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Host == "api.cloudinary.com" {
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				t.Fatalf("ReadAll() error = %v", err)
+			}
+			if !strings.Contains(string(body), `filename="receipt.pdf"`) || !strings.Contains(string(body), `name="upload_preset"`) {
+				t.Fatalf("cloudinary body missing fields: %s", body)
+			}
+			return testutil.JSONResponse(`{"public_id":"pub-1","format":"pdf","bytes":3}`), nil
+		}
+		var gqlReq struct {
+			OperationName string `json:"operationName"`
+		}
+		if err := json.NewDecoder(req.Body).Decode(&gqlReq); err != nil {
+			t.Fatalf("Decode request error = %v", err)
+		}
+		switch gqlReq.OperationName {
+		case "Common_GetTransactionAttachmentUploadInfo":
+			return testutil.JSONResponse(`{"data":{"getTransactionAttachmentUploadInfo":{"info":{"requestParams":{"timestamp":1700000000,"folder":"monarch","signature":"sig-1","api_key":"key-1","upload_preset":"preset-1"}}}}}`), nil
+		case "Common_AddTransactionAttachment":
+			return testutil.JSONResponse(`{"data":{"addTransactionAttachment":{"errors":null}}}`), nil
+		default:
+			t.Fatalf("operation = %q, want attachment upload ops", gqlReq.OperationName)
+			return nil, nil
+		}
+	}))
+
+	if err := h.execute("--json", "--confirm", "transactions", "attachments", "upload", "tx-1", tmpFile); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if h.ExitCode != 0 {
+		t.Fatalf("exitCode = %d; output=%q", h.ExitCode, h.Stdout.String())
+	}
+	if !strings.Contains(h.Stdout.String(), `"command":"transactions.attachments.upload"`) || !strings.Contains(h.Stdout.String(), `"status":"uploaded"`) {
+		t.Fatalf("output = %q, want upload status", h.Stdout.String())
+	}
+}
+
 func TestTransactionsSearchJSON(t *testing.T) {
 	h := newJSONCommandHarness(t, testutil.RoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		var gqlReq struct {
