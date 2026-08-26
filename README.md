@@ -126,6 +126,7 @@ Reference:
 - [Safety Model](docs/safety.md) - how we protect your financial data
 - [JSON Schema](JSON_SCHEMA.md) - stable output contract details
 - [Agent Guide](docs/agent-guide.md) - guide for connecting with AI agents
+- [Personal fork maintenance](docs/fork-maintenance.md) - branch and upstream-sync policy
 - [Contributing](CONTRIBUTING.md) - development setup and contribution guidelines
 
 ## Related
