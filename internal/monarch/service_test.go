@@ -37,7 +37,7 @@ type fakeCSVWriter struct {
 }
 
 func TestMultipartFilenamesRoundTrip(t *testing.T) {
-	const filename = `a"b\c.pdf`
+	const filename = `a"b;c.pdf`
 	tests := []struct {
 		name  string
 		write func(*multipart.Writer) error

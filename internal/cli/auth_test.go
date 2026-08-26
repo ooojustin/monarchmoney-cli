@@ -418,7 +418,17 @@ func TestAppAuthStatusErrors(t *testing.T) {
 		if err := app.Execute(); err != nil {
 			t.Fatalf("Execute() error = %v", err)
 		}
-		if *exitCode != 3 || !strings.Contains(out.String(), string(clierrors.AuthSessionExpired)) || !strings.Contains(out.String(), `"retryable":false`) || !strings.Contains(out.String(), "a@example.com") || !strings.Contains(out.String(), sessionPath) {
+		var env struct {
+			Error struct {
+				Code      clierrors.Code `json:"code"`
+				Message   string         `json:"message"`
+				Retryable bool           `json:"retryable"`
+			} `json:"error"`
+		}
+		if err := json.Unmarshal(out.Bytes(), &env); err != nil {
+			t.Fatalf("Unmarshal() error = %v; output=%q", err, out.String())
+		}
+		if *exitCode != 3 || env.Error.Code != clierrors.AuthSessionExpired || env.Error.Retryable || !strings.Contains(env.Error.Message, "a@example.com") || !strings.Contains(env.Error.Message, sessionPath) {
 			t.Fatalf("exitCode=%d output=%q", *exitCode, out.String())
 		}
 	})

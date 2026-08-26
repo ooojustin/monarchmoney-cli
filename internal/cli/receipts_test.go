@@ -67,10 +67,22 @@ func TestReceiptsUploadDryRunDoesNotReadFileOrCallNetwork(t *testing.T) {
 	if err := h.execute("--json", "--dry-run", "receipts", "upload", missing); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	if h.ExitCode != 0 || !strings.Contains(h.Stdout.String(), `"operation":"receipts.upload"`) || !strings.Contains(h.Stdout.String(), `"file":"`+missing+`"`) {
+	var env struct {
+		Data struct {
+			PlannedMutations []struct {
+				Operation  string            `json:"operation"`
+				ResourceID string            `json:"resource_id"`
+				After      map[string]string `json:"after"`
+			} `json:"planned_mutations"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(h.Stdout.Bytes(), &env); err != nil {
+		t.Fatalf("Unmarshal() error = %v; output=%q", err, h.Stdout.String())
+	}
+	if h.ExitCode != 0 || len(env.Data.PlannedMutations) != 1 || env.Data.PlannedMutations[0].Operation != "receipts.upload" || env.Data.PlannedMutations[0].After["file"] != missing {
 		t.Fatalf("exitCode = %d; output=%q, want mutation plan", h.ExitCode, h.Stdout.String())
 	}
-	if strings.Contains(h.Stdout.String(), `"resource_id"`) {
+	if env.Data.PlannedMutations[0].ResourceID != "" {
 		t.Fatalf("output = %q, local file path must not be persisted as a resource ID", h.Stdout.String())
 	}
 }
