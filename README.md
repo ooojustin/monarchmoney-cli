@@ -4,13 +4,29 @@
 
 <h1 align="center">monarchmoney-cli</h1>
 
+## Personal fork
+
+This is Justin Garofolo's personal `jstn` branch of
+[`thedavidweng/monarchmoney-cli`](https://github.com/thedavidweng/monarchmoney-cli).
+It preserves the upstream command surface while adding stricter agent-facing
+contracts and financial correctness checks, including precise not-found errors,
+input validation, account-scoped history, deterministic monetary output, and
+safer retry behavior.
+
+`main` remains an exact upstream mirror. Upstream changes merge into `jstn`
+through a private sync skill that runs local and remote CI before updating the
+Nix source pin. This fork does not publish releases; Justin's installation and
+credentials are managed by private Nix and SOPS configuration. The public
+installation instructions below intentionally install the upstream release.
+See [Personal fork maintenance](docs/fork-maintenance.md) for the branch policy.
+
 <p align="center">
   Local, agent-friendly command-line tool for <a href="https://monarch.com/referral/w4n85kvije">Monarch Money</a>.
 </p>
 
 <p align="center">
-  <a href="https://github.com/thedavidweng/monarchmoney-cli/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/thedavidweng/monarchmoney-cli/ci.yml?branch=main&style=flat-square&label=ci" alt="CI"></a>
-  <a href="https://github.com/thedavidweng/monarchmoney-cli/releases"><img src="https://img.shields.io/github/v/release/thedavidweng/monarchmoney-cli?style=flat-square" alt="Release"></a>
+  <a href="https://github.com/ooojustin/monarchmoney-cli/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/ooojustin/monarchmoney-cli/ci.yml?branch=jstn&style=flat-square&label=jstn%20ci" alt="jstn CI"></a>
+  <a href="https://github.com/thedavidweng/monarchmoney-cli/releases"><img src="https://img.shields.io/github/v/release/thedavidweng/monarchmoney-cli?style=flat-square&label=upstream%20release" alt="Upstream release"></a>
   <a href="https://github.com/thedavidweng/monarchmoney-cli/blob/main/LICENSE"><img src="https://img.shields.io/github/license/thedavidweng/monarchmoney-cli?style=flat-square" alt="License"></a>
   <img src="https://img.shields.io/badge/go-%3E%3D1.26-blue?style=flat-square" alt="Go">
 </p>
